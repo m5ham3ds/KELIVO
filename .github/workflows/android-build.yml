@@ -1,0 +1,843 @@
+name: Android ARM64 Build & Essential Arabic Checks
+
+# Run automatically whenever project files are pushed or a PR is opened/updated.
+# Manual execution remains available for debug/release builds on a selected ref.
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: Android APK build mode
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - debug
+      run_android_skill_e2e:
+        description: Run the optional Phase 13P Skill lifecycle test on an Android emulator (downloads the PRoot runtime on a clean emulator)
+        required: false
+        default: false
+        type: boolean
+      phase_test_scope:
+        description: Use skill_doctor_recovery only for an isolated PHASE13O fix when PHASE13E–13N passed on the parent commit; otherwise use full.
+        required: true
+        default: full
+        type: choice
+        options:
+          - full
+          - skill_doctor_recovery
+
+permissions:
+  contents: read
+
+concurrency:
+  # A push to a branch with an open PR and the corresponding PR event share
+  # one group, avoiding two expensive Android builds for the same head commit.
+  group: kelivo-android-ci-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.6'
+  JAVA_VERSION: '17'
+  ANDROID_NDK_VERSION: '28.2.13676358'
+  CMAKE_VERSION: '3.22.1'
+  BUILD_MODE: ${{ inputs.build_mode || 'release' }}
+  PHASE_TEST_SCOPE: ${{ inputs.phase_test_scope || 'full' }}
+
+jobs:
+  build-android-arm64:
+    name: Audit, Arabic Checks & Build Android ARM64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout source
+        id: checkout
+        uses: actions/checkout@v7
+
+      - name: Initialize build report
+        id: initialize_report
+        shell: bash
+        env:
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+        run: |
+          set -euo pipefail
+          REPORT_DIR="$GITHUB_WORKSPACE/build-report"
+          mkdir -p "$REPORT_DIR/logs"
+          echo "KELIVO_CI_REPORT_DIR=$REPORT_DIR" >> "$GITHUB_ENV"
+          date -u +'%Y-%m-%d %H:%M:%S UTC' > "$REPORT_DIR/started_at_utc.txt"
+          {
+            echo "Repository: ${GITHUB_REPOSITORY:-unknown}"
+            echo "Ref: ${GITHUB_REF:-unknown}"
+            echo "Commit: ${GITHUB_SHA:-unknown}"
+            echo "Event: ${GITHUB_EVENT_NAME:-unknown}"
+            echo "Actor: ${GITHUB_ACTOR:-unknown}"
+            echo "Build mode: ${BUILD_MODE:-release}"
+            echo "Phase 13 test scope: ${PHASE_TEST_SCOPE}; skill_doctor_recovery skips only PHASE13E–13N for an isolated PHASE13O fix whose parent commit already passed those suites; PHASE13O and PHASE13P diagnostics remain enabled; Android Skill E2E is opt-in; historical PHASE13A–13D tests are not repeated"
+          } > "$REPORT_DIR/run-metadata.txt"
+          bash .github/scripts/record_ci_action.sh checkout "Checkout source" "$CHECKOUT_OUTCOME"
+          bash .github/scripts/record_ci_action.sh initialize_report "Initialize build report" "success" "Report metadata and per-step log directory created."
+          printf 'Report initialized at %s\n' "$REPORT_DIR"
+
+      - name: Audit Android-only source tree
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh android_only_audit "Android-only source audit" -- \
+            bash .github/scripts/audit_android_only.sh
+
+      - name: Set up Flutter
+        id: setup_flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Record Flutter setup outcome
+        if: always()
+        env:
+          ACTION_OUTCOME: ${{ steps.setup_flutter.outcome }}
+        run: bash .github/scripts/record_ci_action.sh setup_flutter "Set up Flutter ${FLUTTER_VERSION}" "$ACTION_OUTCOME"
+
+      - name: Record toolchain versions
+        id: toolchain_versions
+        if: success()
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh toolchain_versions "Flutter, Dart and Android SDK versions" -- \
+            bash -euo pipefail -c '
+              flutter --version
+              dart --version
+              echo "ANDROID_HOME=${ANDROID_HOME:-not-set}"
+              echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-not-set}"
+              if command -v sdkmanager >/dev/null 2>&1; then sdkmanager --version; fi
+            '
+
+      - name: Resolve Flutter application dependencies
+        id: flutter_pub_get
+        if: success()
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh flutter_pub_get "Resolve Flutter application dependencies" -- \
+            bash .github/scripts/resolve_flutter_dependencies.sh
+
+      # Catch syntax/format regressions in the capability registry and Skill
+      # import UI before earlier focused lanes load the shared import widget.
+      - name: Syntax-check Phase 13K capability registry, Skill import UI and focused tests
+        id: phase13k_syntax_preflight
+        if: ${{ success() && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13k_syntax_preflight "Syntax-check Phase 13K capability registry, Skill import UI and focused tests" -- \
+            dart format --output=none \
+              lib/core/services/skills/skill_capability_registry.dart \
+              lib/features/workspace/widgets/skills/skill_import.dart \
+              test/core/services/skills/skill_readiness_phase13k_test.dart \
+              test/features/workspace/skills/skill_catalog_arabic_localization_phase13k_test.dart
+
+      # `flutter test` targets the Linux host. Flutter executes package build
+      # hooks from the resolved application dependency graph even when a
+      # selected test does not import the package directly. The clipboard
+      # dependency therefore compiles super_native_extensions for Linux and
+      # requires GTK/GLib development metadata for the focused Phase 13E test lane.
+      - name: Prepare Linux host dependencies for Flutter native-asset hooks
+        id: linux_test_native_deps
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh linux_test_native_deps "Prepare Linux GTK/GLib headers required by Flutter test hooks" -- \
+            bash .github/scripts/prepare_linux_native_test_deps.sh
+
+      - name: Preflight focused Phase 13E regressions
+        id: phase13e_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13e_preflight "Preflight focused Phase 13E regressions" -- \
+            bash .github/scripts/preflight_phase13e_tests.sh
+
+      - name: Run focused Phase 13E regression tests
+        id: phase13e_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13e_tests "Phase 13E environment, update, approval and package-ledger tests" -- \
+            bash .github/scripts/run_phase13e_tests.sh
+
+      - name: Preflight focused Phase 13F Skill and attachment regressions
+        id: phase13f_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13f_preflight "Preflight Phase 13F Skill composition and attachment library" -- \
+            bash .github/scripts/preflight_phase13f_tests.sh
+
+      - name: Run focused Phase 13F regressions
+        id: phase13f_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13f_tests "Phase 13F Skill composition, multi-file picker and shared upload reuse tests" -- \
+            bash .github/scripts/run_phase13f_tests.sh
+
+      - name: Preflight focused Phase 13G background and notification regressions
+        id: phase13g_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13g_preflight "Preflight Phase 13G background execution, approvals and progress notifications" -- \
+            bash .github/scripts/preflight_phase13g_tests.sh
+
+      - name: Run focused Phase 13G background and notification regressions
+        id: phase13g_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13g_tests "Phase 13G background task, approval action, notification progress and settings tests" -- \
+            bash .github/scripts/run_phase13g_tests.sh
+
+      - name: Validate Phase 13H CI wiring
+        id: phase13h_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13h_ci_self_test "Validate Phase 13H ZIP attachment CI wiring" -- \
+            bash .github/scripts/test_phase13h_ci.sh
+
+      - name: Preflight focused Phase 13H ZIP attachment regressions
+        id: phase13h_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13h_preflight "Preflight Phase 13H ZIP archive-aware attachment handling" -- \
+            bash .github/scripts/preflight_phase13h_tests.sh
+
+      - name: Run focused Phase 13H ZIP attachment regressions
+        id: phase13h_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13h_tests "Phase 13H ZIP classification, chat sync, manifest routing and Skill import tests" -- \
+            bash .github/scripts/run_phase13h_tests.sh
+
+      - name: Validate Phase 13I background lifecycle CI wiring
+        id: phase13i_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13i_ci_self_test "Validate Phase 13I background runtime recovery CI wiring" -- \
+            bash .github/scripts/test_phase13i_ci.sh
+
+      - name: Preflight focused Phase 13I background lifecycle regressions
+        id: phase13i_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13i_preflight "Preflight Phase 13I sticky foreground service and settings migration" -- \
+            bash .github/scripts/preflight_phase13i_tests.sh
+
+      - name: Run focused Phase 13I background lifecycle regressions
+        id: phase13i_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13i_tests "Phase 13I background execution settings and task lifecycle tests" -- \
+            bash .github/scripts/run_phase13i_tests.sh
+
+      - name: Validate Phase 13J Skill requirements CI wiring
+        id: phase13j_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13j_ci_self_test "Validate Phase 13J information-first Skill requirements CI wiring" -- \
+            bash .github/scripts/test_phase13j_ci.sh
+
+      - name: Preflight focused Phase 13J Skill requirements regressions
+        id: phase13j_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13j_preflight "Preflight Phase 13J Skill requirements inventory and compatibility report" -- \
+            bash .github/scripts/preflight_phase13j_tests.sh
+
+      - name: Run focused Phase 13J Skill requirements regressions
+        id: phase13j_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13j_tests "Phase 13J requirement discovery, report persistence, composition and assistant policy tests" -- \
+            bash .github/scripts/run_phase13j_tests.sh
+
+      - name: Validate Phase 13K Skill readiness and capability registry CI wiring
+        id: phase13k_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13k_ci_self_test "Validate Phase 13K Skill readiness and capability registry CI wiring" -- \
+            bash .github/scripts/test_phase13k_ci.sh
+
+      - name: Preflight Phase 13K staged Skill readiness and capability registry
+        id: phase13k_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13k_preflight "Preflight Phase 13K Skill readiness and app-wide capability registry" -- \
+            bash .github/scripts/preflight_phase13k_tests.sh
+
+      - name: Run focused Phase 13K Skill readiness regressions
+        id: phase13k_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13k_tests "Phase 13K readiness stages, capability registry, persistence and assistant policy tests" -- \
+            bash .github/scripts/run_phase13k_tests.sh
+
+      - name: Syntax-check Phase 13L requirement evidence and Skill readiness
+        id: phase13l_syntax_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13l_syntax_preflight "Syntax-check Phase 13L requirement evidence and Skill readiness" -- \
+            dart format --output=none \
+              lib/core/services/skills/skill_requirements.dart \
+              lib/core/services/skills/skill_readiness.dart \
+              lib/core/services/skills/skill_import_manifest.dart \
+              lib/core/services/skills/skills_prompt.dart \
+              lib/core/services/skills/skill_composition_service.dart \
+              lib/features/workspace/widgets/skills/skill_detail.dart \
+              test/core/services/skills/skill_requirements_test.dart \
+              test/core/services/skills/skill_import_manifest_test.dart \
+              test/core/services/skills/skill_readiness_phase13k_test.dart \
+              test/core/services/skills/skill_readiness_phase13l_test.dart
+
+      - name: Validate Phase 13L focused CI wiring
+        id: phase13l_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13l_ci_self_test "Validate Phase 13L focused CI wiring" -- \
+            bash .github/scripts/test_phase13l_ci.sh
+
+      - name: Preflight Phase 13L Runtime Profile evidence and readiness
+        id: phase13l_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13l_preflight "Preflight Phase 13L Runtime Profile evidence and Skill readiness" -- \
+            bash .github/scripts/preflight_phase13l_tests.sh
+
+      - name: Run focused Phase 13L requirement and readiness tests
+        id: phase13l_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13l_tests "Phase 13L Skill requirement evidence, safe import classification and readiness levels" -- \
+            bash .github/scripts/run_phase13l_tests.sh
+
+      - name: Syntax-check Phase 13M dependency isolation and Runtime Profile snapshot changes
+        id: phase13m_syntax_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13m_syntax_preflight "Syntax-check Phase 13M dependency isolation and Runtime Profile snapshot changes" -- \
+            dart format --output=none \
+              lib/core/services/runtime_profiles/runtime_profile_models.dart \
+              lib/core/services/runtime_profiles/runtime_profile_service.dart \
+              lib/core/services/runtime_profiles/runtime_profile_tools.dart \
+              lib/core/services/packages/package_manager_adapters.dart \
+              lib/core/services/packages/package_manager_service.dart \
+              lib/core/services/packages/package_manager_tools.dart \
+              lib/core/services/packages/dependency_resolver.dart \
+              lib/features/home/services/tool_handler_service.dart \
+              test/core/services/runtime_profiles/runtime_profile_models_test.dart \
+              test/core/services/runtime_profiles/runtime_profile_service_test.dart \
+              test/core/services/runtime_profiles/runtime_profile_tools_test.dart \
+              test/core/services/packages/dependency_resolver_test.dart \
+              test/core/services/packages/package_manager_adapters_test.dart \
+              test/core/services/packages/package_manager_service_test.dart
+
+      - name: Validate Phase 13M focused CI wiring
+        id: phase13m_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13m_ci_self_test "Validate Phase 13M focused CI wiring" -- \
+            bash .github/scripts/test_phase13m_ci.sh
+
+      - name: Preflight Phase 13M dependency resolver and isolated environment support
+        id: phase13m_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13m_preflight "Preflight Phase 13M dependency resolver, snapshots and generic Skill architecture" -- \
+            bash .github/scripts/preflight_phase13m_tests.sh
+
+      - name: Run focused Phase 13M dependency and Runtime Profile tests
+        id: phase13m_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13m_tests "Phase 13M dependency isolation, resolver, snapshot and package adapter tests" -- \
+            bash .github/scripts/run_phase13m_tests.sh
+
+      - name: Syntax-check Phase 13N universal Skill permission and execution changes
+        id: phase13n_syntax_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13n_syntax_preflight "Syntax-check Phase 13N universal Skill permission and execution changes" -- \
+            dart format --output=none \
+              lib/core/services/skills/skill_execution_permissions.dart \
+              lib/core/services/skills/skill_execution_security.dart \
+              lib/core/services/skills/skill_executor.dart \
+              lib/core/services/extensions/extension_permission_policy.dart \
+              lib/features/home/services/tool_handler_service.dart \
+              test/core/services/skills/skill_execution_permissions_test.dart \
+              test/core/services/skills/skill_execution_security_test.dart \
+              test/core/services/skills/skill_executor_test.dart \
+              test/core/services/extensions/extension_permission_policy_test.dart
+
+      - name: Validate Phase 13N focused CI wiring
+        id: phase13n_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13n_ci_self_test "Validate Phase 13N focused CI wiring" -- \
+            bash .github/scripts/test_phase13n_ci.sh
+
+      - name: Preflight Phase 13N Skill permissions and Android execution boundary
+        id: phase13n_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13n_preflight "Preflight Phase 13N universal Skill permissions and execution boundary" -- \
+            bash .github/scripts/preflight_phase13n_tests.sh
+
+      - name: Run focused Phase 13N Skill permission and execution tests
+        id: phase13n_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' && env.PHASE_TEST_SCOPE != 'skill_doctor_recovery' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13n_tests "Phase 13N per-run grants, execution boundary and Skill executor tests" -- \
+            bash .github/scripts/run_phase13n_tests.sh
+
+      - name: Syntax-check Phase 13O Skill Doctor and Runtime Profile diagnostics
+        id: phase13o_syntax_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13o_syntax_preflight "Syntax-check Phase 13O Skill Doctor and Runtime Profile diagnostics" -- \
+            dart format --output=none \
+              lib/core/services/skills/skill_doctor_service.dart \
+              lib/core/services/runtime_profiles/runtime_profile_service.dart \
+              lib/features/workspace/pages/skill_doctor_page.dart \
+              lib/features/workspace/pages/skills_page.dart \
+              lib/features/workspace/pages/skills_page_mobile_layout.dart \
+              lib/features/workspace/pages/skills_page_desktop_layout.dart \
+              lib/features/workspace/pages/workspace_settings_page.dart \
+              test/core/services/skills/skill_doctor_policy_test.dart \
+              test/core/services/runtime_profiles/runtime_profile_service_test.dart
+
+      - name: Validate Phase 13O focused CI wiring
+        id: phase13o_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13o_ci_self_test "Validate Phase 13O focused CI wiring" -- \
+            bash .github/scripts/test_phase13o_ci.sh
+
+      - name: Preflight Phase 13O Skill Doctor and evidence integrity
+        id: phase13o_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13o_preflight "Preflight Phase 13O Skill Doctor, manifest integrity and safe Profile probes" -- \
+            bash .github/scripts/preflight_phase13o_tests.sh
+
+      - name: Run focused Phase 13O Skill Doctor tests
+        id: phase13o_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13o_tests "Phase 13O diagnostics, Skill integrity, readiness and Runtime Profile probe tests" -- \
+            bash .github/scripts/run_phase13o_tests.sh
+
+      - name: Syntax-check Phase 13P Skill E2E test and runners
+        id: phase13p_syntax_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13p_syntax_preflight "Syntax-check Phase 13P Android Skill lifecycle integration test" -- \
+            dart format --output=none \
+              integration_test/workspace/skill_execution_e2e_test.dart
+
+      - name: Validate Phase 13P focused CI wiring
+        id: phase13p_ci_self_test
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13p_ci_self_test "Validate Phase 13P focused CI and Android E2E wiring" -- \
+            bash .github/scripts/test_phase13p_ci.sh
+
+      - name: Preflight Phase 13P Skill lifecycle coverage
+        id: phase13p_preflight
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13p_preflight "Preflight Phase 13P import, Profile, execution, artifact and background assertions" -- \
+            bash .github/scripts/preflight_phase13p_tests.sh
+
+      - name: Run focused Phase 13P Skill lifecycle regression tests
+        id: phase13p_tests
+        if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' && steps.linux_test_native_deps.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13p_tests "Phase 13P Skill import, Runtime Profile, executor, artifact and background unit regressions" -- \
+            bash .github/scripts/run_phase13p_tests.sh
+
+      - name: Validate Arabic localization key and placeholder parity
+        id: l10n_parity
+        if: success()
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh l10n_parity "Validate Arabic localization keys and placeholders" -- \
+            python3 .github/scripts/check_l10n_parity.py
+
+      - name: Generate Flutter localizations
+        id: generate_l10n
+        if: success()
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh generate_l10n "Generate Flutter localizations" -- \
+            flutter gen-l10n
+
+      - name: Set up Java
+        id: setup_java
+        if: success()
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Record Java setup outcome
+        if: always()
+        env:
+          ACTION_OUTCOME: ${{ steps.setup_java.outcome }}
+        run: bash .github/scripts/record_ci_action.sh setup_java "Set up Java ${JAVA_VERSION}" "$ACTION_OUTCOME"
+
+      - name: Set up Gradle for focused Android runtime tests
+        id: setup_gradle
+        if: success()
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
+
+      - name: Install pinned Android NDK and CMake
+        id: android_sdk_components
+        if: success()
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh android_sdk_components "Install Android NDK and CMake" -- \
+            bash -euo pipefail -c '
+              if command -v sdkmanager >/dev/null 2>&1; then
+                SDKMANAGER="$(command -v sdkmanager)"
+              elif [[ -n "${ANDROID_HOME:-}" && -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]]; then
+                SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+              elif [[ -n "${ANDROID_SDK_ROOT:-}" && -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]]; then
+                SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+              else
+                echo "Android sdkmanager was not found on this runner." >&2
+                exit 1
+              fi
+
+              # sdkmanager closes stdin after accepting licenses. The producer may receive
+              # SIGPIPE; capture sdkmanager (the consumer) status instead of failing on yes.
+              set +o pipefail
+              yes 2>/dev/null | "$SDKMANAGER" --licenses >/dev/null
+              SDKMANAGER_LICENSE_STATUS="${PIPESTATUS[1]:-1}"
+              set -o pipefail
+              if [[ "$SDKMANAGER_LICENSE_STATUS" -ne 0 ]]; then
+                echo "sdkmanager --licenses failed with exit code $SDKMANAGER_LICENSE_STATUS" >&2
+                exit "$SDKMANAGER_LICENSE_STATUS"
+              fi
+
+              "$SDKMANAGER" "ndk;${ANDROID_NDK_VERSION}" "cmake;${CMAKE_VERSION}"
+              "$SDKMANAGER" --list_installed | grep -E "ndk;${ANDROID_NDK_VERSION}|cmake;${CMAKE_VERSION}" || true
+            '
+
+      # Flutter 3.47 can leave GeneratedPluginRegistrant.java containing dev-only
+      # plugins after `flutter pub get`. Release Gradle intentionally excludes
+      # those plugins from the releaseApi classpath. Regenerate platform tooling
+      # in the selected build mode immediately before Gradle, then keep the real
+      # build on --no-pub so no later unfiltered pub-get can rewrite the registrant.
+      - name: Run Android background runtime and approval notification tests
+        id: android_background_unit_tests
+        if: success()
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh android_background_unit_tests "Android background service lifecycle recovery, notification actions and progress Robolectric tests" -- \
+            gradle --no-daemon -p android :app:testDebugUnitTest --tests com.psyche.kelivo.background.BackgroundRuntimeTest
+
+      - name: Run Android per-run read-only mount guard tests
+        id: phase13n_android_guard_tests
+        if: success()
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13n_android_guard_tests "Android Skill execution per-run guard configuration and mount write guard tests" -- \
+            gradle --no-daemon -p android :app:testDebugUnitTest --tests com.psyche.kelivo.workspace.MountWriteGuardsTest
+
+      - name: Run Phase 13P Skill lifecycle E2E on Android emulator
+        id: phase13p_android_e2e
+        if: success() && github.event_name == 'workflow_dispatch' && inputs.run_android_skill_e2e == true
+        timeout-minutes: 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: '-no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim'
+          script: |
+            bash .github/scripts/capture_step.sh phase13p_android_e2e "Phase 13P real Android Skill ZIP-to-output lifecycle" -- \
+              bash .github/scripts/run_phase13p_android_e2e.sh
+
+      - name: Prepare build-mode Android plugin registrant
+        id: prepare_android_plugin_registrant
+        if: success()
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh prepare_android_plugin_registrant "Prepare ${BUILD_MODE} Android plugin registrant" -- \
+            bash .github/scripts/prepare_android_plugin_registrant.sh
+
+      - name: Build Android ARM64 APK
+        id: build_android_arm64
+        if: success()
+        timeout-minutes: 35
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh build_android_arm64 "Build Android ARM64 ${BUILD_MODE} APK" -- \
+            flutter build apk --no-pub --"$BUILD_MODE" --target-platform android-arm64
+
+      - name: Prepare APK and SHA-256 checksum
+        id: package_apk
+        if: success()
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh package_apk "Package APK and calculate SHA-256" -- \
+            bash .github/scripts/package_android_apk.sh
+
+      - name: Upload Android ARM64 APK
+        id: upload_apk
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Kelivo-Android-arm64-v8a-${{ env.BUILD_MODE }}-${{ github.run_number }}-${{ github.run_attempt }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Record APK artifact upload outcome
+        if: always()
+        env:
+          ACTION_OUTCOME: ${{ steps.upload_apk.outcome }}
+        run: bash .github/scripts/record_ci_action.sh upload_apk "Upload Android APK artifact" "$ACTION_OUTCOME"
+
+      - name: Record build stages that were correctly skipped
+        if: always()
+        env:
+          TOOLCHAIN_VERSIONS_OUTCOME: ${{ steps.toolchain_versions.outcome }}
+          PUB_GET_OUTCOME: ${{ steps.flutter_pub_get.outcome }}
+          LINUX_TEST_NATIVE_DEPS_OUTCOME: ${{ steps.linux_test_native_deps.outcome }}
+          PHASE13E_PREFLIGHT_OUTCOME: ${{ steps.phase13e_preflight.outcome }}
+          PHASE13E_TESTS_OUTCOME: ${{ steps.phase13e_tests.outcome }}
+          PHASE13M_SYNTAX_PREFLIGHT_OUTCOME: ${{ steps.phase13m_syntax_preflight.outcome }}
+          PHASE13M_CI_SELF_TEST_OUTCOME: ${{ steps.phase13m_ci_self_test.outcome }}
+          PHASE13M_PREFLIGHT_OUTCOME: ${{ steps.phase13m_preflight.outcome }}
+          PHASE13M_TESTS_OUTCOME: ${{ steps.phase13m_tests.outcome }}
+          PHASE13N_SYNTAX_PREFLIGHT_OUTCOME: ${{ steps.phase13n_syntax_preflight.outcome }}
+          PHASE13N_CI_SELF_TEST_OUTCOME: ${{ steps.phase13n_ci_self_test.outcome }}
+          PHASE13N_PREFLIGHT_OUTCOME: ${{ steps.phase13n_preflight.outcome }}
+          PHASE13N_TESTS_OUTCOME: ${{ steps.phase13n_tests.outcome }}
+          PHASE13N_ANDROID_GUARD_TESTS_OUTCOME: ${{ steps.phase13n_android_guard_tests.outcome }}
+          PHASE13O_SYNTAX_PREFLIGHT_OUTCOME: ${{ steps.phase13o_syntax_preflight.outcome }}
+          PHASE13O_CI_SELF_TEST_OUTCOME: ${{ steps.phase13o_ci_self_test.outcome }}
+          PHASE13O_PREFLIGHT_OUTCOME: ${{ steps.phase13o_preflight.outcome }}
+          PHASE13O_TESTS_OUTCOME: ${{ steps.phase13o_tests.outcome }}
+          PHASE13P_SYNTAX_PREFLIGHT_OUTCOME: ${{ steps.phase13p_syntax_preflight.outcome }}
+          PHASE13P_CI_SELF_TEST_OUTCOME: ${{ steps.phase13p_ci_self_test.outcome }}
+          PHASE13P_PREFLIGHT_OUTCOME: ${{ steps.phase13p_preflight.outcome }}
+          PHASE13P_TESTS_OUTCOME: ${{ steps.phase13p_tests.outcome }}
+          PHASE13P_ANDROID_E2E_OUTCOME: ${{ steps.phase13p_android_e2e.outcome }}
+          PHASE13F_PREFLIGHT_OUTCOME: ${{ steps.phase13f_preflight.outcome }}
+          PHASE13F_TESTS_OUTCOME: ${{ steps.phase13f_tests.outcome }}
+          PHASE13G_PREFLIGHT_OUTCOME: ${{ steps.phase13g_preflight.outcome }}
+          PHASE13G_TESTS_OUTCOME: ${{ steps.phase13g_tests.outcome }}
+          PHASE13H_CI_SELF_TEST_OUTCOME: ${{ steps.phase13h_ci_self_test.outcome }}
+          PHASE13H_PREFLIGHT_OUTCOME: ${{ steps.phase13h_preflight.outcome }}
+          PHASE13H_TESTS_OUTCOME: ${{ steps.phase13h_tests.outcome }}
+          SETUP_GRADLE_OUTCOME: ${{ steps.setup_gradle.outcome }}
+          L10N_PARITY_OUTCOME: ${{ steps.l10n_parity.outcome }}
+          GENERATE_L10N_OUTCOME: ${{ steps.generate_l10n.outcome }}
+          ANDROID_SDK_COMPONENTS_OUTCOME: ${{ steps.android_sdk_components.outcome }}
+          ANDROID_BACKGROUND_UNIT_TESTS_OUTCOME: ${{ steps.android_background_unit_tests.outcome }}
+          PHASE13I_CI_SELF_TEST_OUTCOME: ${{ steps.phase13i_ci_self_test.outcome }}
+          PHASE13I_PREFLIGHT_OUTCOME: ${{ steps.phase13i_preflight.outcome }}
+          PHASE13I_TESTS_OUTCOME: ${{ steps.phase13i_tests.outcome }}
+          RELEASE_PLUGIN_REGISTRANT_OUTCOME: ${{ steps.prepare_android_plugin_registrant.outcome }}
+          BUILD_ANDROID_OUTCOME: ${{ steps.build_android_arm64.outcome }}
+          PACKAGE_APK_OUTCOME: ${{ steps.package_apk.outcome }}
+        run: bash .github/scripts/record_skipped_build_stages.sh
+
+      - name: Upload raw build diagnostics for report generation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Kelivo-Build-Report-Raw-${{ github.run_number }}-${{ github.run_attempt }}
+          path: build-report/
+          if-no-files-found: warn
+          retention-days: 2
+
+  publish-build-report:
+    name: Collect full logs and publish Markdown report
+    if: always()
+    needs: [build-android-arm64]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout report generator
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Prepare report directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build-report/logs
+          echo "KELIVO_CI_REPORT_DIR=$GITHUB_WORKSPACE/build-report" >> "$GITHUB_ENV"
+
+      - name: Download raw command logs and metadata
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: Kelivo-Build-Report-Raw-${{ github.run_number }}-${{ github.run_attempt }}
+          path: build-report/
+
+      - name: Download complete GitHub Actions job log
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_JOB_NAME: Audit, Arabic Checks & Build Android ARM64
+        run: |
+          set -uo pipefail
+          mkdir -p build-report/logs
+          exec > >(tee -a build-report/logs/report-job.log) 2>&1
+          API_ROOT="${GITHUB_API_URL:-https://api.github.com}/repos/${GITHUB_REPOSITORY}"
+          JOBS_JSON="$RUNNER_TEMP/kelivo-workflow-jobs.json"
+          FULL_LOG="build-report/logs/github-actions-full-job.log"
+
+          if ! curl --fail --silent --show-error --location --connect-timeout 15 --max-time 120 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$API_ROOT/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+            -o "$JOBS_JSON"; then
+            echo "Could not retrieve workflow job metadata (Actions: read permission or API availability)." \
+              | tee "build-report/logs/github-actions-full-job-download.log"
+            exit 0
+          fi
+
+          # Preserve the structured step conclusions/durations, including skipped steps.
+          cp "$JOBS_JSON" build-report/workflow-jobs.json
+
+          JOB_ID="$(jq -r --arg job_name "$BUILD_JOB_NAME" \
+            '.jobs[] | select(.name == $job_name) | .id' "$JOBS_JSON" | head -n 1)"
+          if [[ -z "$JOB_ID" || "$JOB_ID" == "null" ]]; then
+            echo "Could not find completed build job named: $BUILD_JOB_NAME" \
+              | tee "build-report/logs/github-actions-full-job-download.log"
+            exit 0
+          fi
+
+          # GitHub returns a short-lived redirect to the plain-text job log.
+          if curl --fail --silent --show-error --location --connect-timeout 15 --max-time 180 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$API_ROOT/actions/jobs/$JOB_ID/logs" \
+            -o "$FULL_LOG"; then
+            echo "Downloaded complete runner log: $FULL_LOG ($(wc -c < "$FULL_LOG") bytes)"
+          else
+            rm -f "$FULL_LOG"
+            echo "Could not download complete runner log; per-command logs remain available." \
+              | tee "build-report/logs/github-actions-full-job-download.log"
+          fi
+
+      - name: Generate comprehensive Markdown build report
+        if: always()
+        shell: bash
+        env:
+          FINAL_JOB_STATUS: ${{ needs['build-android-arm64'].result }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          FLUTTER_VERSION: ${{ env.FLUTTER_VERSION }}
+          JAVA_VERSION: ${{ env.JAVA_VERSION }}
+          ANDROID_NDK_VERSION: ${{ env.ANDROID_NDK_VERSION }}
+          CMAKE_VERSION: ${{ env.CMAKE_VERSION }}
+          BUILD_MODE: ${{ env.BUILD_MODE }}
+        run: |
+          set -uo pipefail
+          mkdir -p build-report/logs
+          if [[ -f .github/scripts/generate_build_report.py ]]; then
+            set +e
+            python3 .github/scripts/generate_build_report.py 2>&1 | tee build-report/logs/report-generator.log
+            GENERATOR_STATUS="${PIPESTATUS[0]}"
+            set -e
+            if [[ "$GENERATOR_STATUS" -ne 0 || ! -s build-report/KELIVO_BUILD_REPORT.md ]]; then
+              {
+                echo '# Kelivo Android Build Report'
+                echo
+                echo "Report generator failed with exit code: $GENERATOR_STATUS"
+                echo "Build job result: $FINAL_JOB_STATUS"
+                echo "Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+                echo
+                echo '## Report-generator diagnostics'
+                echo
+                cat build-report/logs/report-generator.log 2>/dev/null || true
+              } > build-report/KELIVO_BUILD_REPORT.md
+            fi
+          else
+            {
+              echo '# Kelivo Android Build Report'
+              echo
+              echo "Report generator could not be checked out. Build job result: $FINAL_JOB_STATUS"
+              echo "Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            } > build-report/KELIVO_BUILD_REPORT.md
+          fi
+
+      - name: Upload complete Markdown report and all available logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Kelivo-Build-Report-${{ github.run_number }}-${{ github.run_attempt }}
+          path: build-report/
+          if-no-files-found: warn
+          retention-days: 30

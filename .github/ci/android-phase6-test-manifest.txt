@@ -1,0 +1,28 @@
+# Focused Android Phase 6 regressions: Skills, composition, package manager, and Runtime Profiles.
+test/core/database/extension_entity_store_test.dart
+test/core/models/extension_record_test.dart
+test/core/services/extensions/conversational_extension_service_test.dart
+test/core/services/extensions/extension_operation_repository_test.dart
+test/core/services/extensions/extension_registry_repository_test.dart
+test/core/services/skills/github_credential_store_test.dart
+test/core/services/skills/github_skill_ref_test.dart
+test/core/services/skills/skill_archive_test.dart
+test/core/services/skills/skill_compatibility_test.dart
+test/core/services/skills/skill_frontmatter_test.dart
+test/core/services/skills/skills_catalog_adapter_test.dart
+test/core/services/skills/skills_phase3_integration_test.dart
+test/core/services/skills/skills_prompt_test.dart
+test/core/services/skills/skills_service_test.dart
+test/core/services/skills/skill_composition_planner_test.dart
+test/core/services/tools/skill_composition_builtin_catalog_test.dart
+test/core/models/workspace_test.dart
+test/features/home/services/built_in_tool_names_test.dart
+test/features/home/services/message_builder_skills_prompt_test.dart
+test/core/services/packages/dependency_manifest_parser_test.dart
+test/core/services/packages/package_manager_adapters_test.dart
+test/core/services/packages/package_manager_models_test.dart
+test/core/services/packages/package_ledger_store_test.dart
+test/core/services/packages/package_manager_service_test.dart
+# Runtime profile models, persistence, isolation and recovery.
+test/core/services/runtime_profiles/runtime_profile_models_test.dart
+test/core/services/runtime_profiles/runtime_profile_service_test.dart

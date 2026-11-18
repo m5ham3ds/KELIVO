@@ -1,0 +1,52 @@
+# Example only. Replace hosts, request mappings, model names, and states with
+# the provider's official API documentation before installing this connector.
+# Never put an API key or any other secret in this file.
+schemaVersion: 1
+id: example-video-provider
+name: Example Video Provider
+version: 1.0.0
+description: Example async REST connector for text-to-video and image-to-video.
+api:
+  baseUrl: https://api.example.com/
+  apiKey:
+    required: true
+    header: Authorization
+    prefix: Bearer
+capabilities:
+  textToVideo: true
+  imageToVideo: true
+models:
+  - example-video-v1
+defaultModel: example-video-v1
+limits:
+  maxPromptCharacters: 4000
+  maxDurationSeconds: 30
+  maxDownloadBytes: 67108864
+downloadHosts:
+  - cdn.example.com
+endpoints:
+  submit:
+    path: /v1/videos
+    jobIdPath: data.id
+    fields:
+      model: model
+      prompt: input.prompt
+      imageUrl: input.image_url
+      durationSeconds: duration
+      aspectRatio: aspect_ratio
+  poll:
+    path: /v1/videos/{job_id}
+    statusPath: data.status
+    outputUrlPath: data.output_url
+    progressPath: data.progress
+    statuses:
+      queued: [queued, pending]
+      running: [processing, running]
+      succeeded: [completed, succeeded]
+      failed: [failed, error]
+  # Optional. Use only if the provider returns a live quote for the exact
+  # request. The costPath must return a decimal amount in the currency below.
+  quote:
+    path: /v1/videos/quote
+    costPath: data.cost
+    currency: USD

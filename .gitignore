@@ -1,0 +1,84 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.claude/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/android/build/
+/android/.gradle/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Termux PRoot / talloc / shmem ELFs fetched by tool/fetch_proot.sh
+android/app/src/main/jniLibs/**/*.so
+
+pubspec.lock
+# Commit lockfiles for the packages checked by CI.
+!/pubspec.lock
+!/dependencies/markstream/pubspec.lock
+
+internationalization.md
+/untranslated_messages.json
+/lib/secrets/fallback.dart
+.claude/settings.local.json
+/.codex/
+/.agent/
+/.agents/
+/skills-lock.json
+/.scratch/
+/.grok/
+
+
+# Local Markdown visual baselines and comparison reports
+/test_goldens/out/
+
+# MCP/tools UI screenshots stay local, outside the tracked test suite.
+/test/goldens/baselines/mcp_*.png
+/test/goldens/baselines/tools_*.png
+
+# Generated CI Markdown report and raw build logs
+/build-report/
+
+# Private Android release-signing material; never ship in source archives.
+/android/key.properties
+*.jks
+*.keystore
+*.p12
+*.pfx

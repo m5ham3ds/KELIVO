@@ -1,0 +1,80 @@
+import 'package:Kelivo/core/services/skills/skills_service.dart';
+import 'package:Kelivo/features/workspace/widgets/skills/skill_labels.dart';
+import 'package:Kelivo/l10n/app_localizations.dart';
+import 'package:Kelivo/shared/widgets/snackbar.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+Future<void> showSkillUpdateSourceDialog(
+  BuildContext context,
+  Skill skill,
+) async {
+  final l10n = AppLocalizations.of(context)!;
+  final controller = TextEditingController();
+  try {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.skillsLinkUpdateSource),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(l10n.skillsLinkUpdateSourceHint),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: InputDecoration(
+                  labelText: l10n.skillsImportGitHubRepoLabel,
+                  hintText: l10n.skillsImportGitHubUrlHint,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.skillsCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: Text(l10n.skillsSave),
+          ),
+        ],
+      ),
+    );
+    if (value == null || !context.mounted) return;
+    try {
+      await context.read<SkillsService>().setUpdateSource(
+        skill.record.id,
+        value,
+      );
+      if (!context.mounted) return;
+      showAppSnackBar(
+        context,
+        message: l10n.skillsLinkUpdateSourceSaved,
+        type: NotificationType.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      final message = error is FormatException
+          ? l10n.skillsLinkUpdateSourceInvalid
+          : skillErrorMessage(error);
+      showAppSnackBar(
+        context,
+        message: message,
+        type: NotificationType.error,
+      );
+    }
+  } finally {
+    controller.dispose();
+  }
+}
+

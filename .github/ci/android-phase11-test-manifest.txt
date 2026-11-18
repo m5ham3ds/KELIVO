@@ -1,0 +1,46 @@
+# Focused Android regressions retained across Phases 3–10: Skills, runtimes, engines, and video production.
+test/core/database/extension_entity_store_test.dart
+test/core/models/extension_record_test.dart
+test/core/services/extensions/conversational_extension_service_test.dart
+test/core/services/extensions/extension_operation_repository_test.dart
+test/core/services/extensions/extension_registry_repository_test.dart
+test/core/services/skills/github_credential_store_test.dart
+test/core/services/skills/github_skill_ref_test.dart
+test/core/services/skills/skill_archive_test.dart
+test/core/services/skills/skill_compatibility_test.dart
+test/core/services/skills/skill_frontmatter_test.dart
+test/core/services/skills/skills_catalog_adapter_test.dart
+test/core/services/skills/skills_phase3_integration_test.dart
+test/core/services/skills/skills_prompt_test.dart
+test/core/services/skills/skills_service_test.dart
+test/core/services/skills/skill_composition_planner_test.dart
+test/core/services/tools/skill_composition_builtin_catalog_test.dart
+test/core/models/workspace_test.dart
+test/features/home/services/built_in_tool_names_test.dart
+test/features/home/services/message_builder_skills_prompt_test.dart
+test/core/services/packages/dependency_manifest_parser_test.dart
+test/core/services/packages/package_manager_adapters_test.dart
+test/core/services/packages/package_manager_models_test.dart
+test/core/services/packages/package_ledger_store_test.dart
+test/core/services/packages/package_manager_service_test.dart
+# Runtime profile models, persistence, isolation and recovery.
+test/core/services/runtime_profiles/runtime_profile_models_test.dart
+test/core/services/runtime_profiles/runtime_profile_service_test.dart
+
+# Phase 7 declarative Engine Adapter manifest contract.
+test/core/services/video_engines/video_engine_manifest_test.dart
+
+test/core/services/video_engines/video_engine_service_safety_test.dart
+
+# Phase 8 production brief and storyboard validation.
+test/core/services/video_production/video_production_spec_test.dart
+
+# Phase 9 secure provider connector manifest and credential isolation.
+test/core/services/video_providers/video_provider_manifest_test.dart
+test/core/services/video_providers/video_provider_credential_store_test.dart
+
+# Phase 10 hybrid workflow route and normalization contract.
+test/core/services/video_hybrid/hybrid_workflow_spec_test.dart
+
+# Phase 11 media quality parsing, subtitle timing, diagnosis and recovery contracts.
+test/core/services/video_quality/video_quality_service_test.dart

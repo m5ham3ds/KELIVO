@@ -1,0 +1,13 @@
+# Focused Android Phase 2 regression tests. Keep this list limited to the
+# active conversational Skill-extension lifecycle, persistence, safety,
+# prompt wiring, and tool-name contracts. One test file per line.
+test/core/database/extension_entity_store_test.dart
+test/core/models/extension_record_test.dart
+test/core/services/extensions/conversational_extension_service_test.dart
+test/core/services/extensions/extension_operation_repository_test.dart
+test/core/services/extensions/extension_registry_repository_test.dart
+test/core/services/skills/skill_archive_test.dart
+test/core/services/skills/skills_prompt_test.dart
+test/core/services/skills/skills_service_test.dart
+test/features/home/services/built_in_tool_names_test.dart
+test/features/home/services/message_builder_skills_prompt_test.dart
