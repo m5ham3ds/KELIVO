@@ -8,7 +8,10 @@ MODULES=(glib-2.0 gobject-2.0 gio-2.0 gtk+-3.0)
 
 modules_available() {
   command -v pkg-config >/dev/null 2>&1 || return 1
-  pkg-config --exists "${MODULES[@]}"
+  local module
+  for module in "${MODULES[@]}"; do
+    pkg-config --exists "$module" || return 1
+  done
 }
 
 if ! modules_available || ! command -v cc >/dev/null 2>&1; then
@@ -31,7 +34,7 @@ if ! modules_available || ! command -v cc >/dev/null 2>&1; then
     "${APT[@]}" "${APT_OPTIONS[@]}" -q update
   timeout --signal=TERM --kill-after=30s 900s \
     "${APT[@]}" "${APT_OPTIONS[@]}" -q install -y --no-install-recommends \
-    build-essential pkg-config libgtk-3-dev
+    build-essential pkg-config libglib2.0-dev libgtk-3-dev
 fi
 
 if ! modules_available; then
