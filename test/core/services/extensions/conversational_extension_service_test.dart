@@ -620,6 +620,7 @@ Companion instructions.
     );
     expect(installed, contains('Installed 1 Agent Skill'));
     expect(skills.skills.single.record.source.name, 'skillsSh');
+    expect((await registry.get('skill', 'sample-skill'))?.source.type, 'skills_sh');
     expect(skills.skills.single.name, 'sample-skill');
   });
 
