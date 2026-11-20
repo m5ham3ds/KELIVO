@@ -52,7 +52,7 @@ jobs:
   build-android-arm64:
     name: Audit, Arabic Checks & Build Android ARM64
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 300
 
     steps:
       - name: Checkout source
@@ -605,7 +605,7 @@ jobs:
       - name: Run Phase 13P Skill lifecycle E2E on Android emulator
         id: phase13p_android_e2e
         if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.run_android_skill_e2e == true))
-        timeout-minutes: 60
+        timeout-minutes: 90
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -674,7 +674,6 @@ jobs:
           PHASE13N_CI_SELF_TEST_OUTCOME: ${{ steps.phase13n_ci_self_test.outcome }}
           PHASE13N_PREFLIGHT_OUTCOME: ${{ steps.phase13n_preflight.outcome }}
           PHASE13N_TESTS_OUTCOME: ${{ steps.phase13n_tests.outcome }}
-          PHASE13N_ANDROID_GUARD_TESTS_OUTCOME: ${{ steps.phase13n_android_guard_tests.outcome }}
           PHASE13O_SYNTAX_PREFLIGHT_OUTCOME: ${{ steps.phase13o_syntax_preflight.outcome }}
           PHASE13O_CI_SELF_TEST_OUTCOME: ${{ steps.phase13o_ci_self_test.outcome }}
           PHASE13O_PREFLIGHT_OUTCOME: ${{ steps.phase13o_preflight.outcome }}
@@ -694,8 +693,10 @@ jobs:
           SETUP_GRADLE_OUTCOME: ${{ steps.setup_gradle.outcome }}
           L10N_PARITY_OUTCOME: ${{ steps.l10n_parity.outcome }}
           GENERATE_L10N_OUTCOME: ${{ steps.generate_l10n.outcome }}
+          FULL_FLUTTER_ANALYZE_OUTCOME: ${{ steps.full_flutter_analyze.outcome }}
+          FULL_FLUTTER_TESTS_OUTCOME: ${{ steps.full_flutter_tests.outcome }}
           ANDROID_SDK_COMPONENTS_OUTCOME: ${{ steps.android_sdk_components.outcome }}
-          ANDROID_BACKGROUND_UNIT_TESTS_OUTCOME: ${{ steps.android_background_unit_tests.outcome }}
+          ANDROID_FULL_UNIT_TESTS_OUTCOME: ${{ steps.android_full_unit_tests.outcome }}
           PHASE13I_CI_SELF_TEST_OUTCOME: ${{ steps.phase13i_ci_self_test.outcome }}
           PHASE13I_PREFLIGHT_OUTCOME: ${{ steps.phase13i_preflight.outcome }}
           PHASE13I_TESTS_OUTCOME: ${{ steps.phase13i_tests.outcome }}

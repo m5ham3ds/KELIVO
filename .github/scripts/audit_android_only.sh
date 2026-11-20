@@ -229,10 +229,13 @@ for step_id in \
   phase13h_tests \
   l10n_parity \
   generate_l10n \
+  full_flutter_analyze \
+  full_flutter_tests \
   setup_java \
   setup_gradle \
   android_sdk_components \
-  android_background_unit_tests \
+  android_full_unit_tests \
+  phase13p_android_e2e \
   prepare_android_plugin_registrant \
   build_android_arm64 \
   package_apk \
@@ -277,8 +280,9 @@ for step_id in phase13o_syntax_preflight phase13o_ci_self_test phase13o_prefligh
   grep -Fq 'steps.linux_test_native_deps.outcome' <<< "$block" \
     || fail "Phase 13O/13P diagnostics must require Linux native dependencies: $step_id"
 done
-for step_id in l10n_parity generate_l10n setup_java setup_gradle android_sdk_components \
-  android_background_unit_tests prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
+for step_id in l10n_parity generate_l10n full_flutter_analyze full_flutter_tests setup_java setup_gradle \
+  android_sdk_components android_full_unit_tests phase13p_android_e2e \
+  prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
   step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
   block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
   grep -Fq 'if: success()' <<< "$block" || fail "Release prerequisite/build step must remain success-gated: $step_id"

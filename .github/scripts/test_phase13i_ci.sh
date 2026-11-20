@@ -16,7 +16,7 @@ bash -n .github/scripts/preflight_phase13i_tests.sh
 bash -n .github/scripts/run_phase13i_tests.sh
 bash .github/scripts/preflight_phase13i_tests.sh
 workflow=.github/workflows/android-build.yml
-for id in phase13i_ci_self_test phase13i_preflight phase13i_tests android_background_unit_tests; do
+for id in phase13i_ci_self_test phase13i_preflight phase13i_tests android_full_unit_tests; do
   grep -Fq "id: $id" "$workflow" || {
     echo "Workflow is missing $id" >&2
     exit 1

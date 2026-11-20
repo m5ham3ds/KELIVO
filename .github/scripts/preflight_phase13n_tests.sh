@@ -61,7 +61,7 @@ checks = [
     ('PRoot read-only behavior is not represented as kernel-enforced', 'best-effort' in guards and 'PRoot' in report and 'Kernel' in report and 'does not provide kernel-enforced read-only' in executor),
     ('tests cover one-time grant replay, mismatched grant, separate mounts and Android run concurrency', all(k in permission_test for k in ['cannot be replayed']) and all(k in executor_test for k in ['mismatched single-run permission grant', 'io/input', 'io/output']) and 'runScopedConfigsDoNotOverwriteConcurrentSkillGuards' in native_test),
     ('focused CI runner contains permission, security, extension and executor suites', all(k in runner for k in ['skill_execution_permissions_test.dart', 'skill_execution_security_test.dart', 'extension_permission_policy_test.dart', 'skill_executor_test.dart'])),
-    ('Phase 13N workflow includes Dart checks, focused tests and Android native guard tests', all(k in workflow for k in ['phase13n_syntax_preflight', 'phase13n_ci_self_test', 'phase13n_preflight', 'phase13n_tests', 'phase13n_android_guard_tests', 'MountWriteGuardsTest'])),
+    ('Phase 13N workflow includes Dart checks and the complete Android native test suite', all(k in workflow for k in ['phase13n_syntax_preflight', 'phase13n_ci_self_test', 'phase13n_preflight', 'phase13n_tests', 'android_full_unit_tests', ':app:testDebugUnitTest'])),
 ]
 for label, ok in checks:
     if not ok:

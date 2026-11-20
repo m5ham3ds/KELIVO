@@ -9,7 +9,7 @@ bash -n .github/scripts/run_phase13n_tests.sh
 bash .github/scripts/preflight_phase13n_tests.sh
 
 workflow=.github/workflows/android-build.yml
-for id in phase13n_syntax_preflight phase13n_ci_self_test phase13n_preflight phase13n_tests phase13n_android_guard_tests; do
+for id in phase13n_syntax_preflight phase13n_ci_self_test phase13n_preflight phase13n_tests android_full_unit_tests; do
   grep -Fq "id: $id" "$workflow" || { echo "Workflow is missing $id" >&2; exit 1; }
 done
 for file in \
@@ -25,7 +25,7 @@ done
 for file in skill_execution_permissions_test.dart skill_execution_security_test.dart extension_permission_policy_test.dart skill_executor_test.dart; do
   grep -Fq "$file" .github/scripts/run_phase13n_tests.sh || { echo "Phase 13N runner is missing $file" >&2; exit 1; }
 done
-grep -Fq 'MountWriteGuardsTest' "$workflow" || { echo 'Android read-only guard tests are missing from CI' >&2; exit 1; }
+grep -Fq ':app:testDebugUnitTest' "$workflow" || { echo 'Complete Android JVM/Robolectric suite is missing from CI' >&2; exit 1; }
 if grep -Eq 'run_phase13[abcd]_(import|executor|workspace|execution)_tests\.sh' "$workflow"; then
   echo 'Historical Phase 13A–13D suites were re-enabled.' >&2
   exit 1

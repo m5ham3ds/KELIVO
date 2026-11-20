@@ -90,10 +90,10 @@ PY_PHASE13G
 python3 - <<'PY_NATIVE_CI'
 from pathlib import Path
 workflow = Path('.github/workflows/android-build.yml').read_text(encoding='utf-8')
-for token in ('id: android_background_unit_tests', ':app:testDebugUnitTest', 'BackgroundRuntimeTest'):
+for token in ('id: android_full_unit_tests', ':app:testDebugUnitTest'):
     if token not in workflow:
         raise SystemExit(f'FAIL: Android runtime tests are not wired into CI: {token}')
-print('PASS: Robolectric BackgroundRuntimeTest is scheduled in Android CI')
+print('PASS: complete Android JVM/Robolectric suite is scheduled in Android CI')
 PY_NATIVE_CI
 
 # Preserve the already accepted historical 13A–13D test decision.
