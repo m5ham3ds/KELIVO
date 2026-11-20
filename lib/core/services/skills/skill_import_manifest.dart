@@ -325,7 +325,7 @@ final class SkillImportAnalyzer {
       if (normalized == 'SKILL.md') {
         if (stat.size <= 2 * 1024 * 1024) {
           skillMarkdown = await entity.readAsString();
-          inspectedTextFiles[normalized] = skillMarkdown!;
+          inspectedTextFiles[normalized] = skillMarkdown;
         } else {
           requirementScanNotes.add(
             'Requirement discovery skipped SKILL.md because it exceeds the 2 MiB frontmatter/instruction inspection limit; inspect it manually.',
@@ -453,7 +453,7 @@ final class SkillImportAnalyzer {
     final manifestNotes = <String>[...completenessNotes];
     if (skillMarkdown != null) {
       final missingReferences = findMissingSkillLocalReferences(
-        skillMarkdown!,
+        skillMarkdown,
         skillFilePaths,
       );
       if (missingReferences.isNotEmpty) {

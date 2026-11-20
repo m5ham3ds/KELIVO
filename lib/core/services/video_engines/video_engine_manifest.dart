@@ -189,7 +189,7 @@ class VideoEngineManifest {
       supportsSceneRendering: supportsSceneRendering,
       supportsHybridAssembly: supportsHybridAssembly,
       acceptsMp4Assets: acceptsMp4Assets,
-      schemaVersion: schemaVersion as int,
+      schemaVersion: schemaVersion,
     );
   }
 

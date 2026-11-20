@@ -8,7 +8,6 @@ import 'package:path/path.dart' as p;
 import '../../providers/environment_provider.dart';
 import '../../../utils/app_directories.dart';
 import '../../models/environment_state.dart';
-import '../../models/skill_record.dart';
 import '../runtime_profiles/runtime_profile_models.dart';
 import '../runtime_profiles/runtime_profile_service.dart';
 import '../workspace/workspace_runtime.dart';

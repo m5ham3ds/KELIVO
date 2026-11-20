@@ -839,7 +839,7 @@ class ToolHandlerService {
               if (value == null) return const <String>[];
               if (value is! List || value.length > 64 ||
                   value.any((item) => item is! String ||
-                      (item as String).length > 4096 || (item as String).contains('\u0000'))) {
+                      item.length > 4096 || item.contains('\u0000'))) {
                 throw const SkillExecutionException('invalid_skill_arguments');
               }
               return value.cast<String>();

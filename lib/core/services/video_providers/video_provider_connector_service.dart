@@ -13,7 +13,6 @@ import '../extensions/extension_registry_repository.dart';
 import '../extensions/extension_permission_policy.dart';
 import '../video_production/video_production_service.dart';
 import '../workspace/workspace_tool_context.dart';
-import '../workspace/workspace_paths.dart';
 import '../workspace/workspace_runtime.dart';
 import 'video_provider_credential_store.dart';
 import 'video_provider_manifest.dart';
@@ -305,9 +304,9 @@ final class VideoProviderConnectorService {
           await File(manifestPath).delete();
         }
         if (rollbackBackupPath != null &&
-            await FileSystemEntity.type(rollbackBackupPath!, followLinks: false) ==
+            await FileSystemEntity.type(rollbackBackupPath, followLinks: false) ==
                 FileSystemEntityType.file) {
-          await File(rollbackBackupPath!).copy(manifestPath);
+          await File(rollbackBackupPath).copy(manifestPath);
         }
         if (await FileSystemEntity.type(temporary, followLinks: false) ==
             FileSystemEntityType.file) {

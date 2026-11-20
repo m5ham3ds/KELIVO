@@ -335,9 +335,6 @@ class HostFileTools {
           );
         }
         final raw = selected.content;
-        if (raw is! List<int>) {
-          throw const HostFileException('ZIP member could not be decoded');
-        }
         if (raw.length > maxZipMemberReadBytes) {
           throw const HostFileException(
             'ZIP member expands beyond the 1 MB text-inspection limit',

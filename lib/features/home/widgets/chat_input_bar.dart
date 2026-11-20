@@ -2323,7 +2323,7 @@ class _ChatInputBarState extends State<ChatInputBar>
       final l10n = AppLocalizations.of(context)!;
       showAppSnackBar(
         context,
-        message: activatedPacks!.packCount == 1
+        message: activatedPacks.packCount == 1
             ? l10n.skillsPackActivated
             : l10n.skillsPackActivatedMany,
         type: NotificationType.success,

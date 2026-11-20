@@ -1080,11 +1080,11 @@ class WorkspaceToolsService {
         try {
           final profileStatus = executionError != null || exited == null
               ? RuntimeProcessStatus.failed
-              : exited!.cancelled
+              : exited.cancelled
               ? RuntimeProcessStatus.cancelled
-              : exited!.timedOut
+              : exited.timedOut
               ? RuntimeProcessStatus.timedOut
-              : exited!.exitCode == 0
+              : exited.exitCode == 0
               ? RuntimeProcessStatus.succeeded
               : RuntimeProcessStatus.failed;
           await profiles!.recordCompleted(

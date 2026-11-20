@@ -784,13 +784,13 @@ final class VideoQualityService {
       }
     }
     if (exited == null) throw const VideoQualityServiceException('quality_process_exit_missing');
-    if (exited!.interrupted) throw const VideoQualityServiceException('quality_process_interrupted');
+    if (exited.interrupted) throw const VideoQualityServiceException('quality_process_interrupted');
     return _CommandResult(
-      exitCode: exited!.exitCode,
+      exitCode: exited.exitCode,
       stdout: stdout.toString(),
       stderr: stderr.toString(),
-      timedOut: exited!.timedOut,
-      cancelled: exited!.cancelled,
+      timedOut: exited.timedOut,
+      cancelled: exited.cancelled,
     );
   }
 

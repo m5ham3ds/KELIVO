@@ -1209,13 +1209,17 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
                   'status': 'started',
                 });
               }
-              unawaited(
-                download(
-                  url,
-                  fileName: name,
-                  tabId: id,
-                ).catchError((Object _) {}),
-              );
+              unawaited(() async {
+                try {
+                  await download(
+                    url,
+                    fileName: name,
+                    tabId: id,
+                  );
+                } catch (_) {
+                  // Browser-originated downloads are best-effort background work.
+                }
+              }());
             }
           },
           onNewWindow: (url, windowId) async {
