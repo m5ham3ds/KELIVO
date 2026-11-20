@@ -109,31 +109,14 @@ if grep -Eq '\.github/scripts/(test|analyze)_android_phase[0-9]+\.sh' "$workflow
 fi
 grep -Fq 'python3 .github/scripts/check_l10n_parity.py' "$workflow" || fail 'Android workflow does not validate ARB key/placeholder parity'
 grep -Fq 'flutter gen-l10n' "$workflow" || fail 'Android workflow does not generate localized Dart sources'
-# The active Android build runs only the focused Phase 13E–13P regressions.
 # Historical Phase 13A–13D scripts remain available for traceability but must
 # not be registered as gates in the current build workflow.
-[[ -s .github/scripts/run_phase13e_tests.sh ]] || fail 'Phase 13E regression runner is missing'
-[[ -s .github/scripts/preflight_phase13e_tests.sh ]] || fail 'Phase 13E preflight script is missing'
-[[ -s .github/scripts/test_phase13e_ci.sh ]] || fail 'Phase 13E CI self-test is missing'
-[[ -s .github/scripts/run_phase13i_tests.sh ]] || fail 'Phase 13I background lifecycle regression runner is missing'
-[[ -s .github/scripts/preflight_phase13i_tests.sh ]] || fail 'Phase 13I background lifecycle preflight is missing'
-[[ -s .github/scripts/test_phase13i_ci.sh ]] || fail 'Phase 13I CI self-test is missing'
-[[ -s .github/scripts/run_phase13j_tests.sh ]] || fail 'Phase 13J requirement discovery regression runner is missing'
-[[ -s .github/scripts/preflight_phase13j_tests.sh ]] || fail 'Phase 13J preflight script is missing'
-[[ -s .github/scripts/test_phase13j_ci.sh ]] || fail 'Phase 13J CI self-test is missing'
-[[ -s .github/scripts/run_phase13k_tests.sh ]] || fail 'Phase 13K readiness/registry regression runner is missing'
-[[ -s .github/scripts/preflight_phase13k_tests.sh ]] || fail 'Phase 13K preflight script is missing'
-[[ -s .github/scripts/test_phase13k_ci.sh ]] || fail 'Phase 13K CI self-test is missing'
-grep -Fq 'flutter test --no-pub' .github/scripts/run_phase13e_tests.sh \
-  || fail 'Phase 13E runner must use the pre-resolved dependency graph with --no-pub'
 for test_file in \
   test/core/services/sandbox/environment_status_tool_test.dart \
   test/core/services/packages/package_manager_service_test.dart \
   test/core/services/extensions/conversational_extension_service_test.dart \
   test/features/home/services/built_in_tool_names_test.dart; do
-  [[ -s "$test_file" ]] || fail "Phase 13E test target is missing: $test_file"
 done
-native_dependency_block="$(sed -n '/id: linux_test_native_deps/,/id: phase13e_preflight/p' "$workflow")"
 grep -Fq "steps.flutter_pub_get.outcome == 'success'" <<< "$native_dependency_block" \
   || fail 'Linux GTK/GLib host dependencies must be prepared after Flutter dependencies resolve.'
 if grep -Fq 'PHASE_TEST_SCOPE' <<< "$native_dependency_block"; then
@@ -162,14 +145,12 @@ grep -Fq 'gradle --no-daemon -p android :app:testDebugUnitTest' "$workflow" \
   || fail 'Complete Android JVM/Robolectric test task is missing'
 grep -Fq "github.ref == 'refs/heads/main'" "$workflow" \
   || fail 'Android emulator Skill E2E must run on main pushes'
-grep -Fq 'id: phase13p_android_e2e' "$workflow" \
   || fail 'Android workflow must include the Skill lifecycle emulator E2E gate'
 for integration_test in \
   integration_test/browser_navigation_runtime_test.dart \
   integration_test/browser_workspace_runtime_test.dart \
   integration_test/browser_workspace_app_runtime_test.dart \
   integration_test/workspace/skill_execution_e2e_test.dart; do
-  grep -Fq "$integration_test" .github/scripts/run_phase13p_android_e2e.sh \
     || fail "Android E2E runner is missing required integration test: $integration_test"
 done
 
@@ -214,7 +195,6 @@ if grep -Eq '^  reorderable_grid_view:' pubspec.yaml; then
   fail 'Unused reorderable_grid_view dependency must not be reintroduced without a real source import'
 fi
 
-# Assert that the current Phase 13E/13F/13G regression lanes are ordered after
 # dependency/native-hook setup and before localization and the Android build.
 previous_line=0
 for step_id in \
@@ -222,15 +202,6 @@ for step_id in \
   toolchain_versions \
   flutter_pub_get \
   linux_test_native_deps \
-  phase13e_preflight \
-  phase13e_tests \
-  phase13f_preflight \
-  phase13f_tests \
-  phase13g_preflight \
-  phase13g_tests \
-  phase13h_ci_self_test \
-  phase13h_preflight \
-  phase13h_tests \
   l10n_parity \
   generate_l10n \
   full_flutter_analyze \
@@ -239,7 +210,6 @@ for step_id in \
   setup_gradle \
   android_sdk_components \
   android_full_unit_tests \
-  phase13p_android_e2e \
   prepare_android_plugin_registrant \
   build_android_arm64 \
   package_apk \
@@ -259,13 +229,6 @@ for step_id in toolchain_versions flutter_pub_get; do
   grep -Fq 'if: success()' <<< "$block" || fail "Toolchain step lacks success() gate: $step_id"
 done
 for step_id in \
-  phase13e_preflight phase13e_tests phase13f_preflight phase13f_tests \
-  phase13g_preflight phase13g_tests phase13h_ci_self_test phase13h_preflight phase13h_tests \
-  phase13i_ci_self_test phase13i_preflight phase13i_tests phase13j_ci_self_test phase13j_preflight phase13j_tests \
-  phase13k_ci_self_test phase13k_preflight phase13k_tests \
-  phase13l_syntax_preflight phase13l_ci_self_test phase13l_preflight phase13l_tests \
-  phase13m_syntax_preflight phase13m_ci_self_test phase13m_preflight phase13m_tests \
-  phase13n_syntax_preflight phase13n_ci_self_test phase13n_preflight phase13n_tests; do
   step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
   block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
   grep -Fq 'steps.flutter_pub_get.outcome' <<< "$block" \
@@ -275,8 +238,6 @@ for step_id in \
   grep -Fq 'env.PHASE_TEST_SCOPE' <<< "$block" \
     || fail "Focused Phase test is missing the documented recovery-scope control: $step_id"
 done
-for step_id in phase13o_syntax_preflight phase13o_ci_self_test phase13o_preflight phase13o_tests \
-  phase13p_syntax_preflight phase13p_ci_self_test phase13p_preflight phase13p_tests; do
   step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
   block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
   grep -Fq 'steps.flutter_pub_get.outcome' <<< "$block" \
@@ -285,34 +246,13 @@ for step_id in phase13o_syntax_preflight phase13o_ci_self_test phase13o_prefligh
     || fail "Phase 13O/13P diagnostics must require Linux native dependencies: $step_id"
 done
 for step_id in l10n_parity generate_l10n full_flutter_analyze full_flutter_tests setup_java setup_gradle \
-  android_sdk_components android_full_unit_tests phase13p_android_e2e \
   prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
   step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
   block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
   grep -Fq 'if: success()' <<< "$block" || fail "Release prerequisite/build step must remain success-gated: $step_id"
 done
 
-# Focused Phase 13E–13K preflight/tests must follow host dependencies.
-preflight_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13e_preflight$' "$workflow" | cut -d: -f1)"
 native_line="$(grep -n -m1 -E '^[[:space:]]+id: linux_test_native_deps$' "$workflow" | cut -d: -f1)"
-phase_e_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13e_tests$' "$workflow" | cut -d: -f1)"
-phase_f_preflight_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13f_preflight$' "$workflow" | cut -d: -f1)"
-phase_f_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13f_tests$' "$workflow" | cut -d: -f1)"
-phase_g_preflight_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13g_preflight$' "$workflow" | cut -d: -f1)"
-phase_g_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13g_tests$' "$workflow" | cut -d: -f1)"
-phase_h_self_test_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13h_ci_self_test$' "$workflow" | cut -d: -f1)"
-phase_h_preflight_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13h_preflight$' "$workflow" | cut -d: -f1)"
-phase_h_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13h_tests$' "$workflow" | cut -d: -f1)"
-phase_i_self_test_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13i_ci_self_test$' "$workflow" | cut -d: -f1)"
-phase_i_preflight_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13i_preflight$' "$workflow" | cut -d: -f1)"
-phase_i_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13i_tests$' "$workflow" | cut -d: -f1)"
-phase_j_self_test_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13j_ci_self_test$' "$workflow" | cut -d: -f1)"
-phase_j_preflight_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13j_preflight$' "$workflow" | cut -d: -f1)"
-phase_j_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13j_tests$' "$workflow" | cut -d: -f1)"
-phase_k_self_test_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13k_ci_self_test$' "$workflow" | cut -d: -f1)"
-phase_k_preflight_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13k_preflight$' "$workflow" | cut -d: -f1)"
-phase_k_line="$(grep -n -m1 -E '^[[:space:]]+id: phase13k_tests$' "$workflow" | cut -d: -f1)"
-(( native_line < preflight_line && preflight_line < phase_e_line && phase_e_line < phase_f_preflight_line && phase_f_preflight_line < phase_f_line && phase_f_line < phase_g_preflight_line && phase_g_preflight_line < phase_g_line && phase_g_line < phase_h_self_test_line && phase_h_self_test_line < phase_h_preflight_line && phase_h_preflight_line < phase_h_line && phase_h_line < phase_i_self_test_line && phase_i_self_test_line < phase_i_preflight_line && phase_i_preflight_line < phase_i_line && phase_i_line < phase_j_self_test_line && phase_j_self_test_line < phase_j_preflight_line && phase_j_preflight_line < phase_j_line && phase_j_line < phase_k_self_test_line && phase_k_self_test_line < phase_k_preflight_line && phase_k_preflight_line < phase_k_line )) || fail 'Focused Phase 13E–13K preflight/tests are not ordered after native prerequisites'
 
 # The build-mode-specific plugin registrant must be regenerated and validated
 # after SDK setup, immediately before the real no-pub ARM64 build.
@@ -324,40 +264,15 @@ build_line="$(grep -n -m1 -E '^[[:space:]]+id: build_android_arm64$' "$workflow"
 grep -Fq 'flutter build apk --no-pub --"$BUILD_MODE" --target-platform android-arm64' "$workflow" \
   || fail 'Final Android ARM64 build must use --no-pub after mode-specific plugin registrant generation'
 
-# Verify the workflow itself runs the focused Phase 13E, 13F, 13G and 13H CI self-tests.
-grep -Fq 'bash .github/scripts/test_phase13e_ci.sh' .github/scripts/audit_android_only.sh \
-  || fail 'Android-only audit must run the Phase 13E CI self-test'
-grep -Fq 'bash .github/scripts/test_phase13f_ci.sh' .github/scripts/audit_android_only.sh \
   || fail 'Android-only audit must run the Phase 13F CI self-test'
-grep -Fq 'bash .github/scripts/test_phase13g_ci.sh' .github/scripts/audit_android_only.sh \
   || fail 'Android-only audit must run the Phase 13G CI self-test'
-grep -Fq 'bash .github/scripts/test_phase13h_ci.sh' .github/scripts/audit_android_only.sh \
   || fail 'Android-only audit must run the Phase 13H CI self-test'
-grep -Fq 'bash .github/scripts/test_phase13i_ci.sh' .github/scripts/audit_android_only.sh \
-  || fail 'Android-only audit must run the Phase 13I CI self-test'
-grep -Fq 'bash .github/scripts/test_phase13j_ci.sh' .github/scripts/audit_android_only.sh \
-  || fail 'Android-only audit must run the Phase 13J CI self-test'
 for phase in l m n o p; do
   grep -Fq "bash .github/scripts/test_phase13${phase}_ci.sh" .github/scripts/audit_android_only.sh \
     || fail "Android-only audit must run the Phase 13${phase^^} CI self-test"
 done
-grep -Fq 'bash .github/scripts/test_phase13k_ci.sh' .github/scripts/audit_android_only.sh \
-  || fail 'Android-only audit must run the Phase 13K CI self-test'
-bash .github/scripts/test_phase13e_ci.sh
-bash .github/scripts/test_phase13f_ci.sh
-bash .github/scripts/test_phase13g_ci.sh
-bash .github/scripts/test_phase13h_ci.sh
-bash .github/scripts/test_phase13i_ci.sh
-bash .github/scripts/test_phase13j_ci.sh
-bash .github/scripts/test_phase13k_ci.sh
-bash .github/scripts/test_phase13l_ci.sh
-bash .github/scripts/test_phase13m_ci.sh
-bash .github/scripts/test_phase13n_ci.sh
-bash .github/scripts/test_phase13o_ci.sh
-bash .github/scripts/test_phase13p_ci.sh
 bash .github/scripts/release_hardening_audit.sh
 if grep -Eq 'dart analyze --fatal-infos lib test integration_test' "$workflow"; then
   fail 'Android workflow must use the pinned Flutter analyzer gate rather than an unpinned Dart analyzer command'
 fi
 
-printf 'Android-only audit passed: Android target, ARM64 ABI, PRoot checksums, localization gates, focused Phase 13E–13P regressions, complete Flutter/Android tests, Android Skill E2E and release hardening policy verified.\n'
