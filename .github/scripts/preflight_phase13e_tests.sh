@@ -234,8 +234,8 @@ if 'includeShellRuntimeProfileId: !ctx.conversationScoped' not in workspace:
     raise SystemExit('FAIL: chat Shell still accepts a Runtime Profile ID')
 if 'includeRuntimeProfileTools: true' not in workspace:
     raise SystemExit('FAIL: chat scratch workspaces cannot manage Skill-owned Runtime Profiles')
-if 'if (includeRuntimeProfiles)' not in workspace:
-    raise SystemExit('FAIL: Shell schema does not conditionally omit runtime_profile_id')
+if 'if (includeShellRuntimeProfileId ?? includeRuntimeProfiles)' not in workspace:
+    raise SystemExit('FAIL: Shell schema does not conditionally omit runtime_profile_id from conversation-scoped workspaces')
 if 'if (!ctx.conversationScoped && profiles != null)' not in workspace:
     raise SystemExit('FAIL: conversation-scoped Shell still resolves project Runtime Profiles')
 if 'final runtimeProfileIgnored = ctx.conversationScoped' not in workspace:
