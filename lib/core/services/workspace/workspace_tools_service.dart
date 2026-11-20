@@ -1076,27 +1076,36 @@ class WorkspaceToolsService {
     } finally {
       unregisterCancellation?.call();
       if (profileExecution != null) {
-        await profiles!.cleanupExecution(context: ctx, execution: profileExecution);
-        try {
-          final profileStatus = executionError != null || exited == null
-              ? RuntimeProcessStatus.failed
-              : exited.cancelled
-              ? RuntimeProcessStatus.cancelled
-              : exited.timedOut
-              ? RuntimeProcessStatus.timedOut
-              : exited.exitCode == 0
-              ? RuntimeProcessStatus.succeeded
-              : RuntimeProcessStatus.failed;
-          await profiles!.recordCompleted(
+        final activeProfileService = profiles;
+        if (activeProfileService != null) {
+          await activeProfileService.cleanupExecution(
+            context: ctx,
             execution: profileExecution,
-            runtimeRunId: runtimeRunId,
-            status: profileStatus,
-            exitCode: exited?.exitCode,
-            error: executionError?.toString(),
           );
-        } catch (error) {
-          profiles!.releaseReservation(profileExecution.profile.id, runtimeRunId);
-          debugPrint('Runtime profile process ledger update failed: $error');
+          try {
+            final profileStatus = executionError != null || exited == null
+                ? RuntimeProcessStatus.failed
+                : exited.cancelled
+                ? RuntimeProcessStatus.cancelled
+                : exited.timedOut
+                ? RuntimeProcessStatus.timedOut
+                : exited.exitCode == 0
+                ? RuntimeProcessStatus.succeeded
+                : RuntimeProcessStatus.failed;
+            await activeProfileService.recordCompleted(
+              execution: profileExecution,
+              runtimeRunId: runtimeRunId,
+              status: profileStatus,
+              exitCode: exited?.exitCode,
+              error: executionError?.toString(),
+            );
+          } catch (error) {
+            activeProfileService.releaseReservation(
+              profileExecution.profile.id,
+              runtimeRunId,
+            );
+            debugPrint('Runtime profile process ledger update failed: $error');
+          }
         }
       }
       // A failed or cancelled command may still have installed/updated files.
