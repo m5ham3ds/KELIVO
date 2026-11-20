@@ -18,8 +18,20 @@ if ! modules_available || ! command -v cc >/dev/null 2>&1; then
   else
     APT=(sudo apt-get)
   fi
-  "${APT[@]}" update
-  "${APT[@]}" install -y --no-install-recommends build-essential pkg-config libgtk-3-dev
+  # Hosted-runner package mirrors can stall on transient CDN/network failures.
+  # Bound retries/timeouts so CI reports a concrete provisioning failure instead
+  # of occupying the full Android build job indefinitely.
+  APT_OPTIONS=(
+    -o Acquire::Retries=2
+    -o Acquire::http::Timeout=45
+    -o Acquire::https::Timeout=45
+    -o Dpkg::Use-Pty=0
+  )
+  timeout --signal=TERM --kill-after=30s 600s \
+    "${APT[@]}" "${APT_OPTIONS[@]}" -q update
+  timeout --signal=TERM --kill-after=30s 900s \
+    "${APT[@]}" "${APT_OPTIONS[@]}" -q install -y --no-install-recommends \
+    build-essential pkg-config libgtk-3-dev
 fi
 
 if ! modules_available; then

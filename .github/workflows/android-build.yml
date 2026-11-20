@@ -147,6 +147,7 @@ jobs:
       - name: Prepare Linux host dependencies for Flutter native-asset hooks
         id: linux_test_native_deps
         if: ${{ !cancelled() && steps.flutter_pub_get.outcome == 'success' }}
+        timeout-minutes: 25
         shell: bash
         run: |
           bash .github/scripts/capture_step.sh linux_test_native_deps "Prepare Linux GTK/GLib headers required by Flutter test hooks" -- \
