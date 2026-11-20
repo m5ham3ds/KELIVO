@@ -522,7 +522,7 @@ jobs:
         shell: bash
         run: |
           bash .github/scripts/capture_step.sh full_flutter_analyze "Analyze complete Flutter source" -- \
-            flutter analyze --no-pub lib test integration_test
+            bash .github/scripts/run_flutter_analyze_gate.sh
 
       - name: Run complete Flutter unit and widget test suite
         id: full_flutter_tests

@@ -20,6 +20,32 @@ if [[ $# -eq 0 ]]; then
   exit 2
 fi
 
+run_analyze_quality_gate() {
+  local output_file="$1"
+  shift
+  local command_output
+  local command_status
+
+  command_output="$(mktemp)"
+  set +e
+  "$@" > >(tee "$command_output") 2>&1
+  command_status=$?
+  set -e
+
+  # Flutter analyze exits 1 for info-level lints as well as warnings/errors.
+  # Keep the complete report, but CI blocks only on analyzer errors or warnings.
+  if grep -Eq '(^|[[:space:]])(error|warning)[[:space:]]+•' "$command_output"; then
+    rm -f "$command_output"
+    return 1
+  fi
+  if [[ "$command_status" -ne 0 ]] && ! grep -Eq '^[[:space:]]*[0-9]+ issues? found\.' "$command_output"; then
+    rm -f "$command_output"
+    return "$command_status"
+  fi
+  rm -f "$command_output"
+  return 0
+}
+
 if [[ ! "$STEP_ID" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
   echo "Invalid step id: $STEP_ID" >&2
   exit 2
