@@ -179,6 +179,16 @@ if grep -Eq '^  reorderable_grid_view:' pubspec.yaml; then
   fail 'Unused reorderable_grid_view dependency must not be reintroduced without a real source import'
 fi
 
+# Native-asset host dependencies are required after Flutter packages resolve
+# and before localization generation, analysis and Flutter's full test suite.
+native_line="$(grep -n -m1 -E '^[[:space:]]+id: linux_test_native_deps$' "$workflow" | cut -d: -f1)"
+pub_get_line="$(grep -n -m1 -E '^[[:space:]]+id: flutter_pub_get$' "$workflow" | cut -d: -f1)"
+l10n_line="$(grep -n -m1 -E '^[[:space:]]+id: l10n_parity$' "$workflow" | cut -d: -f1)"
+[[ -n "$native_line" && -n "$pub_get_line" && -n "$l10n_line" ]] || fail 'Linux native-asset dependency preparation step is missing'
+(( pub_get_line < native_line && native_line < l10n_line )) || fail 'Linux native-asset dependencies must follow Flutter package resolution and precede l10n/analyze/tests'
+grep -Fq 'prepare_linux_native_test_deps.sh' "$workflow" || fail 'Android workflow must install host GTK/GLib development libraries before Flutter native-asset hooks'
+grep -Fq 'steps.linux_test_native_deps.outcome' "$workflow" || fail 'Build report must capture Linux native-asset setup outcome'
+
 # Ensure consolidated quality gates remain ordered before the release build.
 previous_line=0
 for step_id in \

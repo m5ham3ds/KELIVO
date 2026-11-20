@@ -117,6 +117,15 @@ jobs:
 
       # Catch syntax/format regressions in the capability registry and Skill
       # import UI before earlier focused lanes load the shared import widget.
+      - name: Prepare Linux host dependencies for Flutter native-asset hooks
+        id: linux_test_native_deps
+        if: success()
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh linux_test_native_deps "Prepare Linux GTK/GLib headers required by Flutter native-asset hooks" -- \
+            bash .github/scripts/prepare_linux_native_test_deps.sh
+
       - name: Validate Arabic localization key and placeholder parity
         id: l10n_parity
         if: success()
@@ -294,6 +303,7 @@ jobs:
           PUB_GET_OUTCOME: ${{ steps.flutter_pub_get.outcome }}
           PHASE13P_ANDROID_E2E_OUTCOME: ${{ steps.phase13p_android_e2e.outcome }}
           SETUP_GRADLE_OUTCOME: ${{ steps.setup_gradle.outcome }}
+          LINUX_TEST_NATIVE_DEPS_OUTCOME: ${{ steps.linux_test_native_deps.outcome }}
           L10N_PARITY_OUTCOME: ${{ steps.l10n_parity.outcome }}
           GENERATE_L10N_OUTCOME: ${{ steps.generate_l10n.outcome }}
           FULL_FLUTTER_ANALYZE_OUTCOME: ${{ steps.full_flutter_analyze.outcome }}

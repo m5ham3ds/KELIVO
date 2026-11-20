@@ -16,6 +16,7 @@ record_skipped() {
 
 record_skipped "toolchain_versions" "Flutter, Dart and Android SDK versions" "${TOOLCHAIN_VERSIONS_OUTCOME:-unknown}"
 record_skipped "flutter_pub_get" "Resolve Flutter application dependencies" "${PUB_GET_OUTCOME:-unknown}"
+record_skipped "linux_test_native_deps" "Prepare Linux GTK/GLib headers required by Flutter test hooks" "${LINUX_TEST_NATIVE_DEPS_OUTCOME:-unknown}" "Not run because Flutter dependency resolution or an earlier required CI step did not succeed."
 record_skipped "l10n_parity" "Validate Arabic localization keys and placeholders" "${L10N_PARITY_OUTCOME:-unknown}"
 record_skipped "generate_l10n" "Generate Flutter localizations" "${GENERATE_L10N_OUTCOME:-unknown}"
 record_skipped "full_flutter_analyze" "Analyze complete Flutter source" "${FULL_FLUTTER_ANALYZE_OUTCOME:-unknown}"
