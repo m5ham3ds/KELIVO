@@ -1,6 +1,6 @@
 name: Android ARM64 Build & Essential Arabic Checks
 
-# Run automatically whenever project files are pushed or a PR is opened/updated.
+# Run on main pushes and pull request updates. Manual execution remains available.
 # Manual execution remains available for debug/release builds on a selected ref.
 on:
   push:
@@ -523,7 +523,7 @@ jobs:
         shell: bash
         run: |
           bash .github/scripts/capture_step.sh full_flutter_analyze "Analyze complete Flutter source" -- \
-            flutter analyze --no-pub
+            flutter analyze --no-pub lib test integration_test
 
       - name: Run complete Flutter unit and widget test suite
         id: full_flutter_tests
@@ -533,6 +533,17 @@ jobs:
         run: |
           bash .github/scripts/capture_step.sh full_flutter_tests "Run all Flutter unit and widget tests" -- \
             flutter test --no-pub --reporter expanded
+
+      # Local path dependencies have independent pubspecs and test suites.
+      # Running their tests from the app root does not cover these test trees.
+      - name: Run vendored local package test suites
+        id: local_package_tests
+        if: success()
+        timeout-minutes: 75
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh local_package_tests "Run independent local package test suites" -- \\
+            bash .github/scripts/run_local_package_tests.sh
 
       - name: Set up Java
         id: setup_java

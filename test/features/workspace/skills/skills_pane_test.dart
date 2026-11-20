@@ -268,6 +268,7 @@ void main() {
     final skill = createTempSkill(
       id: 'pack-create-skill',
       name: 'Pack Create Skill',
+      description: 'Creates a new skill pack.',
       parent: tempDir,
     );
     skills = FakeSkillsService(skills: [skill], skillsDirectory: tempDir);
@@ -285,6 +286,7 @@ void main() {
     final skill = createTempSkill(
       id: 'legacy-remote-skill',
       name: 'Legacy Remote Skill',
+      description: 'A legacy skill linked to a remote source.',
       source: SkillSource.github,
       parent: tempDir,
     );

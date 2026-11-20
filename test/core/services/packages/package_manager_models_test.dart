@@ -20,7 +20,7 @@ void main() {
   test('scope identifiers reject traversal and shell metacharacters', () {
     expect(PackageScopeTarget.isSafeScopeId('my-extension_1'), isTrue);
     expect(PackageScopeTarget.isSafeScopeId('../outside'), isFalse);
-    expect(PackageScopeTarget.isSafeScopeId('$(touch-file)'), isFalse);
+    expect(PackageScopeTarget.isSafeScopeId(r'$(touch-file)'), isFalse);
   });
 
   test('runtime and project targets isolate lockfiles by ecosystem', () {
