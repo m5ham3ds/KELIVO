@@ -146,8 +146,12 @@ grep -Fq 'Intentionally skipped by phase_test_scope=skill_doctor_recovery' .gith
   || fail 'Build report must distinguish intentional focused-recovery skips from failed prerequisites.'
 grep -Fq 'id: full_flutter_analyze' "$workflow" \
   || fail 'Android workflow must include the complete Flutter analyzer gate'
-grep -Fq 'flutter analyze --no-pub' "$workflow" \
-  || fail 'Complete Flutter analyzer must use the resolved dependency graph'
+grep -Fq 'bash .github/scripts/run_flutter_analyze_gate.sh' "$workflow" \
+  || fail 'Complete Flutter analyzer must use the dedicated analysis quality gate'
+grep -Fq 'flutter analyze --no-pub lib test integration_test' .github/scripts/run_flutter_analyze_gate.sh \
+  || fail 'Complete Flutter analyzer gate must use the resolved dependency graph'
+grep -Fq 'analyzer errors or warnings' .github/scripts/run_flutter_analyze_gate.sh \
+  || fail 'Complete Flutter analyzer gate must block analyzer warnings and errors'
 grep -Fq 'id: full_flutter_tests' "$workflow" \
   || fail 'Android workflow must include the complete Flutter unit/widget test gate'
 grep -Fq 'flutter test --no-pub --reporter expanded' "$workflow" \
