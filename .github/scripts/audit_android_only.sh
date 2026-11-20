@@ -127,12 +127,14 @@ grep -Fq 'gradle --no-daemon -p android :app:testDebugUnitTest' "$workflow" \
   || fail 'Complete Android JVM/Robolectric test task is missing'
 grep -Fq "github.ref == 'refs/heads/main'" "$workflow" \
   || fail 'Android emulator Skill E2E must run on main pushes'
+grep -Fq 'id: phase13p_android_e2e' "$workflow" \
   || fail 'Android workflow must include the Skill lifecycle emulator E2E gate'
 for integration_test in \
   integration_test/browser_navigation_runtime_test.dart \
   integration_test/browser_workspace_runtime_test.dart \
   integration_test/browser_workspace_app_runtime_test.dart \
   integration_test/workspace/skill_execution_e2e_test.dart; do
+  grep -Fq "$integration_test" .github/scripts/run_phase13p_android_e2e.sh \
     || fail "Android E2E runner is missing required integration test: $integration_test"
 done
 
