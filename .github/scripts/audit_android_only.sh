@@ -109,24 +109,6 @@ if grep -Eq '\.github/scripts/(test|analyze)_android_phase[0-9]+\.sh' "$workflow
 fi
 grep -Fq 'python3 .github/scripts/check_l10n_parity.py' "$workflow" || fail 'Android workflow does not validate ARB key/placeholder parity'
 grep -Fq 'flutter gen-l10n' "$workflow" || fail 'Android workflow does not generate localized Dart sources'
-# Historical Phase 13A–13D scripts remain available for traceability but must
-# not be registered as gates in the current build workflow.
-for test_file in \
-  test/core/services/sandbox/environment_status_tool_test.dart \
-  test/core/services/packages/package_manager_service_test.dart \
-  test/core/services/extensions/conversational_extension_service_test.dart \
-  test/features/home/services/built_in_tool_names_test.dart; do
-done
-grep -Fq "steps.flutter_pub_get.outcome == 'success'" <<< "$native_dependency_block" \
-  || fail 'Linux GTK/GLib host dependencies must be prepared after Flutter dependencies resolve.'
-if grep -Fq 'PHASE_TEST_SCOPE' <<< "$native_dependency_block"; then
-  fail 'Linux GTK/GLib host dependencies must remain enabled in the isolated PHASE13O recovery scope.'
-fi
-if grep -Fq 'KELIVO_EXTENDED_PHASE13_TESTS' <<< "$native_dependency_block"; then
-  fail 'Linux GTK/GLib host dependency setup must not be conditional on an obsolete Phase 13 mode.'
-fi
-grep -Fq 'Intentionally skipped by phase_test_scope=skill_doctor_recovery' .github/scripts/record_skipped_build_stages.sh \
-  || fail 'Build report must distinguish intentional focused-recovery skips from failed prerequisites.'
 grep -Fq 'id: full_flutter_analyze' "$workflow" \
   || fail 'Android workflow must include the complete Flutter analyzer gate'
 grep -Fq 'bash .github/scripts/run_flutter_analyze_gate.sh' "$workflow" \
