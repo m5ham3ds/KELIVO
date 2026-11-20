@@ -117,7 +117,10 @@ void main() {
       isToolModel: (_, __) => true,
       workspaceContext: context(),
     );
-    expect(withCtx.map(nameOf), containsAll(WorkspaceToolsService.toolNames));
+    final nonShellTools = WorkspaceToolsService.toolNames
+        .where((name) => name != 'shell');
+    expect(withCtx.map(nameOf), containsAll(nonShellTools));
+    expect(withCtx.map(nameOf), isNot(contains('shell')));
 
     final textOnly = service.buildToolDefinitions(
       settings,

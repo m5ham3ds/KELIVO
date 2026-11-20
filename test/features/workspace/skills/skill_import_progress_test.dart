@@ -15,19 +15,22 @@ import '../../../support/business_test_harness.dart';
 import 'skills_test_fakes.dart';
 
 class _ProgressSkillsService extends FakeSkillsService {
-  Completer<Skill>? pending;
+  Completer<List<Skill>>? pending;
   ValueChanged<SkillImportProgress>? report;
   Future<void>? cancelled;
   int attempts = 0;
 
   @override
-  Future<Skill> importFromGitHub(
+  Future<List<Skill>> importFromGitHubRepository(
     String url, {
+    required Future<Set<String>?> Function(
+      List<SkillImportCandidate> candidates,
+    ) chooseSkills,
     ValueChanged<SkillImportProgress>? onProgress,
     Future<void>? cancelSignal,
   }) {
     attempts++;
-    pending = Completer<Skill>();
+    pending = Completer<List<Skill>>();
     report = onProgress;
     cancelled = cancelSignal;
     report!(const SkillImportProgress(SkillImportPhase.resolving));

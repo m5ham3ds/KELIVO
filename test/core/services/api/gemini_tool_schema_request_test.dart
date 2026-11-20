@@ -142,9 +142,10 @@ void main() {
             final declaration =
                 declarations.singleWhere((d) => d['name'] == function['name'])
                     as Map;
-            final expected = Map<String, dynamic>.from(
-              function['parameters'] as Map,
-            )..remove('additionalProperties');
+            final expected = cleanSchemaForGemini(
+              Map<String, dynamic>.from(function['parameters'] as Map),
+              stringEnumOnly: true,
+            );
             // Keep supported constraints such as shell timeout defaults/bounds
             // and phone-control text length/gesture duration limits intact.
             expect(declaration['parameters'], expected);

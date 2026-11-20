@@ -155,7 +155,11 @@ void main() {
       expect(fragment, contains('kelivo://workspace/plot.png'));
       expect(fragment, contains('Linux (PRoot)'));
       expect(fragment, contains('/etc/os-release'));
-      expect(fragment.length, lessThan(1200));
+      expect(
+        fragment.length,
+        lessThan(2400),
+        reason: 'Runtime Profile and PRoot safety guidance are included.',
+      );
     });
   }
 

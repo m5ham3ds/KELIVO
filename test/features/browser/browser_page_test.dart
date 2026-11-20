@@ -16,6 +16,7 @@ import 'package:Kelivo/core/services/browser/browser_service.dart';
 import 'package:Kelivo/core/services/browser/browser_store.dart';
 import 'package:Kelivo/core/services/haptics.dart';
 import 'package:Kelivo/features/browser/models/browser_models.dart';
+import 'package:Kelivo/theme/app_font_weights.dart';
 import 'package:Kelivo/features/browser/browser_tabs_route.dart';
 import 'package:Kelivo/features/browser/pages/browser_desktop_layout.dart';
 import 'package:Kelivo/features/browser/pages/browser_mobile_layout.dart';
@@ -2840,7 +2841,7 @@ void main() {
         final labels = tester.widgetList<Text>(host).toList();
         expect(labels, hasLength(progress > 0 && progress < 1 ? 2 : 1));
         for (final text in labels) {
-          expect(text.style!.fontWeight, FontWeight.w500);
+          expect(text.style!.fontWeight, AppFontWeights.medium);
           expect(text.style!.fontSize, 16);
         }
       }

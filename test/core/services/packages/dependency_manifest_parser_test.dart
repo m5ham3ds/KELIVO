@@ -34,8 +34,18 @@ https://example.test/pkg.whl
 ''');
 
     expect(manifest.kind, PackageEcosystem.node);
-    expect(manifest.packages.map((item) => item.name), ['typescript']);
-    expect(manifest.packages.single.version, '5.6.3');
+    expect(
+      manifest.packages.map((item) => item.name),
+      unorderedEquals(['typescript', '@scope/tool']),
+    );
+    expect(
+      manifest.packages.singleWhere((item) => item.name == 'typescript').version,
+      '5.6.3',
+    );
+    expect(
+      manifest.packages.singleWhere((item) => item.name == '@scope/tool').version,
+      isNull,
+    );
     expect(manifest.warnings, contains('version_range_not_locked:@scope/tool'));
     expect(manifest.warnings, contains('ignored_non_registry_package:bad-url'));
     expect(manifest.warnings, contains('ignored_non_registry_package:git-tool'));

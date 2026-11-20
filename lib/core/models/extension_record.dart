@@ -57,7 +57,9 @@ final class ExtensionSource {
   factory ExtensionSource.fromJson(Object? value) {
     if (value is! Map) throw const FormatException('extension_source');
     final map = Map<String, Object?>.from(value);
-    final type = map['type'];
+    // Normalize the enum's camelCase value written by older builds.
+    final rawType = map['type'];
+    final type = rawType == 'skillsSh' ? 'skills_sh' : rawType;
     if (type is! String || !_tokenPattern.hasMatch(type)) {
       throw const FormatException('extension_source_type');
     }

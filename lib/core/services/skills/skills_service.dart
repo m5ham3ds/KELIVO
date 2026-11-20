@@ -2335,7 +2335,7 @@ class SkillsService extends ChangeNotifier {
       late final String owner;
       late final String repo;
       String family;
-      if (record.source.type == SkillSource.skillsSh.name) {
+      if (record.source.type == 'skills_sh') {
         final catalogId = _catalogSkillId(record);
         if (catalogId == null) continue;
         final segments = catalogId.split('/');
@@ -2497,7 +2497,7 @@ class SkillsService extends ChangeNotifier {
     // refresh is safe only when the extension registry also contains a
     // validated, replayable origin. This avoids exposing an Update action
     // that can only fail later with the generic `invalid_input` code.
-    if (registered.source.type == SkillSource.skillsSh.name) {
+    if (registered.source.type == 'skills_sh') {
       return _catalogSkillId(registered) == null ? null : 'skills-sh';
     }
     if (registered.source.type == SkillSource.github.name) {
@@ -2706,7 +2706,7 @@ class SkillsService extends ChangeNotifier {
           continue;
         }
 
-        if (registered.source.type == SkillSource.skillsSh.name) {
+        if (registered.source.type == 'skills_sh') {
           final catalogId = _catalogSkillId(registered);
           if (catalogId == null) {
             results.add({...base, 'status': 'unsupported', 'reason': 'skills_catalog_reference_missing'});
@@ -2967,7 +2967,7 @@ class SkillsService extends ChangeNotifier {
     await loaded;
     final registered = await _extensionRegistry.get('skill', id);
     if (registered == null) throw StateError('skill_not_registered');
-    if (registered.source.type == SkillSource.skillsSh.name) {
+    if (registered.source.type == 'skills_sh') {
       return updateFromSkillsCatalog(
         id,
         catalogId: _catalogSkillId(registered),
@@ -2997,7 +2997,7 @@ class SkillsService extends ChangeNotifier {
     await loaded;
     final registered = await _extensionRegistry.get('skill', skillId);
     if (registered == null ||
-        registered.source.type != SkillSource.skillsSh.name) {
+        registered.source.type != 'skills_sh') {
       throw StateError('skill_not_skills_catalog_source');
     }
     final resolvedId = catalogId ?? _catalogSkillId(registered);
@@ -3035,7 +3035,7 @@ class SkillsService extends ChangeNotifier {
       final registered = await _extensionRegistry.get('skill', id);
       final catalogId = registered == null ? null : _catalogSkillId(registered);
       if (registered == null ||
-          registered.source.type != SkillSource.skillsSh.name ||
+          registered.source.type != 'skills_sh' ||
           catalogId == null) {
         throw FormatException('skill_pack_member_has_no_skills_catalog_source:$id');
       }
@@ -4181,7 +4181,7 @@ class SkillsService extends ChangeNotifier {
         id: skill.record.id,
         name: skill.name,
         description: skill.description,
-        sourceType: skill.record.source.name,
+        sourceType: skill.record.source == SkillSource.skillsSh ? 'skills_sh' : skill.record.source.name,
         enabled: skill.record.enabled,
         installedAt: skill.record.installedAt,
         updatedAt: skill.record.updatedAt,

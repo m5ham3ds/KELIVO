@@ -62,7 +62,7 @@ abstract final class SkillCompositionToolCatalog {
               'maxProperties': 64,
             },
           },
-          'required': [],
+          'required': ['task'],
           'additionalProperties': false,
         },
       },

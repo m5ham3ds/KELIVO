@@ -840,8 +840,11 @@ void main() {
     expect(find.textContaining('RootFS النشط في PRoot مشترك وقابل للكتابة'), findsOneWidget);
     expect(find.textContaining('اتصال الشبكة غير مقيّد'), findsOneWidget);
     expect(find.textContaining('ليس عزلًا أمنيًا على مستوى النواة'), findsOneWidget);
-    expect(find.bySemanticsLabel('Deny'), findsOneWidget);
-    expect(find.bySemanticsLabel('Allow'), findsOneWidget);
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(WorkspaceToolCardBody)),
+    )!;
+    expect(find.bySemanticsLabel(l10n.workspaceToolDeny), findsOneWidget);
+    expect(find.bySemanticsLabel(l10n.workspaceToolApprove), findsOneWidget);
     expect(find.text('Switch to full access'), findsNothing);
 
     approval.deny('skill-run-risk', conversationId: 'c1');

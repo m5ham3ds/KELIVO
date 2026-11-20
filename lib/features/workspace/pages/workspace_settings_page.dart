@@ -166,6 +166,7 @@ class _EnvironmentNavRow extends StatelessWidget {
     return SectionCard(
       children: [
         IosNavRow(
+          key: const ValueKey<String>('workspace-environment-nav-row'),
           icon: workspaceEnvEngineIcon(state: env.state, status: status),
           label: label,
           subtitle: _phaseLabel(l10n, phase),

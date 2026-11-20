@@ -222,7 +222,7 @@ void main() {
     expect(find.byType(DesktopWorkspacesView), findsOneWidget);
     expect(find.text(l10n.workspaceEnvTitle), findsOneWidget);
     expect(find.text(l10n.workspaceDesktopHostHint), findsNothing);
-    await tester.tap(find.byType(IosNavRow).first);
+    await tester.tap(find.byKey(const ValueKey<String>('workspace-environment-nav-row')));
     await flushIo(tester);
     expect(find.byType(EnvironmentPane), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);

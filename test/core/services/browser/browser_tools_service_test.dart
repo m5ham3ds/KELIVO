@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -22,6 +23,29 @@ import 'package:Kelivo/utils/mcp_structured_image.dart';
 import 'package:Kelivo/utils/sandbox_path_resolver.dart';
 
 import '../../../support/claude_test_api.dart' show FakePathProviderPlatform;
+
+class _DownloadTestAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    if (options.uri.path != '/artifact.txt') {
+      return ResponseBody.fromString('', HttpStatus.notFound);
+    }
+    return ResponseBody.fromString(
+      'kelivo-download-test',
+      HttpStatus.ok,
+      headers: {
+        Headers.contentTypeHeader: [Headers.textPlainContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -115,6 +139,11 @@ void main() {
     browser = BrowserService(
       store: BrowserStore(directory: Directory('${directory.path}/browser')),
       supported: true,
+      downloadClientFactory: () {
+        final client = Dio();
+        client.httpClientAdapter = _DownloadTestAdapter();
+        return client;
+      },
       engineFactory:
           ({
             required tab,
@@ -747,44 +776,33 @@ void main() {
 
   test('download is conversation-owned and imported without overwrite', () async {
     await enable();
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final subscription = server.listen((request) async {
-      request.response.headers.contentType = ContentType.text;
-      request.response.write('kelivo-download-test');
-      await request.response.close();
-    });
-    try {
-      final url = 'http://${server.address.address}:${server.port}/artifact.txt';
-      final downloaded = payload(await tools.handle('chat-a', {
-        'action': 'download',
-        'url': url,
-        'file_name': 'artifact.txt',
-      }, capturePreview: false));
-      final item = downloaded['page']['download'] as Map;
-      expect(item['status'], 'completed');
-      final downloadId = item['download_id'] as String;
-      expect(
-        browser.downloads.singleWhere((entry) => entry.id == downloadId).ownerSessionId,
-        'chat-a',
-      );
-      final imported = payload(await tools.handle('chat-a', {
-        'action': 'import_download',
-        'download_id': downloadId,
-        'save_to': 'downloads/artifact.txt',
-      }, capturePreview: false));
-      expect(imported['ok'], isTrue);
-      expect(
-        await File('${directory.path}/downloads/artifact.txt').readAsString(),
-        'kelivo-download-test',
-      );
-      await expectLater(
-        browser.completedDownloadFile(downloadId, ownerSessionId: 'chat-b'),
-        throwsStateError,
-      );
-    } finally {
-      await subscription.cancel();
-      await server.close(force: true);
-    }
+    const url = 'https://downloads.example/artifact.txt';
+    final downloaded = payload(await tools.handle('chat-a', {
+      'action': 'download',
+      'url': url,
+      'file_name': 'artifact.txt',
+    }, capturePreview: false));
+    final item = downloaded['page']['download'] as Map;
+    expect(item['status'], 'completed');
+    final downloadId = item['download_id'] as String;
+    expect(
+      browser.downloads.singleWhere((entry) => entry.id == downloadId).ownerSessionId,
+      'chat-a',
+    );
+    final imported = payload(await tools.handle('chat-a', {
+      'action': 'import_download',
+      'download_id': downloadId,
+      'save_to': 'downloads/artifact.txt',
+    }, capturePreview: false));
+    expect(imported['ok'], isTrue);
+    expect(
+      await File('${directory.path}/downloads/artifact.txt').readAsString(),
+      'kelivo-download-test',
+    );
+    await expectLater(
+      browser.completedDownloadFile(downloadId, ownerSessionId: 'chat-b'),
+      throwsStateError,
+    );
   });
 
   test('closing an owned tab returns success after removing it', () async {

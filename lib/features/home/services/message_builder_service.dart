@@ -2289,10 +2289,13 @@ class MessageBuilderService {
           override = SkillsBinding.fromExtras(conversation.extras).skillIds;
         }
       }
-      final skills = skillsService.resolveForAssistant(
-        assistant,
-        conversationOverride: override,
-      );
+      final skills = skillsService
+          .resolveForAssistant(
+            assistant,
+            conversationOverride: override,
+          )
+          .where((skill) => skill.record.enabled)
+          .toList(growable: false);
       final skillsModelRoot =
           workspaceContext?.paths.modelSkillsDir ?? '/skills';
       final fragment = buildAvailableSkillsFragment(

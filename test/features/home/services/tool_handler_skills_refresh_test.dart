@@ -187,6 +187,7 @@ void main() {
                 engine: 'test',
                 sandboxed: sandboxed,
               ),
+              runtimeRegistered: true,
             ),
           )!;
       final installed = Directory(

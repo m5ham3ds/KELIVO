@@ -885,7 +885,7 @@ final class VideoQualityService {
     if (audioStreams.isNotEmpty) {
       final videoStart = _doubleValue(video['start_time']);
       final audioStart = _doubleValue(audioStreams.first['start_time']);
-      if (videoStart != null && audioStart != null && (videoStart - audioStart).abs() > 0.25) {
+      if (videoStart != null && audioStart != null && (videoStart - audioStart).abs() > 0.05) {
         findings.add({'code': 'audio_video_start_offset', 'severity': 'warning', 'offsetSeconds': audioStart - videoStart});
       }
       final videoDuration = _doubleValue(video['duration']);

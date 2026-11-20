@@ -42,6 +42,7 @@ void main() {
     bool empty = false,
     List<Skill>? initialSkills,
     List<SkillPack> packs = const <SkillPack>[],
+    List<String>? assistantSkillIds,
   }) async {
     tester.view.physicalSize = const Size(1000, 700);
     tester.view.devicePixelRatio = 1;
@@ -50,7 +51,7 @@ void main() {
     final preferences = createBusinessTestPreferences();
     await preferences.setString(
       'assistants_v1',
-      Assistant.encodeList([Assistant(id: 'a1', name: 'Assistant')]),
+      Assistant.encodeList([Assistant(id: 'a1', name: 'Assistant', skillIds: assistantSkillIds)]),
     );
     await preferences.setString('current_assistant_id_v1', 'a1');
     final assistants = AssistantProvider(preferences: preferences);
@@ -267,6 +268,7 @@ void main() {
         tester,
         initialSkills: [first, second],
         packs: [pack],
+        assistantSkillIds: const [],
       );
 
       await tester.tap(find.byTooltip('Skills'));

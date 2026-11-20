@@ -25,7 +25,9 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
     BrowserEngineFactory? engineFactory,
     this._supported,
     int? liveViewLimit,
-  }) : liveViewLimit =
+    Dio Function()? downloadClientFactory,
+  }) : _downloadClientFactory = downloadClientFactory,
+       liveViewLimit =
            liveViewLimit ??
            (const {
                  TargetPlatform.macOS,
@@ -49,6 +51,7 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
   static final Object _actionKey = Object();
   final BrowserStore _store;
   final BrowserEngineFactory _engineFactory;
+  final Dio Function()? _downloadClientFactory;
 
   /// Scroll drives only the browser chrome, never persistence or all listeners.
   final ValueNotifier<({String tabId, BrowserScrollState state})?>
@@ -1838,12 +1841,13 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
       ),
     );
     _notify();
-    final client = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(minutes: 2),
-      ),
-    );
+    final client = _downloadClientFactory?.call() ??
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 30),
+            receiveTimeout: const Duration(minutes: 2),
+          ),
+        );
     try {
       final engine = _engines[tabId ?? _activeTabId];
       var lastUpdate = DateTime.fromMillisecondsSinceEpoch(0);

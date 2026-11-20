@@ -365,7 +365,7 @@ void main() {
         {'source': source},
         toolCallId: 'install-call-1',
       );
-      expect(installed, contains('Installed Skill'));
+      expect(installed, contains('Installed 1 Agent Skill'));
       expect(installed, contains('not executed'));
       expect(skills.skills, hasLength(1));
       final liveRun = toolRuns.of(
