@@ -33,6 +33,8 @@ class AppSnackBarManager extends ChangeNotifier {
   AppSnackBarManager._internal();
 
   final List<NotificationEntry> _activeToasts = [];
+  final Map<NotificationEntry, Timer> _timers = <NotificationEntry, Timer>{};
+  final Map<NotificationEntry, NavigatorState> _owners = <NotificationEntry, NavigatorState>{};
   static const int _maxVisible = 3;
 
   List<NotificationEntry> get activeToasts => List.unmodifiable(_activeToasts);
@@ -70,26 +72,59 @@ class AppSnackBarManager extends ChangeNotifier {
     );
 
     _activeToasts.insert(0, entry);
+    _owners[entry] = navigator;
     notifyListeners();
 
     entry.animationController.forward();
 
-    // Auto dismiss
-    Timer(notification.duration, () {
+    // Auto dismiss. Keep the timer so the owning Navigator can cancel it
+    // synchronously when the route tree is disposed.
+    _timers[entry] = Timer(notification.duration, () {
+      _timers.remove(entry);
       _dismiss(entry);
     });
   }
 
-  void _dismiss(NotificationEntry entry) async {
+  Future<void> _dismiss(NotificationEntry entry) async {
     if (!_activeToasts.contains(entry)) return;
+    _timers.remove(entry)?.cancel();
 
-    // Start exit animation
-    await entry.animationController.reverse();
+    // A Navigator may be disposed before its route finishes the toast exit.
+    // In that case stop the controller immediately instead of awaiting a
+    // reverse animation driven by a dead TickerProvider.
+    final owner = _owners[entry];
+    if (owner == null || !owner.mounted) {
+      _removeEntry(entry);
+      return;
+    }
+    try {
+      await entry.animationController.reverse();
+    } catch (_) {
+      // Navigator teardown can race with an in-flight animation.
+    }
+    _removeEntry(entry);
+  }
 
-    _activeToasts.remove(entry);
+  void _removeEntry(NotificationEntry entry) {
+    _timers.remove(entry)?.cancel();
+    _owners.remove(entry);
+    if (!_activeToasts.remove(entry)) return;
+    entry.animationController.stop();
     entry.animationController.dispose();
     notifyListeners();
   }
+
+  /// Call when the owning Navigator is about to be removed from the tree.
+  void disposeForNavigator(NavigatorState navigator) {
+    final entries = _owners.entries
+        .where((entry) => identical(entry.value, navigator))
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    for (final entry in entries) {
+      _removeEntry(entry);
+    }
+  }
+
 
   void dismissAt(int index) {
     if (index < 0 || index >= _activeToasts.length) return;
