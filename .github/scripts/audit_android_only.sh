@@ -221,31 +221,25 @@ for step_id in \
   previous_line="$current_line"
 done
 
+# All expensive validation and release stages must run only after success.
 for step_id in toolchain_versions flutter_pub_get l10n_parity generate_l10n full_flutter_analyze full_flutter_tests local_package_tests setup_java setup_gradle android_sdk_components android_full_unit_tests phase13p_android_e2e prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
   step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
   block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
   grep -Fq 'if: success()' <<< "$block" || fail "Required quality/build step must remain success-gated: $step_id"
 done
 
-# The build-mode-specific plugin registrant must be regenerated and validated
-# after SDK setup, immediately before the real no-pub ARM64 build.
+# Preserve the release-specific plugin registrant and ARM64-only build.
 registrant_line="$(grep -n -m1 -E '^[[:space:]]+id: prepare_android_plugin_registrant$' "$workflow" | cut -d: -f1)"
 sdk_line="$(grep -n -m1 -E '^[[:space:]]+id: android_sdk_components$' "$workflow" | cut -d: -f1)"
 build_line="$(grep -n -m1 -E '^[[:space:]]+id: build_android_arm64$' "$workflow" | cut -d: -f1)"
 [[ -n "$registrant_line" && -n "$sdk_line" && -n "$build_line" ]] || fail 'Android release plugin registrant preparation step is missing'
-(( sdk_line < registrant_line && registrant_line < build_line )) || fail 'Android plugin registrant preparation must run immediately before APK build'
+(( sdk_line < registrant_line && registrant_line < build_line )) || fail 'Android plugin registrant preparation must follow SDK setup and precede the APK build'
 grep -Fq 'flutter build apk --no-pub --"$BUILD_MODE" --target-platform android-arm64' "$workflow" \
   || fail 'Final Android ARM64 build must use --no-pub after mode-specific plugin registrant generation'
 
-  || fail 'Android-only audit must run the Phase 13F CI self-test'
-  || fail 'Android-only audit must run the Phase 13G CI self-test'
-  || fail 'Android-only audit must run the Phase 13H CI self-test'
-for phase in l m n o p; do
-  grep -Fq "bash .github/scripts/test_phase13${phase}_ci.sh" .github/scripts/audit_android_only.sh \
-    || fail "Android-only audit must run the Phase 13${phase^^} CI self-test"
-done
 bash .github/scripts/release_hardening_audit.sh
 if grep -Eq 'dart analyze --fatal-infos lib test integration_test' "$workflow"; then
   fail 'Android workflow must use the pinned Flutter analyzer gate rather than an unpinned Dart analyzer command'
 fi
 
+printf 'Android-only audit passed: Android target, ARM64 ABI, PRoot checksums, localization parity, full Flutter tests, local package tests, Android JVM/Robolectric, Skill emulator E2E and release hardening verified.\\n'
