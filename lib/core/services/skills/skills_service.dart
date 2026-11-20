@@ -710,9 +710,12 @@ class SkillsService extends ChangeNotifier {
             if (await directory.exists()) await directory.delete(recursive: true);
             _skills.removeWhere((item) => item.record.id == id);
           }
-          if (sharedBundle != null &&
-              await sharedBundle.directory.parent.exists()) {
-            await sharedBundle.directory.parent.delete(recursive: true);
+          final bundleToRemove = sharedBundle;
+          if (bundleToRemove != null) {
+            final bundleParent = bundleToRemove.directory.parent;
+            if (await bundleParent.exists()) {
+              await bundleParent.delete(recursive: true);
+            }
           }
           notifyListeners();
           rethrow;
