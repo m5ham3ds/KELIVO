@@ -44,11 +44,12 @@ An Android-only audit script now runs before the toolchain setup. It checks for 
 
 The preflight audit must keep the Android-only target, ARM64 ABI, PRoot archive members/checksums, localization ARB parity, focused PHASE13E–13P regressions and release hardening checks. It must not disable the separately named complete Flutter validation gates.
 
-The Android Release workflow runs:
-- `flutter analyze --no-pub` across the complete Flutter source.
-- `flutter test --no-pub --reporter expanded` across all unit and widget tests.
-- `gradle --no-daemon -p android :app:testDebugUnitTest` across all Android JVM/Robolectric tests.
-- Browser navigation, browser workspace, browser app and Skill lifecycle integration tests on an Android emulator for each push to `main`.
+The Android workflow runs:
+- `flutter analyze --no-pub lib test integration_test` for the app and its own tests/integration tests; independent vendored package test trees are excluded from this root analysis context.
+- `flutter test --no-pub --reporter expanded` for the complete root unit/widget suite.
+- `.github/scripts/run_local_package_tests.sh` for the independent `mcp_client`, `downsize`, `flutter_math_fork`, `markstream`, and `terminal_view` test suites.
+- `gradle --no-daemon -p android :app:testDebugUnitTest` for Android JVM/Robolectric tests.
+- The Phase 13P Skill import-to-execution/background-lifecycle integration test on an Android emulator for every push to `main`.
 - The ARM64 Release APK build only after the required gates succeed.
 
 The older standalone host-localization test stage remains deferred; the current build validates Arabic ARB key/placeholder parity and runs generated Flutter localization tests inside the complete Flutter suite.

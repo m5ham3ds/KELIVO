@@ -1,7 +1,6 @@
 name: Android ARM64 Build & Essential Arabic Checks
 
-# Run on main pushes and pull request updates. Manual execution remains available.
-# Manual execution remains available for debug/release builds on a selected ref.
+# Run on main pushes and pull request updates; manual builds may target a selected ref.
 on:
   push:
     branches:
@@ -542,7 +541,7 @@ jobs:
         timeout-minutes: 75
         shell: bash
         run: |
-          bash .github/scripts/capture_step.sh local_package_tests "Run independent local package test suites" -- \\
+          bash .github/scripts/capture_step.sh local_package_tests "Run independent local package test suites" -- \
             bash .github/scripts/run_local_package_tests.sh
 
       - name: Set up Java
