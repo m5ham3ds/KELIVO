@@ -51,6 +51,28 @@ class BrowserWorkspaceResources {
     return segments.where((s) => s.isNotEmpty).toList();
   }
 
+  /// Safe workspace-relative destination for an imported browser download.
+  static Uri workspaceFileUrl(String value) {
+    final raw = value.trim();
+    final url = raw.startsWith('kelivo://')
+        ? raw
+        : 'kelivo://workspace/${KelivoLink.encodePath(raw)}';
+    if (raw.isEmpty ||
+        raw.startsWith('/') ||
+        raw.contains(r'\') ||
+        !isWorkspaceUrl(url)) {
+      throw const FormatException('Use a relative workspace file path.');
+    }
+    final uri = Uri.parse(url);
+    if (uri.hasQuery ||
+        uri.hasFragment ||
+        uri.pathSegments.isEmpty ||
+        uri.pathSegments.any((segment) => segment.isEmpty)) {
+      throw const FormatException('Invalid workspace file path.');
+    }
+    return uri;
+  }
+
   /// Output paths use the same workspace boundary as local page resources.
   static Uri screenshotUrl(String value) {
     final raw = value.trim();
@@ -187,6 +209,74 @@ class BrowserWorkspaceScope {
 
   /// A single bounded PNG write. Resolve parents before creating anything,
   /// recheck the binding after async work, and never truncate an existing file.
+  /// Atomically imports a verified browser download into this workspace.
+  /// The source must have been checked as belonging to this conversation.
+  Future<Map<String, Object?>> saveDownloadedFile(
+    String path,
+    File source, {
+    required void Function() checkAccess,
+  }) async {
+    final uri = BrowserWorkspaceResources.workspaceFileUrl(path);
+    final sourceLength = await source.length();
+    if (sourceLength > maxDownloadBytes) {
+      throw StateError('browser_workspace_download_size_invalid');
+    }
+    final targetPath = p.joinAll([root, ...uri.pathSegments]);
+    Future<String> checkedPath() async {
+      checkAccess();
+      final current = await resources.rootForSession?.call(sessionId);
+      if (_closed ||
+          current == null ||
+          await current.resolveSymbolicLinks() != root ||
+          resources.bindingForSession?.call(sessionId) != binding) {
+        throw StateError('browser_workspace_binding_changed');
+      }
+      final resolved = await WorkspacePaths.resolveHostPath(targetPath);
+      if (!p.isWithin(root, resolved) ||
+          BrowserWorkspaceApp.isDataPath(p.relative(resolved, from: root))) {
+        throw StateError('browser_workspace_access_denied');
+      }
+      checkAccess();
+      return resolved;
+    }
+
+    final resolved = await checkedPath();
+    if (await FileSystemEntity.type(resolved, followLinks: false) !=
+        FileSystemEntityType.notFound) {
+      throw StateError('browser_workspace_file_exists');
+    }
+    final target = File(resolved);
+    await target.parent.create(recursive: true);
+    if (await checkedPath() != resolved) {
+      throw StateError('browser_workspace_binding_changed');
+    }
+    final staging = await target.parent.createTemp('.kelivo-download-');
+    try {
+      final staged = File(p.join(staging.path, 'download.bin'));
+      await source.copy(staged.path);
+      checkAccess();
+      final copiedBytes = await staged.length();
+      if (copiedBytes != sourceLength || copiedBytes > maxDownloadBytes) {
+        throw StateError('browser_workspace_download_size_mismatch');
+      }
+      final digest = await sha256.bind(staged.openRead()).first;
+      if (await checkedPath() != resolved) {
+        throw StateError('browser_workspace_binding_changed');
+      }
+      await publishNewFileAtomically(staged.path, resolved);
+      return {
+        'path': uri.toString(),
+        'file_name': uri.pathSegments.last,
+        'bytes': copiedBytes,
+        'sha256': digest.toString(),
+      };
+    } finally {
+      await staging.delete(recursive: true);
+    }
+  }
+
+  static const int maxDownloadBytes = 256 * 1024 * 1024;
+
   Future<String> saveScreenshot(
     String path,
     Uint8List bytes, {

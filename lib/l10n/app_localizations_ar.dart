@@ -11981,7 +11981,7 @@ class AppLocalizationsAr extends AppLocalizationsEn {
   String get browserDownloadFailed => "فشل التنزيل";
 
   @override
-  String get browserAgentEnableHint => "فعّل أداة المتصفح من أدوات المحادثة، ثم اسمح بالتحكم هنا.";
+  String get browserAgentEnableHint => "فعّل السماح للمساعد بالوصول إلى المتصفح من إعدادات المتصفح. هذا الإذن عام على مستوى التطبيق.";
 
   @override
   String get browserSessionRequired => "افتح المتصفح من محادثة للسماح بالتحكم بواسطة الوكيل.";

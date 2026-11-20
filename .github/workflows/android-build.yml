@@ -5,7 +5,7 @@ name: Android ARM64 Build & Essential Arabic Checks
 on:
   push:
     branches:
-      - '**'
+      - main
   pull_request:
   workflow_dispatch:
     inputs:
@@ -52,7 +52,7 @@ jobs:
   build-android-arm64:
     name: Audit, Arabic Checks & Build Android ARM64
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 180
 
     steps:
       - name: Checkout source
@@ -77,7 +77,7 @@ jobs:
             echo "Event: ${GITHUB_EVENT_NAME:-unknown}"
             echo "Actor: ${GITHUB_ACTOR:-unknown}"
             echo "Build mode: ${BUILD_MODE:-release}"
-            echo "Phase 13 test scope: ${PHASE_TEST_SCOPE}; skill_doctor_recovery skips only PHASE13E–13N for an isolated PHASE13O fix whose parent commit already passed those suites; PHASE13O and PHASE13P diagnostics remain enabled; Android Skill E2E is opt-in; historical PHASE13A–13D tests are not repeated"
+            echo "Phase 13 test scope: ${PHASE_TEST_SCOPE}; skill_doctor_recovery skips only PHASE13E–13N for an isolated PHASE13O fix whose parent commit already passed those suites; PHASE13O and PHASE13P diagnostics remain enabled; Android Skill E2E runs on every main push and can also be requested manually; historical PHASE13A–13D tests are not repeated"
           } > "$REPORT_DIR/run-metadata.txt"
           bash .github/scripts/record_ci_action.sh checkout "Checkout source" "$CHECKOUT_OUTCOME"
           bash .github/scripts/record_ci_action.sh initialize_report "Initialize build report" "success" "Report metadata and per-step log directory created."
@@ -515,6 +515,24 @@ jobs:
           bash .github/scripts/capture_step.sh generate_l10n "Generate Flutter localizations" -- \
             flutter gen-l10n
 
+      - name: Analyze complete Flutter source
+        id: full_flutter_analyze
+        if: success()
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh full_flutter_analyze "Analyze complete Flutter source" -- \
+            flutter analyze --no-pub
+
+      - name: Run complete Flutter unit and widget test suite
+        id: full_flutter_tests
+        if: success()
+        timeout-minutes: 75
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh full_flutter_tests "Run all Flutter unit and widget tests" -- \
+            flutter test --no-pub --reporter expanded
+
       - name: Set up Java
         id: setup_java
         if: success()
@@ -575,28 +593,19 @@ jobs:
       # those plugins from the releaseApi classpath. Regenerate platform tooling
       # in the selected build mode immediately before Gradle, then keep the real
       # build on --no-pub so no later unfiltered pub-get can rewrite the registrant.
-      - name: Run Android background runtime and approval notification tests
-        id: android_background_unit_tests
+      - name: Run complete Android JVM and Robolectric unit test suite
+        id: android_full_unit_tests
         if: success()
-        timeout-minutes: 15
+        timeout-minutes: 30
         shell: bash
         run: |
-          bash .github/scripts/capture_step.sh android_background_unit_tests "Android background service lifecycle recovery, notification actions and progress Robolectric tests" -- \
-            gradle --no-daemon -p android :app:testDebugUnitTest --tests com.psyche.kelivo.background.BackgroundRuntimeTest
-
-      - name: Run Android per-run read-only mount guard tests
-        id: phase13n_android_guard_tests
-        if: success()
-        timeout-minutes: 10
-        shell: bash
-        run: |
-          bash .github/scripts/capture_step.sh phase13n_android_guard_tests "Android Skill execution per-run guard configuration and mount write guard tests" -- \
-            gradle --no-daemon -p android :app:testDebugUnitTest --tests com.psyche.kelivo.workspace.MountWriteGuardsTest
+          bash .github/scripts/capture_step.sh android_full_unit_tests "Run all Android JVM and Robolectric unit tests" -- \
+            gradle --no-daemon -p android :app:testDebugUnitTest
 
       - name: Run Phase 13P Skill lifecycle E2E on Android emulator
         id: phase13p_android_e2e
-        if: success() && github.event_name == 'workflow_dispatch' && inputs.run_android_skill_e2e == true
-        timeout-minutes: 35
+        if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.run_android_skill_e2e == true))
+        timeout-minutes: 60
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35

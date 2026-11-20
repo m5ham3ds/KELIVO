@@ -44,6 +44,9 @@ void main() {
           'option_label': 'One',
         },
         {'action': 'extract', 'offset': -1},
+        {'action': 'search'},
+        {'action': 'download', 'url': 'ftp://example.com/file.zip'},
+        {'action': 'import_download', 'download_id': 'x'},
         {'action': 'close_tab'},
         {'action': 'snapshot', 'max_elements': 201},
         {'action': 'wait', 'timeout': 99999},
@@ -712,6 +715,77 @@ void main() {
       expect(browser.agentAction, isNull);
     },
   );
+
+  test('search URL uses configured supported search engines', () {
+    expect(
+      BrowserService.searchUrl('KELIVO skill runtime'),
+      contains('https://www.bing.com/search?q=KELIVO'),
+    );
+    expect(
+      BrowserService.searchUrl(
+        'KELIVO skill runtime',
+        searchEngine: BrowserSearchEngine.google,
+      ),
+      contains('https://www.google.com/search?q=KELIVO'),
+    );
+    expect(
+      BrowserService.searchUrl(
+        'KELIVO skill runtime',
+        searchEngine: BrowserSearchEngine.duckDuckGo,
+      ),
+      contains('https://duckduckgo.com/?q=KELIVO'),
+    );
+    expect(
+      BrowserService.searchUrl(
+        'KELIVO skill runtime',
+        searchEngine: BrowserSearchEngine.baidu,
+      ),
+      contains('https://www.baidu.com/s?wd=KELIVO'),
+    );
+    expect(() => BrowserService.searchUrl(' '), throwsFormatException);
+  });
+
+  test('download is conversation-owned and imported without overwrite', () async {
+    await enable();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final subscription = server.listen((request) async {
+      request.response.headers.contentType = ContentType.text;
+      request.response.write('kelivo-download-test');
+      await request.response.close();
+    });
+    try {
+      final url = 'http://${server.address.address}:${server.port}/artifact.txt';
+      final downloaded = payload(await tools.handle('chat-a', {
+        'action': 'download',
+        'url': url,
+        'file_name': 'artifact.txt',
+      }, capturePreview: false));
+      final item = downloaded['page']['download'] as Map;
+      expect(item['status'], 'completed');
+      final downloadId = item['download_id'] as String;
+      expect(
+        browser.downloads.singleWhere((entry) => entry.id == downloadId).ownerSessionId,
+        'chat-a',
+      );
+      final imported = payload(await tools.handle('chat-a', {
+        'action': 'import_download',
+        'download_id': downloadId,
+        'save_to': 'downloads/artifact.txt',
+      }, capturePreview: false));
+      expect(imported['ok'], isTrue);
+      expect(
+        await File('${directory.path}/downloads/artifact.txt').readAsString(),
+        'kelivo-download-test',
+      );
+      await expectLater(
+        browser.completedDownloadFile(downloadId, ownerSessionId: 'chat-b'),
+        throwsStateError,
+      );
+    } finally {
+      await subscription.cancel();
+      await server.close(force: true);
+    }
+  });
 
   test('closing an owned tab returns success after removing it', () async {
     await enable();

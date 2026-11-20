@@ -291,6 +291,23 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
         uri.userInfo.isEmpty;
   }
 
+  static String searchUrl(
+    String query, {
+    BrowserSearchEngine searchEngine = BrowserSearchEngine.bing,
+  }) {
+    final value = query.trim();
+    if (value.isEmpty || value.length > 1000) {
+      throw const FormatException('Search query must contain 1–1000 characters.');
+    }
+    final (host, path, key) = switch (searchEngine) {
+      BrowserSearchEngine.bing => ('www.bing.com', '/search', 'q'),
+      BrowserSearchEngine.google => ('www.google.com', '/search', 'q'),
+      BrowserSearchEngine.duckDuckGo => ('duckduckgo.com', '/', 'q'),
+      BrowserSearchEngine.baidu => ('www.baidu.com', '/s', 'wd'),
+    };
+    return Uri.https(host, path, {key: value}).toString();
+  }
+
   static String normalizeAddress(
     String input, {
     BrowserSearchEngine searchEngine = BrowserSearchEngine.bing,
@@ -736,6 +753,16 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
     (engine) => engine.evaluate(source, awaitPromise: awaitPromise),
   );
   void checkAgentAction(String tabId) => _checkAction(tabId);
+
+  /// Revalidates the active browser tool call for a conversation-scoped
+  /// operation that does not target a tab (for example importing a download).
+  void checkAgentSessionAction(String sessionId) {
+    _checkAction();
+    final guard = Zone.current[_actionKey] as _BrowserAction?;
+    if (guard == null || guard.sessionId != sessionId) {
+      throw StateError('browser_session_not_owned');
+    }
+  }
 
   Future<Uint8List?> captureScreenshot({required String tabId}) =>
       _call(tabId, (engine) => engine.screenshot());
@@ -1767,10 +1794,20 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
-  Future<void> download(String url, {String? fileName, String? tabId}) async {
+  Future<BrowserDownload> download(
+    String url, {
+    String? fileName,
+    String? tabId,
+    String? ownerSessionId,
+  }) async {
     if (!_isPageUrl(url) || url == 'about:blank') {
       throw const FormatException('Only HTTP downloads are supported');
     }
+    if (ownerSessionId != null && tabId != null &&
+        requireAgentTab(ownerSessionId, tabId).id != tabId) {
+      throw StateError('browser_tab_not_owned');
+    }
+    _checkAction(tabId);
     final id = _uuid.v4();
     var name = p.basename(fileName ?? Uri.parse(url).path);
     name = name.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1f]'), '_');
@@ -1782,8 +1819,20 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
     await directory.create(recursive: true);
     final path = p.join(directory.path, '$id-$name');
     final token = CancelToken();
+    final toolCancellation = ToolCallCancellation.current;
+    final removeCancellationListener = toolCancellation?.onCancel(() {
+      if (!token.isCancelled) token.cancel('browser_download_cancelled');
+    });
     _downloadTokens[id] = token;
-    _downloads.insert(0, BrowserDownload(id: id, url: url, fileName: name));
+    _downloads.insert(
+      0,
+      BrowserDownload(
+        id: id,
+        url: url,
+        fileName: name,
+        ownerSessionId: ownerSessionId,
+      ),
+    );
     _notify();
     final client = Dio(
       BaseOptions(
@@ -1796,9 +1845,11 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
       var lastUpdate = DateTime.fromMillisecondsSinceEpoch(0);
       var current = Uri.parse(url);
       for (var redirects = 0; ; redirects++) {
+        _checkAction(tabId);
         final headers =
             await engine?.downloadHeaders(current.toString()) ??
             <String, String>{};
+        _checkAction(tabId);
         final response = await client.download(
           current.toString(),
           path,
@@ -1810,6 +1861,16 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
                 status != null && status >= 200 && status < 400,
           ),
           onReceiveProgress: (received, total) {
+            try {
+              _checkAction(tabId);
+            } catch (error) {
+              if (!token.isCancelled) token.cancel(error.toString());
+              return;
+            }
+            if (received > BrowserWorkspaceScope.maxDownloadBytes) {
+              token.cancel('browser_download_size_limit_exceeded');
+              return;
+            }
             final now = DateTime.now();
             if (now.difference(lastUpdate).inMilliseconds < 100 &&
                 received != total) {
@@ -1835,6 +1896,12 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
         }
         current = next;
       }
+      _checkAction(tabId);
+      final downloadedLength = await File(path).length();
+      if (downloadedLength > BrowserWorkspaceScope.maxDownloadBytes) {
+        throw const FileSystemException('browser_download_size_limit_exceeded');
+      }
+      _checkAction(tabId);
       _updateDownload(
         id,
         (entry) =>
@@ -1854,9 +1921,37 @@ class BrowserService extends ChangeNotifier with WidgetsBindingObserver {
       if (await file.exists()) await file.delete();
     } finally {
       client.close();
+      removeCancellationListener?.call();
       _downloadTokens.remove(id);
       await flush();
     }
+    return _downloads.firstWhere((entry) => entry.id == id);
+  }
+
+  /// Returns only a completed download created by the same conversation.
+  /// The stored path must remain inside the browser's private downloads folder.
+  Future<File> completedDownloadFile(
+    String downloadId, {
+    required String ownerSessionId,
+  }) async {
+    final entry = _downloads.where((item) => item.id == downloadId).firstOrNull;
+    if (entry == null) throw StateError('browser_download_not_found');
+    if (entry.ownerSessionId != ownerSessionId) {
+      throw StateError('browser_download_not_owned');
+    }
+    if (entry.status != BrowserDownloadStatus.completed || entry.path == null) {
+      throw StateError('browser_download_not_completed');
+    }
+    final root = Directory(p.join((await _store.directory).path, 'downloads'));
+    if (!await root.exists()) throw StateError('browser_download_not_found');
+    final rootPath = await root.resolveSymbolicLinks();
+    final source = File(entry.path!);
+    if (!await source.exists()) throw StateError('browser_download_file_missing');
+    final resolved = await source.resolveSymbolicLinks();
+    if (!p.isWithin(rootPath, resolved)) {
+      throw StateError('browser_download_path_invalid');
+    }
+    return File(resolved);
   }
 
   void _updateDownload(

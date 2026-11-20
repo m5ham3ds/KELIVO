@@ -4932,7 +4932,7 @@
   "browserDownloadCancel": "取消下载",
   "browserOpenDownload": "打开文件",
   "browserDownloadFailed": "下载失败",
-  "browserAgentEnableHint": "在聊天工具中启用浏览器工具，再在这里允许控制。",
+  "browserAgentEnableHint": "请在浏览器设置中允许助手访问。此权限由应用全局管理。",
   "browserSessionRequired": "从一个对话中打开浏览器，即可允许 Agent 控制。",
   "browserDownloadCancelled": "已取消",
   "browserAgentEnabled": "允许助手使用浏览器",

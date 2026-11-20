@@ -230,6 +230,8 @@ void main() {
     expect(names, contains('shell'));
     expect(names, contains('skill_execute'));
     expect(names, contains('environment_status'));
+    expect(names, contains('runtime_profile'));
+    expect(names, contains('package_manager'));
   });
 
   test('workspace tool names are reserved in BuiltInToolNames.all', () {

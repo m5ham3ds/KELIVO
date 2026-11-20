@@ -6232,7 +6232,7 @@
   "browserDownloadCancel": "Cancel download",
   "browserOpenDownload": "Open file",
   "browserDownloadFailed": "Download failed",
-  "browserAgentEnableHint": "Enable the Browser tool in chat tools, then allow control here.",
+  "browserAgentEnableHint": "Allow assistant access in Browser settings. This permission is global across the app.",
   "browserSessionRequired": "Open the browser from a conversation to allow agent control.",
   "browserDownloadCancelled": "Cancelled",
   "browserAgentEnabled": "Allow assistant browser access",

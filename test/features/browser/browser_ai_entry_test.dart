@@ -3,14 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:Kelivo/core/models/conversation.dart';
-import 'package:Kelivo/core/models/assistant.dart';
-import 'package:Kelivo/core/providers/assistant_provider.dart';
 import 'package:Kelivo/core/services/browser/browser_service.dart';
 import 'package:Kelivo/core/services/chat/chat_service.dart';
 import 'package:Kelivo/core/services/notification_service.dart';
 import 'package:Kelivo/features/browser/browser_ai_entry.dart';
 import 'package:Kelivo/features/browser/models/browser_models.dart';
-import 'package:Kelivo/features/home/services/local_tools_service.dart';
 import 'package:Kelivo/l10n/app_localizations.dart';
 
 class _EntryBrowser extends ChangeNotifier implements BrowserService {
@@ -19,17 +16,6 @@ class _EntryBrowser extends ChangeNotifier implements BrowserService {
   BrowserSettings get settings => configuration;
   @override
   Future<void> initialize() async {}
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _EntryAssistants extends ChangeNotifier implements AssistantProvider {
-  Assistant current = const Assistant(
-    id: 'browser-assistant',
-    name: 'Browser assistant',
-  );
-  @override
-  Assistant? resolveConversationAssistant(String? id) => current;
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -73,15 +59,12 @@ void main() {
   });
 
   testWidgets(
-    'entry respects both permissions and only prepares a navigation draft',
+    'browser AI entry follows the global browser permission, not assistant toggles',
     (tester) async {
-      final assistants = _EntryAssistants();
-      final assistantId = assistants.current.id;
       final chat = _EntryChat(
         Conversation(
           id: 'browser-chat',
           title: 'Browser chat',
-          assistantId: assistantId,
         ),
       );
       final browser = _EntryBrowser();
@@ -90,7 +73,6 @@ void main() {
         MultiProvider(
           providers: [
             InheritedProvider<ChatService>.value(value: chat),
-            InheritedProvider<AssistantProvider>.value(value: assistants),
           ],
           child: Localizations(
             locale: const Locale('en'),
@@ -111,13 +93,10 @@ void main() {
           browser: browser,
           conversationId: 'browser-chat',
         ),
-        BrowserAiEntryResult.assistantToolDisabled,
+        BrowserAiEntryResult.browserPermissionDisabled,
       );
       expect(NotificationService.takePendingConversationId(), isNull);
       expect(browser.settings.agentEnabled, isFalse);
-      assistants.current = assistants.current.copyWith(
-        localToolIds: [LocalToolNames.browser],
-      );
       expect(
         await requestBrowserAiDraft(
           context,
@@ -148,7 +127,6 @@ void main() {
       expect(draft, isNot(contains('secret')));
       expect(draft, contains('My request:'));
       browser.dispose();
-      assistants.dispose();
       chat.dispose();
     },
     timeout: const Timeout(Duration(seconds: 20)),

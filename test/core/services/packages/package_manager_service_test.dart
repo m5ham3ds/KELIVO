@@ -21,6 +21,34 @@ import 'package:Kelivo/core/services/workspace/workspace_tool_context.dart';
 import '../../../support/business_test_harness.dart';
 
 void main() {
+  test('extension Python package plans require an owner Runtime Profile', () async {
+    final harness = await createBusinessTestHarness();
+    final environment = EnvironmentProvider(preferences: harness.preferences);
+    addTearDown(environment.dispose);
+    await environment.loaded;
+    await environment.setState(const EnvironmentState(
+      phase: EnvironmentPhase.ready,
+      distro: 'ubuntu',
+      version: '24.04',
+      arch: 'aarch64',
+    ));
+    final service = PackageManagerService(
+      runtime: _FakePackageRuntime(),
+      environment: environment,
+      preferences: harness.preferences,
+    );
+    final result = _decode(await service.handle({
+      'action': 'plan',
+      'manager': 'pip',
+      'ecosystem': 'python',
+      'scope': 'extension',
+      'extension_id': 'ig-reel',
+      'package': 'requests',
+    }));
+    expect(result['ok'], isFalse);
+    expect(result['error'], 'extension_runtime_profile_required');
+  });
+
   test('project Python operations inherit the workspace default Runtime Profile', () async {
     final harness = await createBusinessTestHarness();
     final environment = EnvironmentProvider(preferences: harness.preferences);
@@ -237,6 +265,9 @@ final class _FakePackageRuntime extends WorkspaceRuntime {
       output = [
         '__KELIVO_PM_COMMAND__|apt-get',
         '__KELIVO_PM_COMMAND__|dpkg-query',
+        '__KELIVO_PM_COMMAND__|python3',
+        '__KELIVO_PM_COMMAND__|pip',
+        '__KELIVO_PM_COMMAND__|pip3',
         '__KELIVO_PM_ARCH__|aarch64',
       ].join('\n');
     } else if (command.startsWith('if dpkg-query')) {

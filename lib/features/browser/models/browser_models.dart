@@ -216,6 +216,7 @@ class BrowserDownload {
     this.totalBytes = -1,
     this.status = BrowserDownloadStatus.downloading,
     this.error,
+    this.ownerSessionId,
   });
   final String id;
   final String url;
@@ -225,12 +226,15 @@ class BrowserDownload {
   final int totalBytes;
   final BrowserDownloadStatus status;
   final String? error;
+  /// Conversation that initiated an assistant download; null for user-only downloads.
+  final String? ownerSessionId;
   BrowserDownload copyWith({
     String? path,
     int? receivedBytes,
     int? totalBytes,
     BrowserDownloadStatus? status,
     String? error,
+    String? ownerSessionId,
   }) => BrowserDownload(
     id: id,
     url: url,
@@ -240,6 +244,7 @@ class BrowserDownload {
     totalBytes: totalBytes ?? this.totalBytes,
     status: status ?? this.status,
     error: error,
+    ownerSessionId: ownerSessionId ?? this.ownerSessionId,
   );
   Map<String, Object?> toJson() => {
     'id': id,
@@ -250,6 +255,7 @@ class BrowserDownload {
     'totalBytes': totalBytes,
     'status': status.name,
     'error': error,
+    'ownerSessionId': ownerSessionId,
   };
   factory BrowserDownload.fromJson(Map<String, dynamic> json) =>
       BrowserDownload(
@@ -266,5 +272,6 @@ class BrowserDownload {
           orElse: () => BrowserDownloadStatus.cancelled,
         ),
         error: json['error'] as String?,
+        ownerSessionId: json['ownerSessionId'] as String?,
       );
 }

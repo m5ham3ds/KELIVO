@@ -32,6 +32,21 @@ void main() {
     await root.delete(recursive: true);
   });
 
+  test('download destination parser rejects traversal and absolute paths', () {
+    expect(
+      BrowserWorkspaceResources.workspaceFileUrl('assets/source.zip').toString(),
+      'kelivo://workspace/assets/source.zip',
+    );
+    expect(
+      () => BrowserWorkspaceResources.workspaceFileUrl('../outside.zip'),
+      throwsFormatException,
+    );
+    expect(
+      () => BrowserWorkspaceResources.workspaceFileUrl('/sdcard/file.zip'),
+      throwsFormatException,
+    );
+  });
+
   test(
     'replaced screenshot leaf never truncates the replacement or its symlink target',
     () async {

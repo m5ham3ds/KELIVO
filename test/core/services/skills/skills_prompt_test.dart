@@ -152,6 +152,25 @@ void main() {
     expect(empty, isNot(contains('- skill-creator —')));
   });
 
+  test('affirmative replies continue to the approved tool action', () {
+    final fragment = buildCoreCapabilitiesFragment(skillsModelRoot: '/skills');
+    expect(fragment, contains('Affirmative continuation executes the pending action'));
+    expect(fragment, contains('invoke the corresponding tools in this turn'));
+    expect(fragment, contains('call `runtime_profile`'));
+    expect(fragment, contains('call `package_manager`'));
+    expect(fragment, contains('call `skill_compose` and then `skill_execute`'));
+    expect(fragment, contains('never finish with only'));
+  });
+
+  test('embedded Browser uses global permission and download handoff', () {
+    final fragment = buildCoreCapabilitiesFragment(skillsModelRoot: '/skills');
+    expect(fragment, contains('global Browser setting `Allow assistant browser access`'));
+    expect(fragment, contains('action=search'));
+    expect(fragment, contains('action=download'));
+    expect(fragment, contains('action=import_download'));
+    expect(fragment, contains('conversation-owned `download_id`'));
+  });
+
   test('legacy bundled Skills receive no hidden priority', () {
     final other = _skill(id: 'aaa', name: 'aaa', description: 'A');
     final legacy = _skill(

@@ -69,14 +69,15 @@ class _LocalToolsTab extends StatelessWidget {
             if (LocalToolsService.isAvailableOnThisPlatform(
               LocalToolNames.browser,
             )) ...[
-              _LocalToolRow(
-                icon: Lucide.Globe,
-                title: l10n.browserToolTitle,
-                subtitle: l10n.browserToolSubtitle,
-                enabled: assistant.localToolIds.contains(
-                  LocalToolNames.browser,
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                leading: const Icon(Lucide.Globe),
+                title: Text(l10n.browserToolTitle),
+                subtitle: Text(
+                  '${l10n.browserToolSubtitle} · Managed globally in Browser settings.',
                 ),
-                onChanged: (value) => toggleTool(LocalToolNames.browser, value),
+                trailing: const Icon(Icons.check_circle_outline),
+                enabled: false,
               ),
               _iosDivider(context),
             ],

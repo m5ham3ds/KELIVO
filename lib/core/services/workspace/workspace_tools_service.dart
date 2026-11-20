@@ -293,7 +293,9 @@ class WorkspaceToolsService {
           outputHint: ctx.paths.sandboxed
               ? '${WorkspacePaths.guestChat}/outputs/<id>.txt'
               : '${ctx.paths.sessionHostDir}/outputs/<id>.txt',
-          includeRuntimeProfiles: !ctx.conversationScoped,
+          // Conversation scratch workspaces may create/list Skill-owned profiles.
+          // The handler restricts them to scope=extension; project defaults remain unavailable.
+          includeRuntimeProfiles: true,
         )
         .where((definition) {
           final name = (definition['function'] as Map)['name'] as String;
@@ -556,7 +558,7 @@ class WorkspaceToolsService {
         'Every shell command requires a fresh manual approval, including in Full Access mode.',
       );
       buf.writeln(
-        'This private conversation workspace runs directly in the base Android PRoot environment. Runtime Profiles are project-scoped and are not available here; never send runtime_profile_id to shell.',
+        'This private conversation workspace runs in the Android PRoot guest. You may create/list/inspect Runtime Profiles owned by an installed Skill using runtime_profile with scope=extension and that exact Skill owner_id. Project-scoped default profiles are unavailable in this scratch workspace. Pass the Skill-owned profile_id only to skill_execute or package_manager scope=extension, never to shell; shell still runs in the base guest and requires its own manual approval.',
       );
     }
     if (ctx.hasReadyProotRuntime) {
@@ -587,7 +589,7 @@ class WorkspaceToolsService {
       );
       if (ctx.conversationScoped) {
         buf.writeln(
-          'This private chat workspace uses the base Android PRoot environment directly. Runtime Profiles are project-scoped and unavailable here; do not call runtime_profile and never pass runtime_profile_id to shell. Every command still requires fresh manual approval.',
+          'This private chat workspace uses the base Android PRoot environment directly. Runtime Profiles are available only for installed-Skill ownership (scope=extension); do not create project profiles or set workspace defaults here. Pass a Skill-owned profile_id only to skill_execute or package_manager scope=extension, never to shell. Every shell command still requires fresh manual approval.',
         );
       } else if (ctx.workspace.defaultRuntimeProfileId != null) {
         buf.writeln(

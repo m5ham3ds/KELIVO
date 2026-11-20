@@ -2559,8 +2559,6 @@ class BrowserPageViewState extends State<BrowserPage>
             _exit();
           case BrowserAiEntryResult.unavailable:
             _notify(l.browserAskAiUnavailable);
-          case BrowserAiEntryResult.assistantToolDisabled:
-            _notify(l.browserAskAiAssistantDisabled);
           case BrowserAiEntryResult.browserPermissionDisabled:
             _notify(l.browserAskAiBrowserDisabled);
         }

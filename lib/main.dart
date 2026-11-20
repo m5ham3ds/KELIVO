@@ -103,6 +103,7 @@ import 'features/home/controllers/chat_actions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/models/workspace_binding.dart';
 import 'core/services/browser/browser_workspace_resources.dart';
+import 'core/services/browser/browser_service.dart';
 import 'core/services/workspace/workspace_file_access.dart';
 import 'core/services/workspace/workspace_paths.dart';
 import 'core/services/conversation_tool_permissions.dart';
@@ -172,8 +173,15 @@ void _wireWorkspaceServices(BuildContext ctx) {
       final workspace = binding.workspaceId == null
           ? null
           : workspaces.byId(binding.workspaceId!);
-      if (workspace == null) return null;
-      return Directory(await workspaces.hostRootFor(workspace));
+      if (binding.workspaceId != null) {
+        if (workspace == null) return null;
+        return Directory(await workspaces.hostRootFor(workspace));
+      }
+      final scratch = await AppDirectories.conversationWorkspaceFilesDir(
+        sessionId,
+      );
+      await scratch.create(recursive: true);
+      return scratch;
     };
     chat.newConversationExtras = (assistantId) {
       if (assistantId == null) {
@@ -209,6 +217,14 @@ Future<void> main() async {
   await runZoned(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
+      // Load persisted global Browser permissions/settings before the first
+      // model request builds its tool definitions. This reads stored state;
+      // it does not create a WebView or start navigation.
+      try {
+        await BrowserService.instance.initialize();
+      } catch (error) {
+        stderr.writeln('Browser settings initialization failed: $error');
+      }
       AndroidImeSelection.instance.install();
       // Register notification tap handling for every Android launch. This is
       // independent of the current background-chat mode: an older completion

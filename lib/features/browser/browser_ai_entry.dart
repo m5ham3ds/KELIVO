@@ -1,18 +1,15 @@
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/providers/assistant_provider.dart';
 import '../../core/services/browser/browser_service.dart';
 import '../../core/services/chat/chat_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../l10n/app_localizations.dart';
-import '../home/services/local_tools_service.dart';
 import 'models/browser_models.dart';
 
 enum BrowserAiEntryResult {
   requested,
   unavailable,
-  assistantToolDisabled,
   browserPermissionDisabled,
 }
 
@@ -29,23 +26,14 @@ Future<BrowserAiEntryResult> requestBrowserAiDraft(
     return BrowserAiEntryResult.unavailable;
   }
   final ChatService? chat;
-  final AssistantProvider? assistants;
   try {
     chat = context.read<ChatService?>();
-    assistants = context.read<AssistantProvider?>();
   } on ProviderNotFoundException {
     return BrowserAiEntryResult.unavailable;
   }
   final conversation = chat?.getConversation(conversationId);
-  if (conversation == null || assistants == null) {
+  if (conversation == null) {
     return BrowserAiEntryResult.unavailable;
-  }
-  final assistant = assistants.resolveConversationAssistant(
-    conversation.assistantId,
-  );
-  if (assistant == null ||
-      !assistant.localToolIds.contains(LocalToolNames.browser)) {
-    return BrowserAiEntryResult.assistantToolDisabled;
   }
   try {
     await browser.initialize();

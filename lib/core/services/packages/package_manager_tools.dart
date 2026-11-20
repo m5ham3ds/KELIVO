@@ -21,7 +21,7 @@ abstract final class PackageManagerToolCatalog {
       'function': {
         'name': PackageManagerToolNames.manage,
         'description':
-            'Detect and manage packages in the Android/Linux PRoot runtime. Supports apt/apk, pip/uv, npm/pnpm/yarn/bun; inspect or plan before changing packages. Use registry package names only; package URLs, git sources, arbitrary shell commands and remote scripts are rejected. Actions install/upgrade/remove/pin/unpin always require a fresh explicit manual user approval, including when Full Access is enabled. Python source builds and Node lifecycle scripts are disabled by default; enable them only for a trusted package after explaining the risk. OS package manager changes affect the shared PRoot RootFS; Python and Node package roots are isolated by Runtime Profile when a matching profile_id is supplied. Profile-scoped dependency mutations create a verified pre-change snapshot and attempt restore on failure. Snapshots exclude shared apt/apk changes; use runtime_profile snapshot actions for manual rollback.',
+            'Detect and manage packages in the Android/Linux PRoot runtime. Supports apt/apk, pip/uv, npm/pnpm/yarn/bun; inspect or plan before changing packages. Use registry package names only; package URLs, git sources, arbitrary shell commands and remote scripts are rejected. Actions install/upgrade/remove/pin/unpin always require a fresh explicit manual user approval, including when Full Access is enabled. Python source builds and Node lifecycle scripts are disabled by default; enable them only for a trusted package after explaining the risk. OS package manager changes affect the shared PRoot RootFS; Python and Node dependencies for scope=extension require an exact Skill-owned profile_id; KELIVO refuses to fall back to a shared extension package root. Project defaults may be used only in project scope. Runtime-scoped apt/apk changes the shared RootFS. Profile-scoped dependency mutations create a verified pre-change snapshot and attempt restore on failure. Snapshots exclude shared apt/apk changes; use runtime_profile snapshot actions for manual rollback.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -106,7 +106,7 @@ abstract final class PackageManagerToolCatalog {
             },
             'profile_id': {
               'type': 'string',
-              'description': 'Optional Runtime Profile ID. When supplied, Python/Node packages are installed into that profile only; the profile must match scope, owner and ecosystem. Use runtime_profile to create or inspect profiles.',
+              'description': 'Required for Python/Node operations with scope=extension. It must be a Runtime Profile owned by the same Skill and include the requested ecosystem. Use runtime_profile to list/create/inspect it first. KELIVO rejects extension installs without it.',
               'maxLength': 64,
             },
             'task_id': {

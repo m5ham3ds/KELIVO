@@ -28,6 +28,11 @@ adb -s "$DEVICE_ID" get-state | grep -Fxq device
 # for this lane only; the main workflow restores its selected Release/Debug
 # registrant in the following prepare_android_plugin_registrant step.
 flutter build apk --debug --config-only
-flutter test --no-pub -d "$DEVICE_ID" \
-  integration_test/workspace/skill_execution_e2e_test.dart \
-  --reporter expanded
+for test_file in \
+  integration_test/browser_navigation_runtime_test.dart \
+  integration_test/browser_workspace_runtime_test.dart \
+  integration_test/browser_workspace_app_runtime_test.dart \
+  integration_test/workspace/skill_execution_e2e_test.dart; do
+  echo "Running Android integration test: $test_file"
+  flutter test --no-pub -d "$DEVICE_ID" "$test_file" --reporter expanded
+done

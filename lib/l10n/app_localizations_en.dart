@@ -13891,7 +13891,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get browserAgentEnableHint =>
-      'Enable the Browser tool in chat tools, then allow control here.';
+      'Allow assistant access in Browser settings. This permission is global across the app.';
 
   @override
   String get browserSessionRequired =>

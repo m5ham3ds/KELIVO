@@ -4956,7 +4956,7 @@
   "browserDownloadCancel": "取消下載",
   "browserOpenDownload": "開啟檔案",
   "browserDownloadFailed": "下載失敗",
-  "browserAgentEnableHint": "在聊天工具中啟用瀏覽器工具，再在這裡允許控制。",
+  "browserAgentEnableHint": "請在瀏覽器設定中允許助理存取。此權限由應用程式全域管理。",
   "browserSessionRequired": "從一個對話中開啟瀏覽器，即可允許 Agent 控制。",
   "browserDownloadCancelled": "已取消",
   "browserAgentEnabled": "允許助手使用瀏覽器",

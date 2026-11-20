@@ -965,6 +965,14 @@ final class PackageManagerService {
       scope: scope,
       ecosystem: ecosystem,
     );
+    if (scope == PackageScope.extension &&
+        ecosystem != PackageEcosystem.system &&
+        profileId == null) {
+      throw const PackageManagerException(
+        'extension_runtime_profile_required',
+        'Create or select a Runtime Profile owned by this Skill before planning or changing Python/Node packages.',
+      );
+    }
     if (profileId == null) return;
     if (scope == PackageScope.runtime || ecosystem == PackageEcosystem.system) {
       throw const PackageManagerException(

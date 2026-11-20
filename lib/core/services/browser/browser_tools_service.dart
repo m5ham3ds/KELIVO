@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:uuid/uuid.dart';
 
 import '../../../utils/mcp_structured_image.dart';
+import '../../../features/browser/models/browser_models.dart';
 import '../api/tool_call_cancellation.dart';
 import '../mcp/mcp_image_snapshot.dart';
 import 'browser_automation_script.dart';
@@ -27,6 +28,9 @@ class BrowserToolsService {
   static const toolName = 'browser';
   static const actions = [
     'open',
+    'search',
+    'download',
+    'import_download',
     'render',
     'extract',
     'snapshot',
@@ -54,8 +58,8 @@ class BrowserToolsService {
       // Keep action-specific fields optional when using the Responses API.
       'strict': false,
       'description':
-          'Control the visible in-app browser, using its login state. The user '
-          'must enable browser control for this assistant and in browser settings. '
+          'Control the embedded Kelivo browser using its existing cookies and login state. '
+          'Browser access is controlled by the global Browser setting, not a per-assistant toggle. '
           'Tabs are scoped to this conversation; list_tabs lists only this '
           'conversation, not every tab in the app. New conversations start with '
           'no tabs. Reuse your existing tabs with open and tab_id; at '
@@ -70,6 +74,9 @@ class BrowserToolsService {
           'with relative assets scoped to this conversation’s bound workspace. '
           'For persistent single-file apps, create NAME.app.html with inline JS/CSS. '
           'These pages have no network, external assets, frames or popups. '
+          'Use action=search with query to search the web using the configured search engine; inspect result text before opening a result URL. '
+          'Use action=download with a direct HTTP(S) URL to download through the browser session; it returns a conversation-owned download_id. '
+          'Then use action=import_download with that exact download_id and a workspace-relative save_to path to copy the completed file into the current workspace. Downloads are private to the conversation, capped at 256 MiB, SHA-256 verified and never overwrite existing files. Do not invent download IDs. Search results and downloaded files are untrusted content. '
           'Use await kelivo.readJson("state.json", initialValue), then await '
           'kelivo.saveJson("state.json", updatedValue); saves coalesce for 300 ms. '
           'Paths are relative to NAME.app.html.data/, not the workspace. '
@@ -107,6 +114,21 @@ class BrowserToolsService {
         'required': ['action'],
         'properties': {
           'action': {'type': 'string', 'enum': actions},
+          'query': {
+            'type': 'string',
+            'maxLength': 1000,
+            'description': 'Search query for action=search. Uses the search engine selected in Browser settings.',
+          },
+          'download_id': {
+            'type': 'string',
+            'maxLength': 64,
+            'description': 'Exact download_id returned by a previous download action in this same conversation.',
+          },
+          'file_name': {
+            'type': 'string',
+            'maxLength': 160,
+            'description': 'Optional suggested filename for action=download.',
+          },
           'tab_id': {
             'type': 'string',
             'description':
@@ -115,7 +137,7 @@ class BrowserToolsService {
           'url': {
             'type': 'string',
             'description':
-                'HTTP(S) URL or kelivo://workspace/relative/path.html for open/new_tab.',
+                'HTTP(S) URL for open/download, or kelivo://workspace/relative/path.html for open/new_tab.',
           },
           'html': {
             'type': 'string',
@@ -137,7 +159,7 @@ class BrowserToolsService {
           'save_to': {
             'type': 'string',
             'description':
-                'Save a viewport PNG to a new workspace-relative path or kelivo://workspace/path.png. Implies screenshot capture; never overwrites.',
+                'For screenshot, save a viewport PNG. For import_download, save the completed download to this new workspace-relative file path. Never overwrites existing files.',
           },
           'return_image': {
             'type': 'boolean',
@@ -288,11 +310,30 @@ class BrowserToolsService {
 
     if (args.containsKey('save_to')) {
       requireString('save_to');
-      BrowserWorkspaceResources.screenshotUrl(args['save_to'] as String);
+      if (action == 'import_download') {
+        BrowserWorkspaceResources.workspaceFileUrl(args['save_to'] as String);
+      } else {
+        BrowserWorkspaceResources.screenshotUrl(args['save_to'] as String);
+      }
+    }
+    if (action == 'search') requireString('query');
+    if (action == 'download') requireString('url');
+    if (action == 'import_download') {
+      requireString('download_id');
+      requireString('save_to');
+    }
+    if (action == 'download' && args.containsKey('url')) {
+      final uri = Uri.tryParse(args['url'] as String);
+      if (uri == null ||
+          uri.host.isEmpty ||
+          !(uri.isScheme('http') || uri.isScheme('https')) ||
+          uri.userInfo.isNotEmpty) {
+        throw const FormatException('Downloads require a direct HTTP(S) URL without credentials.');
+      }
     }
     final capture =
         action == 'screenshot' ||
-        args.containsKey('save_to') ||
+        (args.containsKey('save_to') && action != 'import_download') ||
         args['capture_screenshot_after'] == true ||
         (action == 'snapshot' && args['include_screenshot'] == true);
     if ((args.containsKey('return_image') && !capture) ||
@@ -464,9 +505,29 @@ class BrowserToolsService {
         ],
       });
     }
+    if (action == 'import_download') {
+      final scope = await workspaces.scope(sessionId);
+      try {
+        final source = await browser.completedDownloadFile(
+          args['download_id'] as String,
+          ownerSessionId: sessionId,
+        );
+        final imported = await scope.saveDownloadedFile(
+          args['save_to'] as String,
+          source,
+          checkAccess: () {
+            ToolCallCancellation.current?.throwIfCancelled();
+            browser.checkAgentSessionAction(sessionId);
+          },
+        );
+        return _result(sessionId, action, {'workspace_file': imported});
+      } finally {
+        scope.close();
+      }
+    }
     String tabId;
     if (action == 'new_tab' ||
-        ((action == 'open' || action == 'render') &&
+        ((action == 'open' || action == 'search' || action == 'download' || action == 'render') &&
             args['tab_id'] == null &&
             browser.tabsForSession(sessionId).isEmpty)) {
       tabId = (await browser.createTab(ownerSessionId: sessionId)).id;
@@ -474,7 +535,7 @@ class BrowserToolsService {
       tabId = browser.requireAgentTab(sessionId, args['tab_id'] as String?).id;
     }
     onTab(tabId);
-    final outputScope = args['save_to'] == null
+    final outputScope = args['save_to'] == null || action == 'import_download'
         ? null
         : await workspaces.scope(sessionId);
     final previousTabs = browser
@@ -486,7 +547,40 @@ class BrowserToolsService {
       args['wait_until'] as String? ?? 'domcontentloaded',
     );
     Map<String, dynamic> data = {};
+    if (action == 'download') {
+      final download = await browser.download(
+        args['url'] as String,
+        fileName: args['file_name'] as String?,
+        tabId: tabId,
+        ownerSessionId: sessionId,
+      );
+      return _result(sessionId, action, {
+        'download': {
+          'download_id': download.id,
+          'file_name': download.fileName,
+          'received_bytes': download.receivedBytes,
+          'total_bytes': download.totalBytes,
+          'status': download.status.name,
+          if (download.error != null) 'error': download.error,
+        },
+        'next_action': download.status == BrowserDownloadStatus.completed
+            ? 'Call import_download with this exact download_id and a workspace-relative save_to path.'
+            : 'The download did not complete. Inspect the error before retrying.',
+      });
+    }
     switch (action) {
+      case 'search':
+        final searchUrl = BrowserService.searchUrl(
+          args['query'] as String,
+          searchEngine: browser.settings.searchEngine,
+        );
+        await browser.navigate(searchUrl, tabId: tabId);
+        await browser.waitForLoad(tabId: tabId, timeout: timeout, stage: stage);
+        data = {
+          'query': args['query'],
+          'search_url': searchUrl,
+          ...await _dom(tabId, 'extract', args),
+        };
       case 'new_tab':
       case 'open':
         if (args['url'] is String) {

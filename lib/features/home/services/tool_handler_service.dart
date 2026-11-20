@@ -29,6 +29,7 @@ import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/json_schema_utils.dart';
 import '../../../core/services/api/request_image_context.dart';
 import '../../../core/services/browser/browser_tools_service.dart';
+import '../../../core/services/browser/browser_service.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/extensions/conversational_extension_service.dart';
 import '../../../core/services/extensions/extension_command_tools.dart';
@@ -388,12 +389,24 @@ class ToolHandlerService {
         assistant: assistant,
         supportsTools: supportsTools,
       ).where(
+        // Browser is a global capability, not an assistant-local checkbox.
         (definition) =>
             (definition['function'] as Map)['name'] !=
-                BrowserToolsService.toolName ||
-            conversationId != null,
+                BrowserToolsService.toolName,
       ),
     );
+    if (supportsTools &&
+        conversationId != null &&
+        BrowserService.instance.isSupported &&
+        BrowserService.instance.isInitialized &&
+        BrowserService.instance.settings.agentEnabled &&
+        !toolDefs.any(
+          (definition) =>
+              (definition['function'] as Map)['name'] ==
+              BrowserToolsService.toolName,
+        )) {
+      toolDefs.add(BrowserToolsService.getToolDefinition());
+    }
 
     // Conversation-first extension management. These tools are core control
     // plane capabilities, not workspace shell commands, so they remain
@@ -1473,6 +1486,12 @@ class ToolHandlerService {
               'snapshot', 'restore_snapshot', 'delete_snapshot',
             };
             final action = (args['action'] ?? '').toString();
+            if (workspace.conversationScoped &&
+                (action == 'set_default' || action == 'clear_default')) {
+              throw const RuntimeProfileException(
+                'conversation_workspace_has_no_project_runtime_default',
+              );
+            }
             if (mutating.contains(action)) {
               await permission.authorize(needed: true, arguments: args);
             } else {
@@ -1486,6 +1505,12 @@ class ToolHandlerService {
                     .where((item) => item.name == rawScope)
                     .firstOrNull;
                 if (scope == null) throw const RuntimeProfileException('invalid_profile_scope');
+                if (workspace.conversationScoped &&
+                    scope != RuntimeProfileScope.extension) {
+                  throw const RuntimeProfileException(
+                    'conversation_workspace_requires_skill_owned_profile',
+                  );
+                }
                 final rawEcosystems = args['ecosystems'];
                 final ecosystems = <RuntimeProfileEcosystem>{};
                 if (rawEcosystems is List) {
@@ -1543,6 +1568,13 @@ class ToolHandlerService {
                     : RuntimeProfileScope.values.where((item) => item.name == rawScope).firstOrNull;
                 if (rawScope != null && scope == null) {
                   throw const RuntimeProfileException('invalid_profile_scope');
+                }
+                if (workspace.conversationScoped &&
+                    (scope != RuntimeProfileScope.extension ||
+                        (args['owner_id'] ?? '').toString().trim().isEmpty)) {
+                  throw const RuntimeProfileException(
+                    'conversation_workspace_requires_skill_scope_and_owner',
+                  );
                 }
                 final ownerId = (args['owner_id'] ?? workspace.workspace.id).toString();
                 if (scope == RuntimeProfileScope.project || scope == null && ownerId == workspace.workspace.id) {
@@ -1765,16 +1797,14 @@ class ToolHandlerService {
             );
           }
           if (name == BrowserToolsService.toolName) {
-            final current = assistant == null
-                ? null
-                : assistantProvider.getById(assistant.id);
-            if (current == null ||
-                !current.localToolIds.contains(LocalToolNames.browser) ||
-                conversationId == null) {
+            if (conversationId == null ||
+                !BrowserService.instance.isSupported ||
+                !BrowserService.instance.isInitialized ||
+                !BrowserService.instance.settings.agentEnabled) {
               return _toolError(
-                error: 'permission_denied',
+                error: 'browser_control_disabled',
                 message:
-                    'Browser control is disabled for this assistant or conversation.',
+                    'The embedded browser is unavailable or disabled in global Browser settings.',
                 tool: name,
               );
             }

@@ -6233,7 +6233,7 @@
   "browserDownloadCancel": "إلغاء التنزيل",
   "browserOpenDownload": "فتح الملف",
   "browserDownloadFailed": "فشل التنزيل",
-  "browserAgentEnableHint": "فعّل أداة المتصفح من أدوات المحادثة، ثم اسمح بالتحكم هنا.",
+  "browserAgentEnableHint": "فعّل السماح للمساعد بالوصول إلى المتصفح من إعدادات المتصفح. هذا الإذن عام على مستوى التطبيق.",
   "browserSessionRequired": "افتح المتصفح من محادثة للسماح بالتحكم بواسطة الوكيل.",
   "browserDownloadCancelled": "تم إلغاء التنزيل",
   "browserAgentEnabled": "السماح للمساعد بالوصول إلى المتصفح",
