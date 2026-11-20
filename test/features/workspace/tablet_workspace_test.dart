@@ -24,7 +24,6 @@ import 'package:Kelivo/features/workspace/widgets/files/file_browser.dart';
 import 'package:Kelivo/features/workspace/widgets/workspace_section.dart';
 import 'package:Kelivo/features/workspace/workspace_navigation.dart';
 import 'package:Kelivo/l10n/app_localizations.dart';
-import 'package:Kelivo/shared/widgets/ios_settings_rows.dart';
 import 'package:Kelivo/shared/widgets/task_progress_dialog.dart';
 import 'package:Kelivo/theme/theme_factory.dart';
 import 'package:drift/native.dart';
