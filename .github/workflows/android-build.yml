@@ -21,7 +21,6 @@ on:
         required: false
         default: false
         type: boolean
-      phase_test_scope:
 
 permissions:
   contents: read
@@ -68,7 +67,7 @@ jobs:
             echo "Event: ${GITHUB_EVENT_NAME:-unknown}"
             echo "Actor: ${GITHUB_ACTOR:-unknown}"
             echo "Build mode: ${BUILD_MODE:-release}"
-            echo "Phase 13 test scope: ${PHASE_TEST_SCOPE}; skill_doctor_recovery skips only PHASE13E–13N for an isolated PHASE13O fix whose parent commit already passed those suites; PHASE13O and PHASE13P diagnostics remain enabled; Android Skill E2E runs on every main push and can also be requested manually; historical PHASE13A–13D tests are not repeated"
+            echo "CI gates: complete Flutter analysis and tests, local package tests, Android JVM/Robolectric tests, Android Skill E2E and ARM64 APK build"
           } > "$REPORT_DIR/run-metadata.txt"
           bash .github/scripts/record_ci_action.sh checkout "Checkout source" "$CHECKOUT_OUTCOME"
           bash .github/scripts/record_ci_action.sh initialize_report "Initialize build report" "success" "Report metadata and per-step log directory created."
@@ -231,6 +230,21 @@ jobs:
         run: |
           bash .github/scripts/capture_step.sh android_full_unit_tests "Run all Android JVM and Robolectric unit tests" -- \
             gradle --no-daemon -p android :app:testDebugUnitTest
+
+      - name: Run Phase 13P Skill lifecycle E2E on Android emulator
+        id: phase13p_android_e2e
+        if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.run_android_skill_e2e == true))
+        timeout-minutes: 90
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: '-no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim'
+          script: |
+            bash .github/scripts/capture_step.sh phase13p_android_e2e "Phase 13P real Android Skill ZIP-to-output lifecycle" -- \
+              bash .github/scripts/run_phase13p_android_e2e.sh
 
       - name: Prepare build-mode Android plugin registrant
         id: prepare_android_plugin_registrant

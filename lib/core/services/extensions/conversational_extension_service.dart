@@ -551,12 +551,12 @@ final class ConversationalExtensionService {
         ? requestedSource
         : registeredSource.isNotEmpty
             ? registeredSource
-            : registered?.source.type == 'skillsSh' &&
+            : {'skills_sh', 'skillsSh'}.contains(registered?.source.type) &&
                     registered?.source.ref != null
                 ? 'https://skills.sh/${registered!.source.ref}'
                 : '';
     final isCatalogSource = _isSkillsShSource(source) &&
-        (requestedSource.isNotEmpty || registered?.source.type == 'skillsSh');
+        (requestedSource.isNotEmpty || {'skills_sh', 'skillsSh'}.contains(registered?.source.type));
     final isGitHubSource = _isGitHubSource(source) &&
         (requestedSource.isNotEmpty || registered?.source.type == 'github');
     if (!isCatalogSource && !isGitHubSource) {

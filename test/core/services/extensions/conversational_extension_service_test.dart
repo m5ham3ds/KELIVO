@@ -643,6 +643,7 @@ Companion instructions.
       contains('Updated catalog instructions.'),
     );
     final source = await registry.get('skill', 'sample-skill');
+    expect(source?.source.type, 'skills_sh');
     expect(source?.source.ref, 'acme/agent-skills/sample-skill');
     expect(source?.source.uri, 'https://skills.sh/acme/agent-skills/sample-skill');
   });

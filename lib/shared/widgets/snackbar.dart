@@ -137,6 +137,14 @@ class AppSnackBarManager extends ChangeNotifier {
       _dismiss(toast);
     }
   }
+
+  /// Releases every timer and ticker immediately when the overlay is removed.
+  void dismissAllImmediately() {
+    final toasts = List<NotificationEntry>.from(_activeToasts);
+    for (final toast in toasts) {
+      _removeEntry(toast);
+    }
+  }
 }
 
 class NotificationEntry {
@@ -176,6 +184,7 @@ class _AppSnackBarOverlayState extends State<AppSnackBarOverlay> {
   @override
   void dispose() {
     _manager.removeListener(_onToastsChanged);
+    _manager.dismissAllImmediately();
     super.dispose();
   }
 

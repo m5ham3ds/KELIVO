@@ -195,21 +195,22 @@ if grep -Eq '^  reorderable_grid_view:' pubspec.yaml; then
   fail 'Unused reorderable_grid_view dependency must not be reintroduced without a real source import'
 fi
 
-# dependency/native-hook setup and before localization and the Android build.
+# Ensure consolidated quality gates remain ordered before the release build.
 previous_line=0
 for step_id in \
   setup_flutter \
   toolchain_versions \
   flutter_pub_get \
-  linux_test_native_deps \
   l10n_parity \
   generate_l10n \
   full_flutter_analyze \
   full_flutter_tests \
+  local_package_tests \
   setup_java \
   setup_gradle \
   android_sdk_components \
   android_full_unit_tests \
+  phase13p_android_e2e \
   prepare_android_plugin_registrant \
   build_android_arm64 \
   package_apk \
@@ -220,39 +221,11 @@ for step_id in \
   previous_line="$current_line"
 done
 
-# Toolchain preparation is gated on its direct prerequisite. Focused Phase
-# lanes are independent diagnostics: they continue after another lane fails,
-# while the final Android build remains success-gated.
-for step_id in toolchain_versions flutter_pub_get; do
+for step_id in toolchain_versions flutter_pub_get l10n_parity generate_l10n full_flutter_analyze full_flutter_tests local_package_tests setup_java setup_gradle android_sdk_components android_full_unit_tests phase13p_android_e2e prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
   step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
   block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
-  grep -Fq 'if: success()' <<< "$block" || fail "Toolchain step lacks success() gate: $step_id"
+  grep -Fq 'if: success()' <<< "$block" || fail "Required quality/build step must remain success-gated: $step_id"
 done
-for step_id in \
-  step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
-  block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
-  grep -Fq 'steps.flutter_pub_get.outcome' <<< "$block" \
-    || fail "Focused Phase test must require resolved Flutter dependencies: $step_id"
-  grep -Fq 'steps.linux_test_native_deps.outcome' <<< "$block" \
-    || fail "Focused Phase test must require Linux native test dependencies: $step_id"
-  grep -Fq 'env.PHASE_TEST_SCOPE' <<< "$block" \
-    || fail "Focused Phase test is missing the documented recovery-scope control: $step_id"
-done
-  step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
-  block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
-  grep -Fq 'steps.flutter_pub_get.outcome' <<< "$block" \
-    || fail "Phase 13O/13P diagnostics must continue after earlier test failures: $step_id"
-  grep -Fq 'steps.linux_test_native_deps.outcome' <<< "$block" \
-    || fail "Phase 13O/13P diagnostics must require Linux native dependencies: $step_id"
-done
-for step_id in l10n_parity generate_l10n full_flutter_analyze full_flutter_tests setup_java setup_gradle \
-  prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
-  step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
-  block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
-  grep -Fq 'if: success()' <<< "$block" || fail "Release prerequisite/build step must remain success-gated: $step_id"
-done
-
-native_line="$(grep -n -m1 -E '^[[:space:]]+id: linux_test_native_deps$' "$workflow" | cut -d: -f1)"
 
 # The build-mode-specific plugin registrant must be regenerated and validated
 # after SDK setup, immediately before the real no-pub ARM64 build.
