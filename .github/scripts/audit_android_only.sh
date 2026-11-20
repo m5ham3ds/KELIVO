@@ -98,9 +98,8 @@ done < "$checksums"
 
 workflow='.github/workflows/android-build.yml'
 if grep -Fq 'id: localization_tests' "$workflow" \
-  || grep -Fq 'test_android_localization.sh' "$workflow" \
-  || grep -Eq '^[[:space:]]*flutter test([[:space:]]|$)' "$workflow"; then
-  fail 'Android Release workflow must not include the already-deferred host localization test stage'
+  || grep -Fq 'test_android_localization.sh' "$workflow"; then
+  fail 'Android Release workflow must not include the legacy standalone host localization test stage'
 fi
 if grep -Eq 'analyze_android_phase12\.sh|test_android_phase12\.sh|format_changed_dart\.sh|check_untranslated_pr\.sh' "$workflow"; then
   fail 'Android workflow still invokes non-essential broad Phase test/format/untranslated checks'
@@ -145,9 +144,30 @@ if grep -Fq 'KELIVO_EXTENDED_PHASE13_TESTS' <<< "$native_dependency_block"; then
 fi
 grep -Fq 'Intentionally skipped by phase_test_scope=skill_doctor_recovery' .github/scripts/record_skipped_build_stages.sh \
   || fail 'Build report must distinguish intentional focused-recovery skips from failed prerequisites.'
-if grep -Eq 'flutter test([[:space:]]|$)' "$workflow"; then
-  fail 'Android workflow must invoke Phase 13 tests through dedicated gated runners only'
-fi
+grep -Fq 'id: full_flutter_analyze' "$workflow" \
+  || fail 'Android workflow must include the complete Flutter analyzer gate'
+grep -Fq 'flutter analyze --no-pub' "$workflow" \
+  || fail 'Complete Flutter analyzer must use the resolved dependency graph'
+grep -Fq 'id: full_flutter_tests' "$workflow" \
+  || fail 'Android workflow must include the complete Flutter unit/widget test gate'
+grep -Fq 'flutter test --no-pub --reporter expanded' "$workflow" \
+  || fail 'Complete Flutter tests must use the resolved dependency graph'
+grep -Fq 'id: android_full_unit_tests' "$workflow" \
+  || fail 'Android workflow must include the complete Android JVM/Robolectric test gate'
+grep -Fq 'gradle --no-daemon -p android :app:testDebugUnitTest' "$workflow" \
+  || fail 'Complete Android JVM/Robolectric test task is missing'
+grep -Fq "github.ref == 'refs/heads/main'" "$workflow" \
+  || fail 'Android emulator Skill E2E must run on main pushes'
+grep -Fq 'id: phase13p_android_e2e' "$workflow" \
+  || fail 'Android workflow must include the Skill lifecycle emulator E2E gate'
+for integration_test in \
+  integration_test/browser_navigation_runtime_test.dart \
+  integration_test/browser_workspace_runtime_test.dart \
+  integration_test/browser_workspace_app_runtime_test.dart \
+  integration_test/workspace/skill_execution_e2e_test.dart; do
+  grep -Fq "$integration_test" .github/scripts/run_phase13p_android_e2e.sh \
+    || fail "Android E2E runner is missing required integration test: $integration_test"
+done
 
 grep -Fq 'final packToUpdate = containingPack;' lib/core/services/extensions/conversational_extension_service.dart \
   || fail 'Skill-pack update must capture the nullable pack before the async callback'
@@ -328,8 +348,8 @@ bash .github/scripts/test_phase13n_ci.sh
 bash .github/scripts/test_phase13o_ci.sh
 bash .github/scripts/test_phase13p_ci.sh
 bash .github/scripts/release_hardening_audit.sh
-if grep -Eq 'dart analyze --fatal-infos lib test integration_test|^[[:space:]]+flutter test$' "$workflow"; then
-  fail 'Android workflow still invokes the full repository test/analyzer sweep'
+if grep -Eq 'dart analyze --fatal-infos lib test integration_test' "$workflow"; then
+  fail 'Android workflow must use the pinned Flutter analyzer gate rather than an unpinned Dart analyzer command'
 fi
 
-printf 'Android-only audit passed: Android target, ARM64 ABI, PRoot checksums, localization gates, focused Phase 13E–13P regressions and release hardening policy verified.\n'
+printf 'Android-only audit passed: Android target, ARM64 ABI, PRoot checksums, localization gates, focused Phase 13E–13P regressions, complete Flutter/Android tests, Android Skill E2E and release hardening policy verified.\n'
