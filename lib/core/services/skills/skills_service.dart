@@ -1048,7 +1048,7 @@ class SkillsService extends ChangeNotifier {
             await _writeSkillImportManifest(
               skillId: skillId,
               skillDirectory: destination,
-              sourceType: SkillSource.skillsSh.name,
+              sourceType: 'skills_sh',
               sourceUrl: bundle.sourceUrl,
               repository: repository,
               ref: preparedArchive.revision,
@@ -1136,7 +1136,7 @@ class SkillsService extends ChangeNotifier {
       await _writeSkillImportManifest(
         skillId: skill.record.id,
         skillDirectory: Directory(skill.dir),
-        sourceType: SkillSource.skillsSh.name,
+        sourceType: 'skills_sh',
         sourceUrl: bundle.sourceUrl,
         repository: bundle.repository,
         ref: bundle.hash,
@@ -3308,7 +3308,7 @@ class SkillsService extends ChangeNotifier {
             );
             await _refreshSkillImportManifestAfterUpdate(
               skillId: item.skillId,
-              sourceType: SkillSource.skillsSh.name,
+              sourceType: 'skills_sh',
               sourceUrl: item.bundle.sourceUrl ?? 'https://skills.sh/${item.catalogId}',
               repository: item.bundle.repository,
               ref: item.catalogId,
