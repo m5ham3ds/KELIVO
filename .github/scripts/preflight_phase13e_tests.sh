@@ -230,19 +230,21 @@ if 'Runtime connection: shell executes inside the installed Android PRoot guest'
     raise SystemExit('FAIL: model-facing prompt does not describe the live PRoot command bridge')
 if 'final conversationProotReady = status?.ready == true' not in workspace:
     raise SystemExit('FAIL: Shell does not re-check the current PRoot runtime status at invocation time')
-if 'includeRuntimeProfiles: !ctx.conversationScoped' not in workspace:
-    raise SystemExit('FAIL: conversation workspaces still expose project Runtime Profile tools')
+if 'includeShellRuntimeProfileId: !ctx.conversationScoped' not in workspace:
+    raise SystemExit('FAIL: chat Shell still accepts a Runtime Profile ID')
+if 'includeRuntimeProfileTools: true' not in workspace:
+    raise SystemExit('FAIL: chat scratch workspaces cannot manage Skill-owned Runtime Profiles')
 if 'if (includeRuntimeProfiles)' not in workspace:
     raise SystemExit('FAIL: Shell schema does not conditionally omit runtime_profile_id')
 if 'if (!ctx.conversationScoped && profiles != null)' not in workspace:
     raise SystemExit('FAIL: conversation-scoped Shell still resolves project Runtime Profiles')
 if 'final runtimeProfileIgnored = ctx.conversationScoped' not in workspace:
     raise SystemExit('FAIL: stale/model-invented Runtime Profile IDs are not isolated from chat workspaces')
-if 'Runtime Profiles are project-scoped and unavailable here' not in workspace:
-    raise SystemExit('FAIL: model prompt does not explain that chat workspaces use base PRoot')
+if 'Runtime Profiles are available only for installed-Skill ownership' not in workspace:
+    raise SystemExit('FAIL: model prompt does not explain Skill-owned profiles in chat scratch workspaces')
 focused = Path('test/core/services/sandbox/environment_status_tool_test.dart').read_text(encoding='utf-8')
 for assertion in [
-    "expect(toolNames, isNot(contains('runtime_profile')))",
+    "expect(toolNames, contains('runtime_profile'))",
     "expect(shellProperties.containsKey('runtime_profile_id'), isFalse)",
     "'runtime_profile_id': 'model-invented-missing-profile-id'",
     "expect(decoded['runtime_profile_ignored'], isTrue)",

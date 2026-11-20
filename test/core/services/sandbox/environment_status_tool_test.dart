@@ -203,7 +203,7 @@ void main() {
     expect(context.hasReadyProotRuntime, isTrue);
     expect(context.paths.externalMounts, isEmpty);
     expect(toolNames, contains('shell'));
-    expect(toolNames, isNot(contains('runtime_profile')));
+    expect(toolNames, contains('runtime_profile'));
     final shellDefinition = WorkspaceToolsService()
         .buildToolDefinitions(context)
         .firstWhere((item) => (item['function'] as Map)['name'] == 'shell');
@@ -214,7 +214,11 @@ void main() {
     final prompt = WorkspaceToolsService.buildPromptFragment(context);
     expect(prompt, contains('private per-conversation scratch workspace'));
     expect(prompt, contains('fresh manual approval'));
-    expect(prompt, contains('Runtime Profiles are project-scoped and unavailable here'));
+    expect(
+      prompt,
+      contains('Runtime Profiles are available only for installed-Skill ownership'),
+    );
+    expect(prompt, contains('scope=extension'));
     expect(
       prompt,
       contains('shell executes inside the installed Android PRoot guest'),

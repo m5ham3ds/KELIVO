@@ -295,7 +295,11 @@ class WorkspaceToolsService {
               : '${ctx.paths.sessionHostDir}/outputs/<id>.txt',
           // Conversation scratch workspaces may create/list Skill-owned profiles.
           // The handler restricts them to scope=extension; project defaults remain unavailable.
+          // Expose Skill-owned Runtime Profile management in a chat scratch workspace,
+          // but never allow shell commands to select a project/extension profile.
           includeRuntimeProfiles: true,
+          includeShellRuntimeProfileId: !ctx.conversationScoped,
+          includeRuntimeProfileTools: true,
         )
         .where((definition) {
           final name = (definition['function'] as Map)['name'] as String;
@@ -318,6 +322,8 @@ class WorkspaceToolsService {
     List<String> vocab = const ['/workspace', '/chat', '/skills', '/tmp'],
     String outputHint = '/chat/outputs/<id>.txt',
     bool includeRuntimeProfiles = true,
+    bool? includeShellRuntimeProfileId,
+    bool? includeRuntimeProfileTools,
   }) {
     return [
       _fn(
@@ -341,7 +347,7 @@ class WorkspaceToolsService {
             'description':
                 'Working directory in model path vocabulary (${vocab.join(', ')}).',
           },
-          if (includeRuntimeProfiles)
+          if (includeShellRuntimeProfileId ?? includeRuntimeProfiles)
             'runtime_profile_id': {
               'type': 'string',
               'description':
@@ -493,7 +499,8 @@ class WorkspaceToolsService {
         },
         ['pattern'],
       ),
-      if (includeRuntimeProfiles) ...RuntimeProfileToolCatalog.definitions(),
+      if (includeRuntimeProfileTools ?? includeRuntimeProfiles)
+        ...RuntimeProfileToolCatalog.definitions(),
     ];
   }
 
