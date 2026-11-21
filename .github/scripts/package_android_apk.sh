@@ -21,6 +21,23 @@ if [[ ! -s "$SOURCE" ]]; then
   exit 1
 fi
 
+# Validate the produced archive, not just the Gradle command or artifact name.
+# The product and all release/debug APKs from this workflow are ARM64-only.
+if ! command -v unzip >/dev/null 2>&1; then
+  echo "unzip is required to validate packaged Android ABIs." >&2
+  exit 1
+fi
+ACTUAL_ABIS="$(unzip -Z1 "$SOURCE" | awk -F/ '$1 == "lib" && NF >= 3 && $3 ~ /\\.so$/ {print $2}' | sort -u)"
+EXPECTED_ABIS="arm64-v8a"
+if [[ "$ACTUAL_ABIS" != "$EXPECTED_ABIS" ]]; then
+  echo "APK ABI validation failed." >&2
+  echo "Expected exactly: $EXPECTED_ABIS" >&2
+  echo "Found: ${ACTUAL_ABIS:-<none>}" >&2
+  echo "Native libraries in other ABIs must be excluded before publishing the APK." >&2
+  exit 1
+fi
+printf 'Verified packaged APK ABI: %s\\n' "$ACTUAL_ABIS"
+
 mkdir -p dist "$REPORT_DIR"
 OUTPUT="dist/Kelivo-Android-arm64-v8a-${VERSION}-${BUILD_MODE}.apk"
 cp -- "$SOURCE" "$OUTPUT"
