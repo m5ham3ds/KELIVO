@@ -232,6 +232,19 @@ jobs:
           bash .github/scripts/capture_step.sh android_full_unit_tests "Run all Android JVM and Robolectric unit tests" -- \
             gradle --no-daemon -p android :app:testDebugUnitTest
 
+      - name: Prepare KVM access for Android emulator
+        id: prepare_android_kvm
+        if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.run_android_skill_e2e == true))
+        shell: bash
+        run: |
+          if [[ ! -e /dev/kvm ]]; then
+            echo "This runner does not expose /dev/kvm; use a KVM-capable Linux runner for Android E2E." >&2
+            exit 1
+          fi
+          sudo chmod 666 /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          ls -l /dev/kvm
+
       - name: Run Phase 13P Skill lifecycle E2E on Android emulator
         id: phase13p_android_e2e
         if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.run_android_skill_e2e == true))
@@ -242,15 +255,13 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          # Hosted Linux runners do not expose KVM. New Android Emulator releases
-          # require explicit opt-in before using the TCG software CPU backend.
-          disable-linux-hw-accel: true
+          # The preflight grants this runner read/write access to /dev/kvm.
+          # Let the action detect KVM and use hardware acceleration rather than TCG.
+          disable-linux-hw-accel: auto
           emulator-boot-timeout: 1200
           emulator-options: '-no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim'
           script: |
             bash .github/scripts/capture_step.sh phase13p_android_e2e "Phase 13P real Android Skill ZIP-to-output lifecycle" -- bash .github/scripts/run_phase13p_android_e2e.sh
-        env:
-          ANDROID_I_WANT_MY_TCG: 'yes'
 
       - name: Prepare build-mode Android plugin registrant
         id: prepare_android_plugin_registrant
