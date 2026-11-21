@@ -98,6 +98,24 @@ class ToolHandlerService {
     try {
       final chat = contextProvider.read<ChatService>();
       final workspaces = contextProvider.read<WorkspaceProvider>();
+      final runtimeProvider = contextProvider.read<WorkspaceRuntimeProvider>();
+
+      // Runtime Profiles are an optional extension of Shell execution. Their
+      // storage provider may be absent in focused tests or lightweight hosts;
+      // that must not discard the already-registered runtime provider or
+      // silently replace it with an empty WorkspaceToolsService.
+      ExtensionEntityStore? entityStore;
+      try {
+        entityStore = contextProvider.read<ExtensionEntityStore>();
+      } catch (_) {}
+
+      final runtimeProfiles = entityStore == null
+          ? null
+          : RuntimeProfileService(
+              store: entityStore,
+              runtimeProvider: runtimeProvider,
+            );
+
       Future<void> Function(String skillId)? onSkillRead;
       Future<void> Function()? onShellCompleted;
       try {
@@ -105,13 +123,11 @@ class ToolHandlerService {
         onSkillRead = skills.incrementUseCount;
         onShellCompleted = skills.rescan;
       } catch (_) {}
+
       return WorkspaceToolsService(
         registry: contextProvider.read<ToolRunRegistry>(),
-        runtimeProvider: contextProvider.read<WorkspaceRuntimeProvider>(),
-        runtimeProfiles: RuntimeProfileService(
-          store: contextProvider.read<ExtensionEntityStore>(),
-          runtimeProvider: contextProvider.read<WorkspaceRuntimeProvider>(),
-        ),
+        runtimeProvider: runtimeProvider,
+        runtimeProfiles: runtimeProfiles,
         updateConversationExtras: chat.updateConversationExtras,
         readPermissionState: ConversationToolPermissions.forChat(chat).read,
         permissionChanges: chat,
