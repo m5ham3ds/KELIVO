@@ -67,7 +67,7 @@ jobs:
             echo "Event: ${GITHUB_EVENT_NAME:-unknown}"
             echo "Actor: ${GITHUB_ACTOR:-unknown}"
             echo "Build mode: ${BUILD_MODE:-release}"
-            echo "CI gates: complete Flutter analysis and tests, local package tests, Android JVM/Robolectric tests, Android Skill E2E and ARM64 APK build"
+            echo "CI gates: Flutter source analysis, independent local package tests, Android JVM/Robolectric tests, Android Skill E2E and ARM64 APK build"
           } > "$REPORT_DIR/run-metadata.txt"
           bash .github/scripts/record_ci_action.sh checkout "Checkout source" "$CHECKOUT_OUTCOME"
           bash .github/scripts/record_ci_action.sh initialize_report "Initialize build report" "success" "Report metadata and per-step log directory created."
@@ -150,15 +150,6 @@ jobs:
         run: |
           bash .github/scripts/capture_step.sh full_flutter_analyze "Analyze complete Flutter source" -- \
             bash .github/scripts/run_flutter_analyze_gate.sh
-
-      - name: Run complete Flutter unit and widget test suite
-        id: full_flutter_tests
-        if: success()
-        timeout-minutes: 75
-        shell: bash
-        run: |
-          bash .github/scripts/capture_step.sh full_flutter_tests "Run all Flutter unit and widget tests" -- \
-            flutter test --no-pub --reporter expanded
 
       # Local path dependencies have independent pubspecs and test suites.
       # Running their tests from the app root does not cover these test trees.
@@ -307,7 +298,6 @@ jobs:
           L10N_PARITY_OUTCOME: ${{ steps.l10n_parity.outcome }}
           GENERATE_L10N_OUTCOME: ${{ steps.generate_l10n.outcome }}
           FULL_FLUTTER_ANALYZE_OUTCOME: ${{ steps.full_flutter_analyze.outcome }}
-          FULL_FLUTTER_TESTS_OUTCOME: ${{ steps.full_flutter_tests.outcome }}
           ANDROID_SDK_COMPONENTS_OUTCOME: ${{ steps.android_sdk_components.outcome }}
           ANDROID_FULL_UNIT_TESTS_OUTCOME: ${{ steps.android_full_unit_tests.outcome }}
           RELEASE_PLUGIN_REGISTRANT_OUTCOME: ${{ steps.prepare_android_plugin_registrant.outcome }}

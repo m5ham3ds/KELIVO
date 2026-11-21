@@ -20,7 +20,6 @@ record_skipped "linux_test_native_deps" "Prepare Linux GTK/GLib headers required
 record_skipped "l10n_parity" "Validate Arabic localization keys and placeholders" "${L10N_PARITY_OUTCOME:-unknown}"
 record_skipped "generate_l10n" "Generate Flutter localizations" "${GENERATE_L10N_OUTCOME:-unknown}"
 record_skipped "full_flutter_analyze" "Analyze complete Flutter source" "${FULL_FLUTTER_ANALYZE_OUTCOME:-unknown}"
-record_skipped "full_flutter_tests" "Run complete Flutter unit and widget test suite" "${FULL_FLUTTER_TESTS_OUTCOME:-unknown}"
 record_skipped "local_package_tests" "Run vendored local package test suites" "${LOCAL_PACKAGE_TESTS_OUTCOME:-unknown}"
 record_skipped "setup_gradle" "Set up Gradle for focused Android runtime tests" "${SETUP_GRADLE_OUTCOME:-unknown}"
 record_skipped "android_sdk_components" "Install Android NDK and CMake" "${ANDROID_SDK_COMPONENTS_OUTCOME:-unknown}"

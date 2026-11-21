@@ -1,6 +1,7 @@
-import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 
 import '../../ast/syntax_tree.dart';
@@ -193,6 +194,63 @@ mixin SelectionManagerMixin<T extends StatefulWidget> on State<T>
       Offset.zero,
       root.size.bottomRight(Offset.zero),
     );
+  }
+
+  @override
+  void bringIntoView(TextPosition position) {
+    // SelectableMath is not itself scrollable, but it can live inside a
+    // scrollable parent. Reveal the syntax node containing the requested
+    // position when such a parent exists.
+    final node = controller.ast.findNodeManagesPosition(position.offset);
+    final targetContext = node.key?.currentContext;
+    if (targetContext != null && targetContext.mounted) {
+      unawaited(Scrollable.ensureVisible(targetContext));
+    }
+  }
+
+  @override
+  void userUpdateTextEditingValue(
+    TextEditingValue value,
+    SelectionChangedCause cause,
+  ) {
+    // The math surface is read-only. Accept selection-only updates from the
+    // platform text-input bridge while ignoring attempts to edit its content.
+    if (value.text == textEditingValue.text) {
+      textEditingValue = value;
+    }
+  }
+
+  @override
+  void selectAll(SelectionChangedCause cause) {
+    final end = math.max(0, controller.ast.greenRoot.capturedCursor - 1);
+    handleSelectionChanged(
+      TextSelection(baseOffset: 0, extentOffset: end),
+      cause,
+    );
+    if (cause == SelectionChangedCause.toolbar) {
+      bringIntoView(TextPosition(offset: controller.selection.extentOffset));
+    }
+  }
+
+  @override
+  void copySelection(SelectionChangedCause cause) {
+    if (!copyEnabled || controller.selection.isCollapsed) return;
+    final selectedTex = controller.selectedNodes.encodeTex();
+    unawaited(Clipboard.setData(ClipboardData(text: selectedTex)));
+    if (cause == SelectionChangedCause.toolbar) {
+      bringIntoView(TextPosition(offset: controller.selection.extentOffset));
+      hideToolbar();
+    }
+  }
+
+  @override
+  void cutSelection(SelectionChangedCause cause) {
+    // SelectableMath is read-only; cutting is intentionally disabled.
+  }
+
+  @override
+  Future<void> pasteText(SelectionChangedCause cause) async {
+    // SelectableMath is read-only; pasting is intentionally disabled.
   }
 
   @override

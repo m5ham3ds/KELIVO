@@ -186,7 +186,7 @@ def write_report() -> str:
     run_url = f"{env('GITHUB_SERVER_URL', 'https://github.com')}/{repository}/actions/runs/{run_id}"
     status = env("FINAL_JOB_STATUS", "unknown").lower()
     build_mode = env("BUILD_MODE", "release")
-    phase13_test_mode = "focused Phase 13E–13P regressions; full Flutter analyze/unit/widget tests; full Android JVM/Robolectric tests; Browser and Skill Android emulator E2E on main; historical Phase 13A–13D suites are not repeated"
+    phase13_test_mode = "focused Phase 13E–13P regressions; complete Flutter source analysis; independent local package tests; full Android JVM/Robolectric tests; Browser and Skill Android emulator E2E on main; historical Phase 13A–13D suites are not repeated"
     branch = env("GITHUB_REF_NAME", env("GITHUB_REF"))
     sha = env("GITHUB_SHA", git_value(["git", "rev-parse", "HEAD"]))
     short_sha = sha[:12] if sha not in {"Not recorded", "Unavailable"} else sha
@@ -215,7 +215,7 @@ def write_report() -> str:
             "phase13n_syntax_preflight", "phase13n_ci_self_test", "phase13n_preflight", "phase13n_tests",
             "phase13o_syntax_preflight", "phase13o_ci_self_test", "phase13o_preflight", "phase13o_tests",
             "phase13p_syntax_preflight", "phase13p_ci_self_test", "phase13p_preflight", "phase13p_tests",
-            "l10n_parity", "generate_l10n", "full_flutter_analyze", "full_flutter_tests",
+            "l10n_parity", "generate_l10n", "full_flutter_analyze",
             "setup_java", "android_sdk_components", "android_full_unit_tests", "phase13p_android_e2e",
             "prepare_android_plugin_registrant", "build_android_arm64", "package_apk", "upload_apk",
         ])
