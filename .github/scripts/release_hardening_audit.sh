@@ -24,11 +24,21 @@ grep -Fq 'android:allowBackup="false"' "$manifest" || fail 'Android backup must 
 grep -Fq 'android:fullBackupContent="false"' "$manifest" || fail 'legacy Android full backup must remain disabled'
 grep -Fq 'android:usesCleartextTraffic="true"' "$manifest" || fail 'cleartext network compatibility policy changed; review and update Phase 12 before changing it'
 grep -Fq 'Cleartext compatibility exception' "$policy" || fail 'global cleartext compatibility exception is not documented'
-ndk_filter_block="$(grep -A 5 -E '^[[:space:]]*ndk[[:space:]]*\{' "$gradle" || true)"
-grep -Fq 'abiFilters += listOf("arm64-v8a")' <<< "$ndk_filter_block" \
-  || fail 'Android app packaging must restrict defaultConfig.ndk.abiFilters to ARM64 only'
-if grep -E 'abiFilters.*(armeabi-v7a|x86|x86_64)' "$gradle" >/dev/null; then
-  fail 'Android build must not package non-ARM64 ABIs'
+# Production/release packaging defaults to ARM64. The isolated emulator
+# Debug lane may select x86_64 only through the explicit Gradle test property.
+grep -Fq 'val kelivoE2E = providers.gradleProperty("kelivoE2E").orNull == "true"' "$gradle" \
+  || fail 'emulator ABI override must require the explicit kelivoE2E Gradle property'
+grep -Fq 'val kelivoAbis = if (kelivoE2E) listOf("x86_64") else listOf("arm64-v8a")' "$gradle" \
+  || fail 'production/release ABI must default to arm64-v8a'
+ndk_filter_block="$(grep -A 5 -F 'ndk {' "$gradle" || true)"
+grep -Fq 'abiFilters += kelivoAbis' <<< "$ndk_filter_block" \
+  || fail 'Android app packaging must use the verified production/test ABI selector'
+if grep -Fq 'abiFilters += listOf("armeabi-v7a")' "$gradle" \
+  || grep -Fq 'abiFilters += listOf("x86_64")' "$gradle"; then
+  fail 'Android build must use only the gated ABI selector, never a hard-coded non-production ABI'
+fi
+if grep -Fq 'ORG_GRADLE_PROJECT_kelivoE2E' .github/workflows/android-build.yml; then
+  fail 'The x86_64 test-only ABI must not be enabled globally in the workflow or release build'
 fi
 grep -Fq 'signingConfigs.getByName("debug")' "$gradle" || fail 'internal CI signing fallback changed; review release signing before updating this audit'
 
