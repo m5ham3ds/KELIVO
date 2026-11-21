@@ -119,36 +119,48 @@ const inputFrame = () => new Promise(resolve => {
   frame = requestAnimationFrame(done);
   timer = setTimeout(done, 50);
 });
-// Scroll targets reliably before synthetic input. WebViews can report a target
-// as visible while it is outside the viewport (especially immediately after
-// a failed navigation/recovery). Use explicit window scrolling when the
-// element belongs to the main document, then re-check geometry and identity.
+// Detect both viewport overflow and clipping by scrollable ancestors.
+const clipped = el => {
+  const r = el.getBoundingClientRect(), view = el.ownerDocument.defaultView;
+  if (r.top < 0 || r.left < 0 || r.bottom > view.innerHeight || r.right > view.innerWidth) return true;
+  let parent = el.parentElement || el.getRootNode().host;
+  while (parent) {
+    const style = view.getComputedStyle(parent), p = parent.getBoundingClientRect();
+    if (/(auto|scroll|hidden|clip)/.test(style.overflowY) && (r.top < p.top || r.bottom > p.bottom)) return true;
+    if (/(auto|scroll|hidden|clip)/.test(style.overflowX) && (r.left < p.left || r.right > p.right)) return true;
+    parent = parent.parentElement || parent.getRootNode().host;
+  }
+  return view !== window && view.frameElement ? clipped(view.frameElement) : false;
+};
+// Bring targets into view before synthetic input. Prefer the platform DOM
+// scrolling algorithm (which handles nested containers); use an explicit
+// document scroll only if the main-frame target remains outside the viewport.
 const prepareTarget = async () => {
   const el = target(), originalIdentity = identity(el);
   const coordinate = Number.isFinite(args.x) && Number.isFinite(args.y);
-  if (!coordinate) {
+  if (!coordinate && clipped(el)) {
     const view = el.ownerDocument.defaultView;
-    const r = el.getBoundingClientRect();
-    const outside = r.top < 0 || r.left < 0 || r.bottom > view.innerHeight || r.right > view.innerWidth;
-    if (outside) {
-      if (view === window) {
-        const top = Math.max(0, Math.min(document.documentElement.scrollHeight - view.innerHeight, view.scrollY + r.top - Math.max(0, view.innerHeight - r.height) / 2));
-        view.scrollTo({top, behavior:'instant'});
-      } else {
-        el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});
-        let frameView = view;
-        while (frameView && frameView !== window) {
-          const frame = frameView.frameElement;
-          if (!frame) break;
-          frame.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
-          frameView = frame.ownerDocument.defaultView;
-        }
-      }
+    el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});
+    await inputFrame();
+    let r = el.getBoundingClientRect();
+    if (view === window && (r.top < 0 || r.left < 0 || r.bottom > view.innerHeight || r.right > view.innerWidth)) {
+      const documentHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
+      const targetTop = view.scrollY + r.top - Math.max(0, view.innerHeight * 0.25);
+      const maxTop = Math.max(0, documentHeight - view.innerHeight);
+      view.scrollTo({top:Math.max(0,Math.min(maxTop,targetTop)),behavior:'instant'});
       await inputFrame();
-      roots.length = 0;
-      if (!el.isConnected || target() !== el || identity(el) !== originalIdentity) {
-        fail('stale_ref: target changed while scrolling; take a fresh snapshot');
-      }
+    }
+    let frameView = view;
+    while (frameView && frameView !== window) {
+      const frame = frameView.frameElement;
+      if (!frame) break;
+      frame.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+      frameView = frame.ownerDocument.defaultView;
+    }
+    await inputFrame();
+    roots.length = 0;
+    if (!el.isConnected || target() !== el || identity(el) !== originalIdentity) {
+      fail('stale_ref: target changed while scrolling; take a fresh snapshot');
     }
   }
   if (!visible(el)) fail('element_not_visible');
