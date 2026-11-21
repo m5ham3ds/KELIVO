@@ -75,6 +75,14 @@ if grep -Fq 'abiFilters += listOf("armeabi-v7a")' "$gradle_config" \
   || grep -Fq 'abiFilters += listOf("x86_64")' "$gradle_config"; then
   fail 'Gradle ABI filters must use only the gated kelivoAbis selector'
 fi
+grep -Fq 'val kelivoPackagingExcludedAbis = listOf(' "$gradle_config" \
+  || fail 'Final APK packaging must define excluded non-selected JNI ABIs'
+grep -Fq 'excludes += kelivoPackagingExcludedAbis.map { "**/$it/**" }' "$gradle_config" \
+  || fail 'Final APK packaging must exclude every JNI ABI outside kelivoAbis'
+grep -Fq 'unzip -Z1 "$SOURCE"' .github/scripts/package_android_apk.sh \
+  || fail 'APK packaging must inspect the final APK archive for native ABIs'
+grep -Fq 'EXPECTED_ABIS="arm64-v8a"' .github/scripts/package_android_apk.sh \
+  || fail 'Published APK must validate as ARM64-only before upload'
 
 archive='dependencies/termux/proot-5.1.107.92.tar.xz'
 checksums='tool/proot_checksums.txt'
@@ -172,9 +180,13 @@ done
 
 grep -Fq 'ORG_GRADLE_PROJECT_kelivoE2E=true' .github/scripts/run_phase13p_android_e2e.sh \
   || fail 'x86_64 ABI must be explicitly enabled only inside the temporary Android emulator E2E script'
-if grep -Fq 'ORG_GRADLE_PROJECT_kelivoE2E' "$workflow"; then
-  fail 'The x86_64 test-only Gradle property must not be enabled globally in the workflow or release build'
+if grep -Fq 'ORG_GRADLE_PROJECT_kelivoE2E=true' "$workflow"; then
+  fail 'The x86_64 test-only Gradle property must never be enabled in a workflow-wide or production step'
 fi
+[[ "$(grep -Fc "ORG_GRADLE_PROJECT_kelivoE2E: 'false'" "$workflow")" == '2' ]] \
+  || fail 'Both production plugin-registrant preparation and APK build must explicitly force ARM64 mode'
+grep -Fq 'gradle --stop' .github/scripts/run_phase13p_android_e2e.sh \
+  || fail 'The temporary x86_64 emulator Gradle daemon must be stopped before production packaging'
 
 grep -Fq 'final packToUpdate = containingPack;' lib/core/services/extensions/conversational_extension_service.dart \
   || fail 'Skill-pack update must capture the nullable pack before the async callback'
