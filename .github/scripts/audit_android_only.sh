@@ -117,10 +117,9 @@ grep -Fq 'flutter analyze --no-pub lib test integration_test' .github/scripts/ru
   || fail 'Complete Flutter analyzer gate must use the resolved dependency graph'
 grep -Fq 'analyzer errors or warnings' .github/scripts/run_flutter_analyze_gate.sh \
   || fail 'Complete Flutter analyzer gate must block analyzer warnings and errors'
-grep -Fq 'id: full_flutter_tests' "$workflow" \
-  || fail 'Android workflow must include the complete Flutter unit/widget test gate'
-grep -Fq 'flutter test --no-pub --reporter expanded' "$workflow" \
-  || fail 'Complete Flutter tests must use the resolved dependency graph'
+if grep -Eq 'id: full_flutter_tests|flutter test --no-pub --reporter expanded' "$workflow"; then
+  fail 'The completed app-wide Flutter unit/widget suite must remain removed from the Android workflow'
+fi
 grep -Fq 'id: android_full_unit_tests' "$workflow" \
   || fail 'Android workflow must include the complete Android JVM/Robolectric test gate'
 grep -Fq 'gradle --no-daemon -p android :app:testDebugUnitTest' "$workflow" \
@@ -180,7 +179,7 @@ if grep -Eq '^  reorderable_grid_view:' pubspec.yaml; then
 fi
 
 # Native-asset host dependencies are required after Flutter packages resolve
-# and before localization generation, analysis and Flutter's full test suite.
+# and before localization generation, source analysis and independent package tests.
 native_line="$(grep -n -m1 -E '^[[:space:]]+id: linux_test_native_deps$' "$workflow" | cut -d: -f1)"
 pub_get_line="$(grep -n -m1 -E '^[[:space:]]+id: flutter_pub_get$' "$workflow" | cut -d: -f1)"
 l10n_line="$(grep -n -m1 -E '^[[:space:]]+id: l10n_parity$' "$workflow" | cut -d: -f1)"
@@ -198,7 +197,6 @@ for step_id in \
   l10n_parity \
   generate_l10n \
   full_flutter_analyze \
-  full_flutter_tests \
   local_package_tests \
   setup_java \
   setup_gradle \
@@ -216,7 +214,7 @@ for step_id in \
 done
 
 # All expensive validation and release stages must run only after success.
-for step_id in toolchain_versions flutter_pub_get l10n_parity generate_l10n full_flutter_analyze full_flutter_tests local_package_tests setup_java setup_gradle android_sdk_components android_full_unit_tests phase13p_android_e2e prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
+for step_id in toolchain_versions flutter_pub_get l10n_parity generate_l10n full_flutter_analyze local_package_tests setup_java setup_gradle android_sdk_components android_full_unit_tests phase13p_android_e2e prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
   step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
   block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
   grep -Fq 'if: success()' <<< "$block" || fail "Required quality/build step must remain success-gated: $step_id"
@@ -236,4 +234,4 @@ if grep -Eq 'dart analyze --fatal-infos lib test integration_test' "$workflow"; 
   fail 'Android workflow must use the pinned Flutter analyzer gate rather than an unpinned Dart analyzer command'
 fi
 
-printf 'Android-only audit passed: Android target, ARM64 ABI, PRoot checksums, localization parity, full Flutter tests, local package tests, Android JVM/Robolectric, Skill emulator E2E and release hardening verified.\\n'
+printf 'Android-only audit passed: Android target, ARM64 ABI, PRoot checksums, localization parity, Flutter source analysis, independent local package tests, Android JVM/Robolectric, Skill emulator E2E and release hardening verified.\\n'
