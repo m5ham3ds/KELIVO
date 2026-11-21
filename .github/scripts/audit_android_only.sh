@@ -89,7 +89,7 @@ file_members="$(while IFS= read -r member; do
   member="${member#./}"
   case "$member" in
     armeabi-v7a/|arm64-v8a/|x86_64/) continue ;;
-    armeabi-v7a/*.so|arm64-v8a/*.so|x86_64/*.so) printf '%s\\n' "$member" ;;
+    armeabi-v7a/*.so|arm64-v8a/*.so|x86_64/*.so) printf '%s\n' "$member" ;;
     *) fail "unexpected PRoot archive member: $member" ;;
   esac
 done <<< "$raw_members" | sort)"
@@ -106,9 +106,8 @@ expected_members="$(printf '%s\n' \
   x86_64/libproot_exec.so \
   x86_64/libproot_loader.so \
   x86_64/libtalloc.so | sort)"
-[[ "$file_members" == "$expected_members" ]] \\
-  || fail 'PRoot archive must contain exactly four files per ABI (ARMv7 compatibility, ARM64 production, x86_64 emulator test)'
-member_count="$(printf '%s\\n' "$file_members" | wc -l | tr -d ' ')"
+[[ "$file_members" == "$expected_members" ]] || fail 'PRoot archive must contain exactly four files per ABI (ARMv7 compatibility, ARM64 production, x86_64 emulator test)'
+member_count="$(printf '%s\n' "$file_members" | wc -l | tr -d ' ')"
 [[ "$member_count" == '12' ]] || fail "expected 12 pinned PRoot libraries (4 ARMv7 + 4 ARM64 + 4 x86_64), found $member_count"
 
 TMPDIR_AUDIT="$(mktemp -d)"
@@ -119,7 +118,7 @@ while read -r expected path; do
   [[ -z "${expected:-}" || "$expected" == \#* ]] && continue
   case "$path" in
     android/app/src/main/jniLibs/armeabi-v7a/*.so|android/app/src/main/jniLibs/arm64-v8a/*.so|android/app/src/main/jniLibs/x86_64/*.so) ;;
-    *) fail "checksum path is not an approved ARM64 production or x86_64 emulator library: $path" ;;
+    *) fail "checksum path is not an approved ARMv7, ARM64, or x86_64 emulator library: $path" ;;
   esac
   relative_path="${path#android/app/src/main/jniLibs/}"
   file="$TMPDIR_AUDIT/$relative_path"
