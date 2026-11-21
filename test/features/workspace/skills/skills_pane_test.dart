@@ -11,6 +11,7 @@ import 'package:Kelivo/features/workspace/widgets/skills/skill_labels.dart';
 import 'package:Kelivo/icons/lucide_adapter.dart';
 import 'package:Kelivo/l10n/app_localizations.dart';
 import 'package:Kelivo/shared/widgets/form_sheet.dart';
+import 'package:Kelivo/shared/widgets/snackbar.dart';
 import 'package:Kelivo/shared/widgets/ios_switch.dart';
 import 'package:Kelivo/shared/markdown/markdown_with_code_highlight.dart';
 import 'package:Kelivo/shared/utils/file_picker_compat.dart';
@@ -109,6 +110,9 @@ void main() {
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => AppSnackBarOverlay(
+            child: child ?? const SizedBox.shrink(),
+          ),
           home: const Scaffold(
             body: Padding(
               padding: EdgeInsets.all(16),
@@ -141,6 +145,9 @@ void main() {
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => AppSnackBarOverlay(
+            child: child ?? const SizedBox.shrink(),
+          ),
           home: const SkillsPage(),
         ),
       ),

@@ -33,6 +33,14 @@ class FakeSkillsService extends ChangeNotifier implements SkillsService {
   Future<void> loaded = Future<void>.value();
 
   @override
+  Future<Map<String, Object?>?> getImportReport(String skillId) async => null;
+
+  @override
+  Future<Map<String, Object?>?> getImportReportWithRequirements(
+    String skillId,
+  ) async => null;
+
+  @override
   ExtensionEntityStore get store => throw UnimplementedError();
 
   @override

@@ -19,6 +19,7 @@ import 'package:Kelivo/core/services/workspace/workspace_tools_service.dart';
 import 'package:Kelivo/features/home/services/tool_handler_service.dart';
 import 'package:Kelivo/features/workspace/widgets/skills/conversation_skills_sheet.dart';
 import 'package:Kelivo/features/workspace/widgets/skills/skills_pane.dart';
+import 'package:Kelivo/shared/widgets/snackbar.dart';
 import 'package:Kelivo/l10n/app_localizations.dart';
 import 'package:Kelivo/utils/mcp_structured_image.dart';
 import 'package:drift/native.dart';
@@ -140,6 +141,9 @@ void main() {
             locale: const Locale('en'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => AppSnackBarOverlay(
+              child: child ?? const SizedBox.shrink(),
+            ),
             home: Scaffold(
               body: Builder(
                 builder: (ctx) {
