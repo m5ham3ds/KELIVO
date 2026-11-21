@@ -268,6 +268,10 @@ jobs:
       - name: Prepare build-mode Android plugin registrant
         id: prepare_android_plugin_registrant
         if: success()
+        env:
+          # Keep the production configuration explicit after the emulator's
+          # temporary x86_64 Debug build.
+          ORG_GRADLE_PROJECT_kelivoE2E: 'false'
         shell: bash
         run: |
           bash .github/scripts/capture_step.sh prepare_android_plugin_registrant "Prepare ${BUILD_MODE} Android plugin registrant" -- \
@@ -277,6 +281,8 @@ jobs:
         id: build_android_arm64
         if: success()
         timeout-minutes: 35
+        env:
+          ORG_GRADLE_PROJECT_kelivoE2E: 'false'
         shell: bash
         run: |
           bash .github/scripts/capture_step.sh build_android_arm64 "Build Android ARM64 ${BUILD_MODE} APK" -- \
