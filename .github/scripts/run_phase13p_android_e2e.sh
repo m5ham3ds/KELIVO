@@ -92,3 +92,8 @@ run_integration_test integration_test/browser_workspace_runtime_test.dart
 run_integration_test integration_test/workspace/skill_execution_e2e_test.dart
 
 printf '\nAll Phase 13P Android integration tests passed.\n'
+
+# Stop the Gradle daemon started by the temporary x86_64 test build so the
+# later ARM64 package step cannot inherit any emulator-only daemon state.
+unset ORG_GRADLE_PROJECT_kelivoE2E
+gradle --stop -p android
