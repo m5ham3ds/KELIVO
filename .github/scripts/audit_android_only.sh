@@ -88,24 +88,28 @@ raw_members="$(tar -tJf "$archive")"
 file_members="$(while IFS= read -r member; do
   member="${member#./}"
   case "$member" in
-    arm64-v8a/|x86_64/) continue ;;
-    arm64-v8a/*.so|x86_64/*.so) printf '%s\\n' "$member" ;;
+    armeabi-v7a/|arm64-v8a/|x86_64/) continue ;;
+    armeabi-v7a/*.so|arm64-v8a/*.so|x86_64/*.so) printf '%s\\n' "$member" ;;
     *) fail "unexpected PRoot archive member: $member" ;;
   esac
 done <<< "$raw_members" | sort)"
-expected_members="$(printf '%s\\n' \\
-  arm64-v8a/libandroid-shmem.so \\
-  arm64-v8a/libproot_exec.so \\
-  arm64-v8a/libproot_loader.so \\
-  arm64-v8a/libtalloc.so \\
-  x86_64/libandroid-shmem.so \\
-  x86_64/libproot_exec.so \\
-  x86_64/libproot_loader.so \\
+expected_members="$(printf '%s\n' \
+  armeabi-v7a/libandroid-shmem.so \
+  armeabi-v7a/libproot_exec.so \
+  armeabi-v7a/libproot_loader.so \
+  armeabi-v7a/libtalloc.so \
+  arm64-v8a/libandroid-shmem.so \
+  arm64-v8a/libproot_exec.so \
+  arm64-v8a/libproot_loader.so \
+  arm64-v8a/libtalloc.so \
+  x86_64/libandroid-shmem.so \
+  x86_64/libproot_exec.so \
+  x86_64/libproot_loader.so \
   x86_64/libtalloc.so | sort)"
 [[ "$file_members" == "$expected_members" ]] \\
-  || fail 'PRoot archive must contain exactly four ARM64 production libraries and four x86_64 emulator-test libraries'
+  || fail 'PRoot archive must contain exactly four files per ABI (ARMv7 compatibility, ARM64 production, x86_64 emulator test)'
 member_count="$(printf '%s\\n' "$file_members" | wc -l | tr -d ' ')"
-[[ "$member_count" == '8' ]] || fail "expected 8 pinned PRoot libraries (4 ARM64 + 4 x86_64), found $member_count"
+[[ "$member_count" == '12' ]] || fail "expected 12 pinned PRoot libraries (4 ARMv7 + 4 ARM64 + 4 x86_64), found $member_count"
 
 TMPDIR_AUDIT="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_AUDIT"' EXIT
@@ -114,7 +118,7 @@ checksum_count=0
 while read -r expected path; do
   [[ -z "${expected:-}" || "$expected" == \#* ]] && continue
   case "$path" in
-    android/app/src/main/jniLibs/arm64-v8a/*.so|android/app/src/main/jniLibs/x86_64/*.so) ;;
+    android/app/src/main/jniLibs/armeabi-v7a/*.so|android/app/src/main/jniLibs/arm64-v8a/*.so|android/app/src/main/jniLibs/x86_64/*.so) ;;
     *) fail "checksum path is not an approved ARM64 production or x86_64 emulator library: $path" ;;
   esac
   relative_path="${path#android/app/src/main/jniLibs/}"
@@ -124,7 +128,7 @@ while read -r expected path; do
   [[ "$actual" == "$expected" ]] || fail "PRoot checksum mismatch: $relative_path"
   checksum_count=$((checksum_count + 1))
 done < "$checksums"
-[[ "$checksum_count" == '8' ]] || fail "expected 8 pinned PRoot checksums (4 ARM64 + 4 x86_64), found $checksum_count"
+[[ "$checksum_count" == '12' ]] || fail "expected 12 pinned PRoot checksums (4 ARMv7 + 4 ARM64 + 4 x86_64), found $checksum_count"
 
 workflow='.github/workflows/android-build.yml'
 if grep -Fq 'id: localization_tests' "$workflow" \
