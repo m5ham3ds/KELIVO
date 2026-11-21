@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import 'package:tuple/tuple.dart';
 
@@ -494,39 +493,40 @@ class InternalSelectableMathState extends State<InternalSelectableMath>
       },
       child: selectionGestureDetectorBuilder.buildGestureDetector(
         child: MouseRegion(
-        cursor: SystemMouseCursors.text,
-        child: CompositedTransformTarget(
-          link: toolbarLayerLink,
-          child: MultiProvider(
-            providers: [
-              Provider.value(value: FlutterMathMode.select),
-              ChangeNotifierProvider.value(value: controller),
-              ProxyProvider<MathController, TextSelection>(
-                create: (context) => const TextSelection.collapsed(offset: -1),
-                update: (context, value, previous) => value.selection,
-              ),
-              Provider.value(
-                value: SelectionStyle(
-                  cursorColor: widget.cursorColor,
-                  cursorOffset: widget.cursorOffset,
-                  cursorRadius: widget.cursorRadius,
-                  cursorWidth: widget.cursorWidth,
-                  cursorHeight: widget.cursorHeight,
-                  selectionColor: widget.selectionColor,
-                  paintCursorAboveText: widget.paintCursorAboveText,
+          cursor: SystemMouseCursors.text,
+          child: CompositedTransformTarget(
+            link: toolbarLayerLink,
+            child: MultiProvider(
+              providers: [
+                Provider.value(value: FlutterMathMode.select),
+                ChangeNotifierProvider.value(value: controller),
+                ProxyProvider<MathController, TextSelection>(
+                  create: (context) =>
+                      const TextSelection.collapsed(offset: -1),
+                  update: (context, value, previous) => value.selection,
                 ),
-              ),
-              Provider.value(
-                value: Tuple2(startHandleLayerLink, endHandleLayerLink),
-              ),
-              // We can't just provide an AnimationController, otherwise
-              // Provider will throw
-              Provider.value(value: Wrapper(cursorBlinkOpacityController)),
-            ],
-            child: child,
+                Provider.value(
+                  value: SelectionStyle(
+                    cursorColor: widget.cursorColor,
+                    cursorOffset: widget.cursorOffset,
+                    cursorRadius: widget.cursorRadius,
+                    cursorWidth: widget.cursorWidth,
+                    cursorHeight: widget.cursorHeight,
+                    selectionColor: widget.selectionColor,
+                    paintCursorAboveText: widget.paintCursorAboveText,
+                  ),
+                ),
+                Provider.value(
+                  value: Tuple2(startHandleLayerLink, endHandleLayerLink),
+                ),
+                // We can't just provide an AnimationController, otherwise
+                // Provider will throw
+                Provider.value(value: Wrapper(cursorBlinkOpacityController)),
+              ],
+              child: child,
+            ),
           ),
         ),
-      ),
       ),
     );
   }
