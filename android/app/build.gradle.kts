@@ -10,6 +10,17 @@ plugins {
 // opts into an x86_64 Debug APK so it can exercise the matching native PRoot.
 val kelivoE2E = providers.gradleProperty("kelivoE2E").orNull == "true"
 val kelivoAbis = if (kelivoE2E) listOf("x86_64") else listOf("arm64-v8a")
+// NDK abiFilters alone did not keep all prebuilt JNI libraries out of the
+// final APK. Enforce the same selected ABI again at the packaging boundary.
+val kelivoPackagingExcludedAbis = listOf(
+    "armeabi",
+    "armeabi-v7a",
+    "arm64-v8a",
+    "x86",
+    "x86_64",
+    "mips",
+    "mips64",
+).filterNot { it in kelivoAbis }
 
 
 android {
@@ -54,6 +65,7 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            excludes += kelivoPackagingExcludedAbis.map { "**/$it/**" }
         }
     }
 
