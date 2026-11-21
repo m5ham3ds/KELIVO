@@ -250,8 +250,8 @@ jobs:
           script: |
             bash .github/scripts/capture_step.sh phase13p_android_e2e "Phase 13P real Android Skill ZIP-to-output lifecycle" -- \
               bash .github/scripts/run_phase13p_android_e2e.sh
-          env:
-            ANDROID_I_WANT_MY_TCG: 'yes'
+        env:
+          ANDROID_I_WANT_MY_TCG: 'yes'
 
       - name: Prepare build-mode Android plugin registrant
         id: prepare_android_plugin_registrant
