@@ -582,6 +582,7 @@ class ToolHandlerService {
           toolName: name,
           toolCallId: approvalIdFor(name, toolCallId),
           conversationId: conversationId,
+          workspaceId: workspaceContext?.workspace.id,
           assistantId: assistant?.id,
           approvals: approvalService,
           stateChanges: permissionChat,
@@ -589,7 +590,13 @@ class ToolHandlerService {
               ? ConversationToolPermissions.forChat(
                   permissionChat,
                 ).read(conversationId)
-              : ToolPermissionState(assistantId: assistant?.id),
+              : ToolPermissionState(
+                  mode:
+                      workspaceContext?.permissionMode ??
+                      ToolPermissionMode.requestApproval,
+                  workspaceId: workspaceContext?.workspace.id,
+                  assistantId: assistant?.id,
+                ),
         );
     Future<Object?> approveAndExecuteMcp(
       String name,

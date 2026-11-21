@@ -27,6 +27,16 @@ class AppNotification {
   });
 }
 
+class _NotificationTickerOwner {
+  const _NotificationTickerOwner({
+    required this.vsync,
+    required this.isMounted,
+  });
+
+  final TickerProvider vsync;
+  final bool Function() isMounted;
+}
+
 class AppSnackBarManager extends ChangeNotifier {
   static final AppSnackBarManager _instance = AppSnackBarManager._internal();
   factory AppSnackBarManager() => _instance;
@@ -34,25 +44,37 @@ class AppSnackBarManager extends ChangeNotifier {
 
   final List<NotificationEntry> _activeToasts = [];
   final Map<NotificationEntry, Timer> _timers = <NotificationEntry, Timer>{};
-  final Map<NotificationEntry, NavigatorState> _owners = <NotificationEntry, NavigatorState>{};
+  final Map<NotificationEntry, _NotificationTickerOwner> _owners =
+      <NotificationEntry, _NotificationTickerOwner>{};
   static const int _maxVisible = 3;
 
   List<NotificationEntry> get activeToasts => List.unmodifiable(_activeToasts);
 
   void show(BuildContext context, AppNotification notification) {
+    // The app overlay owns the ticker when available. It sits above the
+    // Navigator in MaterialApp.builder, so its AnimationControllers can be
+    // disposed before its own TickerProviderStateMixin is torn down.
+    final overlay = context.findAncestorStateOfType<_AppSnackBarOverlayState>();
     final navigator =
         Navigator.maybeOf(context) ?? rootNavigatorKey.currentState;
-    if (navigator == null) {
+    final TickerProvider? vsync = overlay ?? navigator;
+    if (vsync == null) {
       throw FlutterError(
-        'No Navigator is available to show an app notification.',
+        'No app notification ticker or Navigator is available.',
       );
     }
+    final owner = _NotificationTickerOwner(
+      vsync: vsync,
+      isMounted: overlay != null
+          ? () => overlay.mounted
+          : () => navigator!.mounted,
+    );
     final entry = NotificationEntry(
       key: UniqueKey(),
       notification: notification,
       animationController: AnimationController(
         duration: const Duration(milliseconds: 300),
-        vsync: navigator,
+        vsync: vsync,
       ),
       slideAnimation: null,
       fadeAnimation: null,
@@ -72,7 +94,7 @@ class AppSnackBarManager extends ChangeNotifier {
     );
 
     _activeToasts.insert(0, entry);
-    _owners[entry] = navigator;
+    _owners[entry] = owner;
     notifyListeners();
 
     entry.animationController.forward();
@@ -93,7 +115,7 @@ class AppSnackBarManager extends ChangeNotifier {
     // In that case stop the controller immediately instead of awaiting a
     // reverse animation driven by a dead TickerProvider.
     final owner = _owners[entry];
-    if (owner == null || !owner.mounted) {
+    if (owner == null || !owner.isMounted()) {
       _removeEntry(entry);
       return;
     }
@@ -114,10 +136,10 @@ class AppSnackBarManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Call when the owning Navigator is about to be removed from the tree.
-  void disposeForNavigator(NavigatorState navigator) {
+  /// Disposes notifications whose ticker belongs to [vsync].
+  void disposeForTickerProvider(TickerProvider vsync) {
     final entries = _owners.entries
-        .where((entry) => identical(entry.value, navigator))
+        .where((entry) => identical(entry.value.vsync, vsync))
         .map((entry) => entry.key)
         .toList(growable: false);
     for (final entry in entries) {
@@ -172,7 +194,8 @@ class AppSnackBarOverlay extends StatefulWidget {
   State<AppSnackBarOverlay> createState() => _AppSnackBarOverlayState();
 }
 
-class _AppSnackBarOverlayState extends State<AppSnackBarOverlay> {
+class _AppSnackBarOverlayState extends State<AppSnackBarOverlay>
+    with TickerProviderStateMixin {
   final AppSnackBarManager _manager = AppSnackBarManager();
 
   @override
@@ -184,7 +207,7 @@ class _AppSnackBarOverlayState extends State<AppSnackBarOverlay> {
   @override
   void dispose() {
     _manager.removeListener(_onToastsChanged);
-    _manager.dismissAllImmediately();
+    _manager.disposeForTickerProvider(this);
     super.dispose();
   }
 
