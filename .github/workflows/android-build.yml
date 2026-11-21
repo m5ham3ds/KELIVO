@@ -33,7 +33,8 @@ concurrency:
 
 env:
   FLUTTER_VERSION: '3.47.6'
-  JAVA_VERSION: '17'
+  # Robolectric 4.16.1 requires JDK 21 for Android API 36 test sandboxes.
+  JAVA_VERSION: '21'
   ANDROID_NDK_VERSION: '28.2.13676358'
   CMAKE_VERSION: '3.22.1'
   BUILD_MODE: ${{ inputs.build_mode || 'release' }}
