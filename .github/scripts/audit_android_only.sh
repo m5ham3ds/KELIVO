@@ -81,20 +81,30 @@ checksums='tool/proot_checksums.txt'
 [[ -s "$archive" ]] || fail "PRoot archive missing: $archive"
 [[ -s "$checksums" ]] || fail "PRoot checksum manifest missing: $checksums"
 
-members="$(tar -tJf "$archive" | sort)"
-[[ -n "$members" ]] || fail 'PRoot archive is empty'
-expected_members="$(printf '%s\\n' \
-  arm64-v8a/libandroid-shmem.so \
-  arm64-v8a/libproot_exec.so \
-  arm64-v8a/libproot_loader.so \
-  arm64-v8a/libtalloc.so \
-  x86_64/libandroid-shmem.so \
-  x86_64/libproot_exec.so \
-  x86_64/libproot_loader.so \
+# tar may retain the two directory entries and/or a leading ./ prefix.
+# Normalize those harmless packaging details, but reject every other member.
+raw_members="$(tar -tJf "$archive")"
+[[ -n "$raw_members" ]] || fail 'PRoot archive is empty'
+file_members="$(while IFS= read -r member; do
+  member="${member#./}"
+  case "$member" in
+    arm64-v8a/|x86_64/) continue ;;
+    arm64-v8a/*.so|x86_64/*.so) printf '%s\\n' "$member" ;;
+    *) fail "unexpected PRoot archive member: $member" ;;
+  esac
+done <<< "$raw_members" | sort)"
+expected_members="$(printf '%s\\n' \\
+  arm64-v8a/libandroid-shmem.so \\
+  arm64-v8a/libproot_exec.so \\
+  arm64-v8a/libproot_loader.so \\
+  arm64-v8a/libtalloc.so \\
+  x86_64/libandroid-shmem.so \\
+  x86_64/libproot_exec.so \\
+  x86_64/libproot_loader.so \\
   x86_64/libtalloc.so | sort)"
-[[ "$members" == "$expected_members" ]] \
+[[ "$file_members" == "$expected_members" ]] \\
   || fail 'PRoot archive must contain exactly four ARM64 production libraries and four x86_64 emulator-test libraries'
-member_count="$(printf '%s\\n' "$members" | wc -l | tr -d ' ')"
+member_count="$(printf '%s\\n' "$file_members" | wc -l | tr -d ' ')"
 [[ "$member_count" == '8' ]] || fail "expected 8 pinned PRoot libraries (4 ARM64 + 4 x86_64), found $member_count"
 
 TMPDIR_AUDIT="$(mktemp -d)"
