@@ -17,7 +17,6 @@ import 'exception.dart';
 import 'math.dart';
 import 'mode.dart';
 import 'selection/cursor_timer_manager.dart';
-import 'selection/focus_manager.dart';
 import 'selection/overlay_manager.dart';
 import 'selection/selection_manager.dart';
 import 'selection/web_selection_manager.dart';
@@ -411,7 +410,6 @@ class InternalSelectableMath extends StatefulWidget {
 class InternalSelectableMathState extends State<InternalSelectableMath>
     with
         AutomaticKeepAliveClientMixin,
-        FocusManagerMixin,
         SelectionManagerMixin,
         SelectionOverlayManagerMixin,
         WebSelectionControlsManagerMixin,
@@ -453,21 +451,6 @@ class InternalSelectableMathState extends State<InternalSelectableMath>
     super.didUpdateWidget(oldWidget);
   }
 
-  bool _didAutoFocus = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_didAutoFocus && widget.autofocus) {
-      _didAutoFocus = true;
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          FocusScope.of(context).autofocus(widget.focusNode!);
-        }
-      });
-    }
-  }
-
   @override
   void dispose() {
     _oldFocusNode.removeListener(updateKeepAlive);
@@ -497,8 +480,20 @@ class InternalSelectableMathState extends State<InternalSelectableMath>
 
     final child = controller.ast.buildWidget(widget.options);
 
-    return selectionGestureDetectorBuilder.buildGestureDetector(
-      child: MouseRegion(
+    return Focus(
+      focusNode: focusNode,
+      autofocus: widget.autofocus,
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) {
+          handleSelectionChanged(
+            const TextSelection.collapsed(offset: -1),
+            null,
+            ExtraSelectionChangedCause.unfocus,
+          );
+        }
+      },
+      child: selectionGestureDetectorBuilder.buildGestureDetector(
+        child: MouseRegion(
         cursor: SystemMouseCursors.text,
         child: CompositedTransformTarget(
           link: toolbarLayerLink,
@@ -531,6 +526,7 @@ class InternalSelectableMathState extends State<InternalSelectableMath>
             child: child,
           ),
         ),
+      ),
       ),
     );
   }

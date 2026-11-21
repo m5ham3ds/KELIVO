@@ -30,25 +30,17 @@ mixin SelectionManagerMixin<T extends StatefulWidget> on State<T>
 
   bool get hasFocus;
 
-  late FocusNode _oldFocusNode;
-
   late MathController _oldController;
 
   @override
   void initState() {
     super.initState();
-    _oldFocusNode = focusNode..addListener(_handleFocusChange);
     _oldController = controller..addListener(_onControllerChanged);
   }
 
   @override
   void didUpdateWidget(covariant oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (focusNode != _oldFocusNode) {
-      _oldFocusNode.removeListener(_handleFocusChange);
-      _oldFocusNode = focusNode..addListener(_handleFocusChange);
-      _handleFocusChange();
-    }
     if (controller != _oldController) {
       _oldController.removeListener(_onControllerChanged);
       _oldController = controller..addListener(_onControllerChanged);
@@ -59,15 +51,7 @@ mixin SelectionManagerMixin<T extends StatefulWidget> on State<T>
   @override
   void dispose() {
     _oldController.removeListener(_onControllerChanged);
-    _oldFocusNode.removeListener(_handleFocusChange);
     super.dispose();
-  }
-
-  void _handleFocusChange() {
-    if (!hasFocus) {
-      handleSelectionChanged(TextSelection.collapsed(offset: -1), null,
-          ExtraSelectionChangedCause.unfocus);
-    }
   }
 
   SyntaxTree? _oldAst;
@@ -227,6 +211,7 @@ mixin SelectionManagerMixin<T extends StatefulWidget> on State<T>
     handleSelectionChanged(
       TextSelection(baseOffset: 0, extentOffset: end),
       cause,
+      ExtraSelectionChangedCause.handle,
     );
     if (cause == SelectionChangedCause.toolbar) {
       bringIntoView(TextPosition(offset: controller.selection.extentOffset));
