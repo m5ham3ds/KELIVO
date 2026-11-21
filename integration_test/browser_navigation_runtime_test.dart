@@ -67,7 +67,7 @@ void main() {
               response.write('<img src="/image.png">');
             }
             response.write(
-              '<input id="far" style="margin-top:1800px"><button id="click" onclick="this.dataset.clicked=1">Click</button>',
+              '<input id="far" style="display:block;margin-top:5000px"><button id="click" onclick="this.dataset.clicked=1">Click</button>',
             );
         }
         await response.close();
@@ -174,6 +174,16 @@ void main() {
         true,
         reason:
             'The existing HttpOnly session cookie survives navigation failure',
+      );
+      final beforeType = await run('evaluate', {
+        'script':
+            '({viewportHeight:innerHeight,scrollHeight:document.documentElement.scrollHeight,farTop:document.querySelector("#far").getBoundingClientRect().top,farBottom:document.querySelector("#far").getBoundingClientRect().bottom,scrollY})',
+      });
+      final geometry = beforeType['page']['value'] as Map<String, dynamic>;
+      expect(
+        geometry['farTop'],
+        greaterThan(geometry['viewportHeight']),
+        reason: 'The fixture input must begin outside the WebView viewport',
       );
       await run('type', {'selector': '#far', 'text': 'after recovery'});
       await run('click', {'selector': '#click'});
