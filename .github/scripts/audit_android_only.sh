@@ -65,10 +65,10 @@ grep -Fq 'val kelivoE2E = providers.gradleProperty("kelivoE2E").orNull == "true"
   || fail 'Android emulator ABI override must require the explicit kelivoE2E Gradle property'
 grep -Fq 'val kelivoAbis = if (kelivoE2E) listOf("x86_64") else listOf("arm64-v8a")' "$gradle_config" \
   || fail 'Production ABI default must remain arm64-v8a; x86_64 is test-only'
-ndk_filter_block="$(grep -A 5 -E '^[[:space:]]*ndk[[:space:]]*\\{' "$gradle_config" || true)"
+ndk_filter_block="$(grep -A 5 -F 'ndk {' "$gradle_config" || true)"
 grep -Fq 'abiFilters += kelivoAbis' <<< "$ndk_filter_block" \
   || fail 'Android defaultConfig.ndk.abiFilters must use the verified production/test ABI selector'
-cmake_filter_block="$(grep -A 5 -E '^[[:space:]]*cmake[[:space:]]*\\{' "$gradle_config" | head -n 6 || true)"
+cmake_filter_block="$(grep -A 5 -F 'cmake {' "$gradle_config" | head -n 6 || true)"
 grep -Fq 'abiFilters += kelivoAbis' <<< "$cmake_filter_block" \
   || fail 'Android CMake ABI filters must use the same verified production/test ABI selector'
 if grep -Fq 'abiFilters += listOf("armeabi-v7a")' "$gradle_config" \
