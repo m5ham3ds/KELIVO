@@ -439,6 +439,20 @@ final class _SkillE2EHarness {
   }
 
   Future<void> ensureReady() async {
+    final probe = await stack.channel.probe();
+    debugPrint(
+      'PHASE13P_NATIVE_PROBE supported=${probe.supported} abi=${probe.abi} '
+      'proot=${probe.prootPath} loader=${probe.loaderPath} '
+      'nativeLibDir=${probe.nativeLibDir} reason=${probe.reason}',
+    );
+    if (!probe.supported) {
+      throw StateError(
+        'PRoot native runtime unavailable for ABI ${probe.abi}: '
+        '${probe.reason ?? "unknown probe failure"} '
+        '(proot=${probe.prootPath}, loader=${probe.loaderPath}, '
+        'nativeLibDir=${probe.nativeLibDir})',
+      );
+    }
     final installer = stack.manager as EnvironmentInstaller;
     final versionFile = File(
       p.join(installer.rootfsDir.path, kKelivoVersionFile),

@@ -24,6 +24,12 @@ fi
 printf 'Phase 13P target device: %s\n' "$DEVICE_ID"
 adb -s "$DEVICE_ID" get-state | grep -Fxq device
 
+# The published APK remains ARM64-only. This emulator is x86_64, so build
+# this temporary Debug test APK with the matching x86_64 PRoot runtime. The
+# environment variable is scoped to this script and cannot affect the release
+# build that runs after this emulator lane.
+export ORG_GRADLE_PROJECT_kelivoE2E=true
+
 # integration_test is a dev dependency. Generate the Debug plugin registrant
 # for this lane only; the main workflow restores its selected Release/Debug
 # registrant in the following prepare_android_plugin_registrant step.

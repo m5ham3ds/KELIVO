@@ -1,5 +1,10 @@
 import java.util.Properties
 
+// The production APK remains ARM64-only. The Android emulator E2E lane
+// opts into an x86_64 Debug APK so it can exercise the matching native PRoot.
+val kelivoE2E = providers.gradleProperty("kelivoE2E").orNull == "true"
+val kelivoAbis = if (kelivoE2E) listOf("x86_64") else listOf("arm64-v8a")
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android Gradle plugin.
@@ -29,12 +34,12 @@ android {
         // Restrict the APK's packaged native libraries to 64-bit ARM.
         // externalNativeBuild.abiFilters below additionally constrains CMake output.
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters += kelivoAbis
         }
         // This Android-only build targets 64-bit ARM devices.
         externalNativeBuild {
             cmake {
-                abiFilters += listOf("arm64-v8a")
+                abiFilters += kelivoAbis
             }
         }
     }
