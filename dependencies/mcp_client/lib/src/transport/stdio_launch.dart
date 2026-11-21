@@ -21,7 +21,8 @@ bool needsWindowsPathResolution(String command, {bool? isWindows}) {
   if (!resolvedIsWindows) return false;
 
   final lower = command.toLowerCase();
-  return _windowsShimCommands.contains(lower) || isWindowsBatchCommand(command);
+  return _windowsShimCommands.contains(lower) ||
+      isWindowsBatchCommand(command, isWindows: resolvedIsWindows);
 }
 
 String escapeWindowsBatchArgument(String argument) {
