@@ -634,7 +634,6 @@ class BrowserPageViewState extends State<BrowserPage>
         message: message,
         type: error ? NotificationType.error : NotificationType.info,
       ),
-      vsync: AppSnackBarTicker.of(context),
     );
   }
 

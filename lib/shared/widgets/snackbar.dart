@@ -34,17 +34,12 @@ class AppSnackBarManager extends ChangeNotifier {
 
   final List<NotificationEntry> _activeToasts = [];
   final Map<NotificationEntry, Timer> _timers = <NotificationEntry, Timer>{};
-  final Map<NotificationEntry, TickerProvider> _owners =
-      <NotificationEntry, TickerProvider>{};
+  final Map<NotificationEntry, NavigatorState> _owners = <NotificationEntry, NavigatorState>{};
   static const int _maxVisible = 3;
 
   List<NotificationEntry> get activeToasts => List.unmodifiable(_activeToasts);
 
-  void show(
-    BuildContext context,
-    AppNotification notification, {
-    required TickerProvider vsync,
-  }) {
+  void show(BuildContext context, AppNotification notification) {
     final navigator =
         Navigator.maybeOf(context) ?? rootNavigatorKey.currentState;
     if (navigator == null) {
@@ -57,7 +52,7 @@ class AppSnackBarManager extends ChangeNotifier {
       notification: notification,
       animationController: AnimationController(
         duration: const Duration(milliseconds: 300),
-        vsync: vsync,
+        vsync: navigator,
       ),
       slideAnimation: null,
       fadeAnimation: null,
@@ -77,7 +72,7 @@ class AppSnackBarManager extends ChangeNotifier {
     );
 
     _activeToasts.insert(0, entry);
-    _owners[entry] = vsync;
+    _owners[entry] = navigator;
     notifyListeners();
 
     entry.animationController.forward();
@@ -98,7 +93,7 @@ class AppSnackBarManager extends ChangeNotifier {
     // In that case stop the controller immediately instead of awaiting a
     // reverse animation driven by a dead TickerProvider.
     final owner = _owners[entry];
-    if (owner == null) {
+    if (owner == null || !owner.mounted) {
       _removeEntry(entry);
       return;
     }
@@ -120,9 +115,9 @@ class AppSnackBarManager extends ChangeNotifier {
   }
 
   /// Call when the owning Navigator is about to be removed from the tree.
-  void disposeForTickerProvider(TickerProvider vsync) {
+  void disposeForNavigator(NavigatorState navigator) {
     final entries = _owners.entries
-        .where((entry) => identical(entry.value, vsync))
+        .where((entry) => identical(entry.value, navigator))
         .map((entry) => entry.key)
         .toList(growable: false);
     for (final entry in entries) {
@@ -177,18 +172,7 @@ class AppSnackBarOverlay extends StatefulWidget {
   State<AppSnackBarOverlay> createState() => _AppSnackBarOverlayState();
 }
 
-class _AppSnackBarOverlayState extends State<AppSnackBarOverlay>
-    with TickerProviderStateMixin {
-  static TickerProvider tickerFor(BuildContext context) {
-    final state = context.findAncestorStateOfType<_AppSnackBarOverlayState>();
-    if (state == null || !state.mounted) {
-      throw FlutterError(
-        'showAppSnackBar requires an AppSnackBarOverlay above the context.',
-      );
-    }
-    return state;
-  }
-
+class _AppSnackBarOverlayState extends State<AppSnackBarOverlay> {
   final AppSnackBarManager _manager = AppSnackBarManager();
 
   @override
@@ -200,7 +184,7 @@ class _AppSnackBarOverlayState extends State<AppSnackBarOverlay>
   @override
   void dispose() {
     _manager.removeListener(_onToastsChanged);
-    _manager.disposeForTickerProvider(this);
+    _manager.dismissAllImmediately();
     super.dispose();
   }
 
@@ -515,12 +499,6 @@ class _NotificationWidgetState extends State<NotificationWidget>
   }
 }
 
-// Resolves the ticker owned by the nearest app notification overlay.
-class AppSnackBarTicker {
-  static TickerProvider of(BuildContext context) =>
-      _AppSnackBarOverlayState.tickerFor(context);
-}
-
 // Helper function for easy use
 void showAppSnackBar(
   BuildContext context, {
@@ -541,6 +519,5 @@ void showAppSnackBar(
       actionLabel: actionLabel,
       onAction: onAction,
     ),
-    vsync: AppSnackBarTicker.of(context),
   );
 }
