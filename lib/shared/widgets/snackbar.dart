@@ -34,7 +34,8 @@ class AppSnackBarManager extends ChangeNotifier {
 
   final List<NotificationEntry> _activeToasts = [];
   final Map<NotificationEntry, Timer> _timers = <NotificationEntry, Timer>{};
-  final Map<NotificationEntry, TickerProvider> _owners = <NotificationEntry, TickerProvider>{};
+  final Map<NotificationEntry, TickerProvider> _owners =
+      <NotificationEntry, TickerProvider>{};
   static const int _maxVisible = 3;
 
   List<NotificationEntry> get activeToasts => List.unmodifiable(_activeToasts);
@@ -97,7 +98,7 @@ class AppSnackBarManager extends ChangeNotifier {
     // In that case stop the controller immediately instead of awaiting a
     // reverse animation driven by a dead TickerProvider.
     final owner = _owners[entry];
-    if (owner == null || !owner.mounted) {
+    if (owner == null) {
       _removeEntry(entry);
       return;
     }
@@ -178,6 +179,16 @@ class AppSnackBarOverlay extends StatefulWidget {
 
 class _AppSnackBarOverlayState extends State<AppSnackBarOverlay>
     with TickerProviderStateMixin {
+  static TickerProvider tickerFor(BuildContext context) {
+    final state = context.findAncestorStateOfType<_AppSnackBarOverlayState>();
+    if (state == null || !state.mounted) {
+      throw FlutterError(
+        'showAppSnackBar requires an AppSnackBarOverlay above the context.',
+      );
+    }
+    return state;
+  }
+
   final AppSnackBarManager _manager = AppSnackBarManager();
 
   @override
@@ -504,6 +515,12 @@ class _NotificationWidgetState extends State<NotificationWidget>
   }
 }
 
+// Resolves the ticker owned by the nearest app notification overlay.
+class AppSnackBarTicker {
+  static TickerProvider of(BuildContext context) =>
+      _AppSnackBarOverlayState.tickerFor(context);
+}
+
 // Helper function for easy use
 void showAppSnackBar(
   BuildContext context, {
@@ -524,6 +541,6 @@ void showAppSnackBar(
       actionLabel: actionLabel,
       onAction: onAction,
     ),
-    vsync: _resolveOverlayVsync(context),
+    vsync: AppSnackBarTicker.of(context),
   );
 }
