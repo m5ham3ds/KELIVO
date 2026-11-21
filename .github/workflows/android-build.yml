@@ -259,7 +259,9 @@ jobs:
           # Let the action detect KVM and use hardware acceleration rather than TCG.
           disable-linux-hw-accel: auto
           emulator-boot-timeout: 1200
-          emulator-options: '-no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim'
+          # The app/WebView integration test launches Chromium and the Flutter engine.
+          # Give the x86_64 guest enough RAM for the full native WebView lifecycle.
+          emulator-options: '-no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim -memory 3072'
           script: |
             bash .github/scripts/capture_step.sh phase13p_android_e2e "Phase 13P real Android Skill ZIP-to-output lifecycle" -- bash .github/scripts/run_phase13p_android_e2e.sh
 
