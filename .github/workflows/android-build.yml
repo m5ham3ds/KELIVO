@@ -242,10 +242,16 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          emulator-options: '-no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim'
+          # Hosted Linux runners do not expose KVM. New Android Emulator releases
+          # require explicit opt-in before using the TCG software CPU backend.
+          disable-linux-hw-accel: true
+          emulator-boot-timeout: 1200
+          emulator-options: '-no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim'
           script: |
             bash .github/scripts/capture_step.sh phase13p_android_e2e "Phase 13P real Android Skill ZIP-to-output lifecycle" -- \
               bash .github/scripts/run_phase13p_android_e2e.sh
+          env:
+            ANDROID_I_WANT_MY_TCG: 'yes'
 
       - name: Prepare build-mode Android plugin registrant
         id: prepare_android_plugin_registrant
