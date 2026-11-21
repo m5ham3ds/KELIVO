@@ -260,6 +260,13 @@ void main() {
       await tester.pump();
       final selectableMath = tester.state<InternalSelectableMathState>(
           find.byType(InternalSelectableMath).first);
+      final secondMath = tester.state<InternalSelectableMathState>(
+          find.byType(InternalSelectableMath).last);
+      debugPrint(
+        'MATH_FOCUS after first tap: first=${selectableMath.focusNode.hasFocus}, '
+        'second=${secondMath.focusNode.hasFocus}, '
+        'primary=${tester.binding.focusManager.primaryFocus}',
+      );
       final controller = selectableMath.controller;
       controller.selection =
           const TextSelection(baseOffset: 0, extentOffset: 3);
@@ -268,6 +275,11 @@ void main() {
 
       await tester.tap(find.byKey(key2));
       await tester.pump();
+      debugPrint(
+        'MATH_FOCUS after second tap: first=${selectableMath.focusNode.hasFocus}, '
+        'second=${secondMath.focusNode.hasFocus}, '
+        'primary=${tester.binding.focusManager.primaryFocus}',
+      );
       expect(controller.selection, equals(TextRange.empty));
     });
 
