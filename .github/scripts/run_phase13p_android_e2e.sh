@@ -62,7 +62,7 @@ run_integration_test() {
 
   adb -s "$DEVICE_ID" logcat -c
   set +e
-  flutter test --no-pub -d "$DEVICE_ID" "$test_file" --reporter expanded
+  # Android API 35 emulator DDS startup is flaky during integration_test;\n  # run against the VM service directly to avoid the emulator-side DDS failure.\n  flutter test --no-pub --no-dds -d "$DEVICE_ID" "$test_file" --reporter expanded
   test_status=$?
   set -e
 
