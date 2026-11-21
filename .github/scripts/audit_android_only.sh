@@ -59,11 +59,21 @@ fi
 gradle_config='android/app/build.gradle.kts'
 [[ -s "$gradle_config" ]] || fail "required Android Gradle config is missing from the checked-out source tree: $gradle_config (restore and commit the android/ project directory)"
 [[ -s 'android/app/src/main/AndroidManifest.xml' ]] || fail 'required Android app manifest is missing from the checked-out source tree'
-ndk_filter_block="$(grep -A 5 -E '^[[:space:]]*ndk[[:space:]]*\{' "$gradle_config" || true)"
-grep -Fq 'abiFilters += listOf("arm64-v8a")' <<< "$ndk_filter_block" \
-  || fail 'Android defaultConfig.ndk.abiFilters must restrict packaged native libraries to arm64-v8a'
-if grep -E 'abiFilters.*(armeabi-v7a|x86|x86_64)' "$gradle_config" >/dev/null; then
-  fail 'Gradle ABI filters still include a non-ARM64 architecture'
+# Production/release builds must resolve to ARM64 only. The x86_64 ABI is
+# permitted solely for the explicitly opted-in Android emulator Debug lane.
+grep -Fq 'val kelivoE2E = providers.gradleProperty("kelivoE2E").orNull == "true"' "$gradle_config" \
+  || fail 'Android emulator ABI override must require the explicit kelivoE2E Gradle property'
+grep -Fq 'val kelivoAbis = if (kelivoE2E) listOf("x86_64") else listOf("arm64-v8a")' "$gradle_config" \
+  || fail 'Production ABI default must remain arm64-v8a; x86_64 is test-only'
+ndk_filter_block="$(grep -A 5 -E '^[[:space:]]*ndk[[:space:]]*\\{' "$gradle_config" || true)"
+grep -Fq 'abiFilters += kelivoAbis' <<< "$ndk_filter_block" \
+  || fail 'Android defaultConfig.ndk.abiFilters must use the verified production/test ABI selector'
+cmake_filter_block="$(grep -A 5 -E '^[[:space:]]*cmake[[:space:]]*\\{' "$gradle_config" | head -n 6 || true)"
+grep -Fq 'abiFilters += kelivoAbis' <<< "$cmake_filter_block" \
+  || fail 'Android CMake ABI filters must use the same verified production/test ABI selector'
+if grep -Fq 'abiFilters += listOf("armeabi-v7a")' "$gradle_config" \
+  || grep -Fq 'abiFilters += listOf("x86_64")' "$gradle_config"; then
+  fail 'Gradle ABI filters must use only the gated kelivoAbis selector'
 fi
 
 archive='dependencies/termux/proot-5.1.107.92.tar.xz'
@@ -71,14 +81,21 @@ checksums='tool/proot_checksums.txt'
 [[ -s "$archive" ]] || fail "PRoot archive missing: $archive"
 [[ -s "$checksums" ]] || fail "PRoot checksum manifest missing: $checksums"
 
-members="$(tar -tJf "$archive")"
+members="$(tar -tJf "$archive" | sort)"
 [[ -n "$members" ]] || fail 'PRoot archive is empty'
-while IFS= read -r member; do
-  [[ "$member" == arm64-v8a/*.so ]] || fail "unexpected PRoot archive member: $member"
-done <<< "$members"
-
-member_count="$(printf '%s\n' "$members" | wc -l | tr -d ' ')"
-[[ "$member_count" == '4' ]] || fail "expected 4 ARM64 PRoot libraries, found $member_count"
+expected_members="$(printf '%s\\n' \
+  arm64-v8a/libandroid-shmem.so \
+  arm64-v8a/libproot_exec.so \
+  arm64-v8a/libproot_loader.so \
+  arm64-v8a/libtalloc.so \
+  x86_64/libandroid-shmem.so \
+  x86_64/libproot_exec.so \
+  x86_64/libproot_loader.so \
+  x86_64/libtalloc.so | sort)"
+[[ "$members" == "$expected_members" ]] \
+  || fail 'PRoot archive must contain exactly four ARM64 production libraries and four x86_64 emulator-test libraries'
+member_count="$(printf '%s\\n' "$members" | wc -l | tr -d ' ')"
+[[ "$member_count" == '8' ]] || fail "expected 8 pinned PRoot libraries (4 ARM64 + 4 x86_64), found $member_count"
 
 TMPDIR_AUDIT="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_AUDIT"' EXIT
@@ -86,7 +103,10 @@ tar -xJf "$archive" -C "$TMPDIR_AUDIT"
 checksum_count=0
 while read -r expected path; do
   [[ -z "${expected:-}" || "$expected" == \#* ]] && continue
-  [[ "$path" == android/app/src/main/jniLibs/arm64-v8a/*.so ]] || fail "checksum path is not ARM64: $path"
+  case "$path" in
+    android/app/src/main/jniLibs/arm64-v8a/*.so|android/app/src/main/jniLibs/x86_64/*.so) ;;
+    *) fail "checksum path is not an approved ARM64 production or x86_64 emulator library: $path" ;;
+  esac
   relative_path="${path#android/app/src/main/jniLibs/}"
   file="$TMPDIR_AUDIT/$relative_path"
   [[ -s "$file" ]] || fail "PRoot library missing from archive: $relative_path"
@@ -94,7 +114,7 @@ while read -r expected path; do
   [[ "$actual" == "$expected" ]] || fail "PRoot checksum mismatch: $relative_path"
   checksum_count=$((checksum_count + 1))
 done < "$checksums"
-[[ "$checksum_count" == '4' ]] || fail "expected 4 ARM64 checksums, found $checksum_count"
+[[ "$checksum_count" == '8' ]] || fail "expected 8 pinned PRoot checksums (4 ARM64 + 4 x86_64), found $checksum_count"
 
 workflow='.github/workflows/android-build.yml'
 if grep -Fq 'id: localization_tests' "$workflow" \
@@ -136,6 +156,12 @@ for integration_test in \
   grep -Fq "$integration_test" .github/scripts/run_phase13p_android_e2e.sh \
     || fail "Android E2E runner is missing required integration test: $integration_test"
 done
+
+grep -Fq 'ORG_GRADLE_PROJECT_kelivoE2E=true' .github/scripts/run_phase13p_android_e2e.sh \
+  || fail 'x86_64 ABI must be explicitly enabled only inside the temporary Android emulator E2E script'
+if grep -Fq 'ORG_GRADLE_PROJECT_kelivoE2E' "$workflow"; then
+  fail 'The x86_64 test-only Gradle property must not be enabled globally in the workflow or release build'
+fi
 
 grep -Fq 'final packToUpdate = containingPack;' lib/core/services/extensions/conversational_extension_service.dart \
   || fail 'Skill-pack update must capture the nullable pack before the async callback'
@@ -234,4 +260,4 @@ if grep -Eq 'dart analyze --fatal-infos lib test integration_test' "$workflow"; 
   fail 'Android workflow must use the pinned Flutter analyzer gate rather than an unpinned Dart analyzer command'
 fi
 
-printf 'Android-only audit passed: Android target, ARM64 ABI, PRoot checksums, localization parity, Flutter source analysis, independent local package tests, Android JVM/Robolectric, Skill emulator E2E and release hardening verified.\\n'
+printf 'Android-only audit passed: Android target, ARM64 production ABI, isolated x86_64 emulator ABI, PRoot checksums, localization parity, Flutter source analysis, independent local package tests, Android JVM/Robolectric, Skill emulator E2E and release hardening verified.\\n'
