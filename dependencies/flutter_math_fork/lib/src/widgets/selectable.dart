@@ -491,8 +491,11 @@ class InternalSelectableMathState extends State<InternalSelectableMath>
           );
         }
       },
-      child: selectionGestureDetectorBuilder.buildGestureDetector(
-        child: MouseRegion(
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => focusNode.requestFocus(),
+        child: selectionGestureDetectorBuilder.buildGestureDetector(
+          child: MouseRegion(
           cursor: SystemMouseCursors.text,
           child: CompositedTransformTarget(
             link: toolbarLayerLink,
@@ -526,6 +529,7 @@ class InternalSelectableMathState extends State<InternalSelectableMath>
               child: child,
             ),
           ),
+        ),
         ),
       ),
     );
