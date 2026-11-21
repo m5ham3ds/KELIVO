@@ -127,7 +127,7 @@ void main() {
           ..createSync(recursive: true);
         final markdown = File(p.join(sourceRoot.path, 'SKILL.md'))
           ..writeAsStringSync('''---
-name: Phase 13P E2E Verification
+name: phase-13p-e2e-verification
 description: Creates a deterministic JSON artifact for the KELIVO Android execution test.
 ---
 
