@@ -29,9 +29,14 @@
 
 ## معالجة Maven Central HTTP 429
 
-تستخدم إعدادات Gradle في `android/build.gradle.kts` مرآة Google المستضافة لـMaven Central قبل Maven Central، لكن لمجموعة `org.robolectric` فقط. السبب أن تنزيل بعض ملفات Robolectric الكبيرة (ومنها `nativeruntime-dist-compat`) تلقى HTTP 429 من `repo.maven.apache.org` في CI #76.
+يوجد مساران يجب ضبطهما معاً:
 
-تبقى `google()` و`mavenCentral()` متاحتين لبقية المجموعات، ولا يجري تغيير إصدارات Robolectric أو تخطي اختباراته. يجب أن يثبت تشغيل CI التالي نجاح حل الاعتماديات وتنفيذ الاختبارات فعليًا؛ إضافة المرآة وحدها ليست دليل قبول.
+1. في `android/build.gradle.kts`، مرآة Google Hosted Maven Central قبل Maven Central، ومقيدة بمجموعة `org.robolectric` لحل مكتبات Gradle فقط.
+2. في `android/app/build.gradle.kts`، تمرير `robolectric.dependency.repo.url` و`robolectric.dependency.repo.id` إلى كل JVM لاختبارات Android عبر `testOptions.unitTests.all`. هاتان الخاصيتان تخصان `MavenArtifactFetcher` الذي يجلب Android runtime jars وقت تنفيذ الاختبارات، ولا تُستمدان من قائمة مستودعات Gradle.
+
+القيمة الافتراضية للمسارين هي `https://maven-central.storage-download.googleapis.com/maven2/`، ويمكن override لمسار runtime عبر `-ProbolectricDependencyRepoUrl=...` و`-ProbolectricDependencyRepoId=...` أو Environment Variables `ROBOLECTRIC_DEPENDENCY_REPO_URL/ID`.
+
+CI #77 أثبت أن إضافة Gradle mirror وحدها لم تكن كافية: نجح حل Gradle dependencies، لكن 9 اختبارات فشلت عند `MavenArtifactFetcher.java:129` مع `IOException`. لا يسجل هذا التقرير HTTP 429 لـ#77 لأن السجل لم يحدد رمز الاستجابة. التعديل الحالي يعالج مسار runtime المنفصل؛ ولا يعتبر الإصلاح مقبولاً حتى يثبت CI تنزيل runtime واكتمال كل الاختبارات فعلياً.
 
 ## إصدارات الأدوات
 Flutter 3.47.6 · Java 21 · Gradle 8.14 · NDK 28.2.13676358 · CMake 3.22.1 · production ABI arm64-v8a.

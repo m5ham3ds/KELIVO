@@ -3,13 +3,14 @@
 
 **الحالة:** الخطة المعتمدة لمسار التطوير الحالي. اجتازت Phase 2 بوابات Android CI وبناء Release وفق تقرير التشغيل `42424318897`. Phase 3 وPhase 4 لديهما تغييرات مصدر وتقارير تنفيذ، لكنهما ما زالتا تنتظران اعتماد GitHub Actions ومعايير القبول المتبقية. بناءً على طلب المستخدم بالاستمرار مباشرة، بدأ تنفيذ Phase 7 ثم Phase 8 ثم Phase 9 وPhase 10 ثم Phase 11 وPhase 12 بتوجيه المستخدم، مع إبقاء بوابات قبول المراحل السابقة معلقة حتى تحققها الفعلي.
 
-**تحديث الحالة — 22 نوفمبر 2026:**
-- أحدث تشغيل مكتمل هو CI #76 (https://github.com/m5ham3ds/KELIVO/actions/runs/45040545406) على commit `f68e792b771822b31522705720a2ecc82c2d5606`، والمحاولة الثانية انتهت بالفشل في `:app:testDebugUnitTest`.
-- اجتازت في المحاولة الثانية خطوات Android-only audit وFlutter setup/dependencies وLinux native dependencies والتوطين وFlutter Analyze و13Q.1 واختبارات الحزم المحلية. فشلت بوابة Android بسبب HTTP 429 من Maven Central عند تنزيل `org.robolectric:nativeruntime-dist-compat:1.0.18`; لم يتم تشغيل Android Emulator أو بناء APK.
-- المحاولة الأولى من CI #76 واجهت `IOException` في `MavenArtifactFetcher.java:129` أثناء اختبار Robolectric. في المحاولة الثانية ظهر رفض 429 بوضوح، ما يثبت أن العائق تنزيل اعتماد خارجي وليس فشلًا في شيفرة MCP.
-- أضيفت مرآة Google Hosted Maven Central scoped إلى مجموعة `org.robolectric` في `android/build.gradle.kts`. ينتظر الإصلاح تشغيل CI جديدًا؛ لا يعتبر ناجحًا قبل اجتياز Robolectric وبناء/رفع APK.
-- آخر خط أساس كامل ناجح لا يزال CI #73 على commit `8258af4ce3ed160919416a947abb06059d0e1f0a`: APK ARM64 Release بحجم 41,825,267 bytes وبصمة SHA-256 `1c05d9f3356af5c94d155b1f92be4a88fb5b1d372545f701455169066727f585`.
-- Phase 13Q.1 اجتازت اختبارات المحلل في CI #73 و#76؛ 13Q.2–13Q.5 لا تزال مفتوحة. تظل Phase 13B مفتوحة حتى إغلاق موائم MCP ودورة `tools/list` و`tools/call`.
+**تحديث الحالة — 23 نوفمبر 2026:**
+- آخر تشغيل مكتمل هو CI #77 (https://github.com/m5ham3ds/KELIVO/actions/runs/45068500503) على commit `526a38435470ee825053669db84e220e2d23aa3a`. اجتازت بوابات Android-only وFlutter analysis وPhase 13Q.1 والحزم المحلية وإعداد Java/Gradle/NDK.
+- فشلت بوابة `:app:testDebugUnitTest`: اكتمل 136 اختباراً وفشلت 9 اختبارات عند تهيئة Robolectric، وجميعها انتهت إلى `MavenArtifactFetcher.java:129` مع `ExecutionException` و`IOException`. ملخص #77 لا يثبت رمز HTTP بعينه؛ لا ننسب فشل #77 إلى 429 بشكل قاطع.
+- السبب الجذري للإصلاح الناقص في commit #77: مرآة `android/build.gradle.kts` كانت تخص حل Gradle dependencies فقط، بينما Robolectric ينزّل SDK runtime jars بمكوّن مستقل `MavenArtifactFetcher` ويستخدم افتراضياً `https://repo1.maven.org/maven2`. وثائق Robolectric تفصل إعداد `robolectric.dependency.repo.url` و`robolectric.dependency.repo.id` عبر `testOptions.unitTests.all`.
+- تم تصحيح `android/app/build.gradle.kts` الآن لتمرير URL وID صراحةً إلى كل Android unit-test JVM، باستخدام مرآة Google كافتراضي، مع إمكانية override عبر Gradle properties أو Environment Variables، وطباعة الوجهة الفعلية في سجل Gradle. لا يُعلن نجاح الإصلاح قبل CI يؤكد التنزيل والاختبارات.
+- في #77 لم تبدأ Phase 13P Emulator E2E ولا ARM64 Release ولا تغليف/رفع APK؛ لم ينتج APK من ذلك التشغيل. يظل CI #73 آخر خط أساس كامل ناجح: APK ARM64 Release بحجم 41,825,267 bytes وSHA-256 `1c05d9f3356af5c94d155b1f92be4a88fb5b1d372545f701455169066727f585`.
+- Phase 13Q.1 اجتازت في #73 و#76 و#77؛ 13Q.2–13Q.5 لا تزال مفتوحة. وتبقى Phase 13B مفتوحة حتى اكتمال Skill-owned MCP lifecycle بما فيه `tools/list` و`tools/call`.
+- تحليل Reel Studio محفوظ في `REEL-STUDIO-GAP-ANALYSIS-AR.md`: Node.js وFFmpeg/ffprobe موجودة بالفعل في شاشة البيئة، أما Playwright/Chromium وتوليد الصوت ومحاذاة الكلام ومحرر الموشن المتزامن فلم يثبت دعمها الحالي داخل Android PRoot، ولذلك وضعت كفجوات تطوير/تحقق لا كأدوات مثبتة أو مدعومة حالياً.
 
 **سجل الحالة التاريخي للمراحل:**
 ## حالة التنفيذ الحالية

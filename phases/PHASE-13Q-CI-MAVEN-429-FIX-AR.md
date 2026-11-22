@@ -67,3 +67,48 @@
 - Sonatype — [429 operational and runtime artifacts](https://central.sonatype.org/faq/429-operational-dependencies/)
 - Google Cloud — [Hosted Maven Central mirror](https://docs.cloud.google.com/docs/buildpacks/java)
 - Android/Robolectric upstream — توثيق استخدام Google mirror لتجنب 429 للملفات الكبيرة من Robolectric.
+
+
+---
+
+## نتيجة CI #77 — فشل runtime fetch بعد نجاح Gradle dependency resolution
+
+**التشغيل:** [CI #77](https://github.com/m5ham3ds/KELIVO/actions/runs/45068500503)  
+**Commit:** `526a38435470ee825053669db84e220e2d23aa3a`  
+**النتيجة:** فشل في بوابة Android JVM/Robolectric؛ لم ينتج APK.
+
+### ما أثبته السجل
+
+- نجحت خطوات Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وإعداد Java/Gradle/NDK/CMake.
+- وصل Gradle إلى تنفيذ `:app:testDebugUnitTest` واكتمل 136 اختباراً، وفشلت 9 اختبارات في تهيئة Robolectric.
+- جميع الحالات التسع انتهت إلى `MavenArtifactFetcher.java:129` ثم `ExecutionException` و`IOException`.
+- لم يثبت ملخص #77 أن الاستجابة كانت HTTP 429 تحديداً؛ 429 مؤكد في محاولة CI #76 الثانية عند Gradle dependency resolution فقط.
+- لم تبدأ Phase 13P أو مرحلة Release ARM64 لأن بوابة JVM فشلت. لا يوجد APK #77.
+
+### السبب الجذري
+
+هناك مساران منفصلان لتنزيل ملفات Robolectric:
+
+1. Gradle repository declarations تحل مكتبات `org.robolectric` (مثل `robolectric-4.16.1` و`nativeruntime-dist-compat`).
+2. Robolectric `MavenArtifactFetcher` يجلب Android SDK runtime jars أثناء تنفيذ الاختبارات. هذا المسار لا يقرأ مستودعات Gradle؛ ويستخدم افتراضياً `https://repo1.maven.org/maven2`.
+
+إضافة مرآة Google إلى `allprojects.repositories` أصلحت المسار الأول فقط، ولم تضبط المسار الثاني. وهذا يفسر استمرار `IOException` في جميع اختبارات Robolectric رغم نجاح Gradle dependency resolution.
+
+### الإصلاح الحالي المطبق في المصدر
+
+في `android/app/build.gradle.kts`:
+- ضبط `robolectric.dependency.repo.url` على مرآة Google Hosted Maven Central.
+- ضبط `robolectric.dependency.repo.id` بمعرّف متوافق مع عنوان المرآة.
+- تمرير الخاصيتين عبر `testOptions.unitTests.all` إلى كل Android unit-test JVM.
+- السماح بالتخصيص عبر Gradle properties `robolectricDependencyRepoUrl/Id` أو Environment Variables `ROBOLECTRIC_DEPENDENCY_REPO_URL/ID`.
+- طباعة عنوان ومستودع التنزيل الفعليين في سجل Gradle؛ حتى يمكن التحقق من أن Robolectric لا يعود بصمت إلى `repo1.maven.org`.
+
+هذا إصلاح مصدر تم إعداده، وليس نتيجة اختبار ناجحة بعد. يبقى القبول مشروطاً بـ:
+1. ظهور مرآة Google الفعلية في log خلال خطوة Android tests.
+2. اكتمال جميع Android JVM/Robolectric tests دون `MavenArtifactFetcher` IOException.
+3. نجاح Phase 13P emulator E2E.
+4. نجاح بناء ARM64 Release والتحقق من ABI ورفع APK فعلي.
+
+### مرجع الإعداد
+
+Robolectric يعرّف `robolectric.dependency.repo.url` و`robolectric.dependency.repo.id` كخصائص نظام منفصلة، ويشرح ضبطهما من `android.testOptions.unitTests.all`: https://robolectric.org/configuring/ .

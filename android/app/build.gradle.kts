@@ -22,6 +22,17 @@ val kelivoPackagingExcludedAbis = listOf(
     "mips64",
 ).filterNot { it in kelivoAbis }
 
+// Robolectric downloads Android SDK runtime jars with its own MavenArtifactFetcher.
+// Gradle repository declarations in android/build.gradle.kts do not configure that
+// downloader. Keep both properties explicit so test JVMs use the hosted mirror
+// rather than Robolectric's default repo1.maven.org endpoint.
+val robolectricRuntimeRepoUrl = providers.gradleProperty("robolectricDependencyRepoUrl")
+    .orElse(providers.environmentVariable("ROBOLECTRIC_DEPENDENCY_REPO_URL"))
+    .orElse("https://maven-central.storage-download.googleapis.com/maven2/")
+val robolectricRuntimeRepoId = providers.gradleProperty("robolectricDependencyRepoId")
+    .orElse(providers.environmentVariable("ROBOLECTRIC_DEPENDENCY_REPO_ID"))
+    .orElse("GoogleHostedMavenCentralMirror")
+
 
 android {
     namespace = "com.psyche.kelivo"
@@ -72,6 +83,16 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.systemProperty(
+                "robolectric.dependency.repo.url",
+                robolectricRuntimeRepoUrl.get(),
+            )
+            it.systemProperty(
+                "robolectric.dependency.repo.id",
+                robolectricRuntimeRepoId.get(),
+            )
+        }
     }
 
     val keystorePropertiesFile = rootProject.file("key.properties")
@@ -103,6 +124,12 @@ android {
         }
     }
 }
+
+// Log the effective runtime repository in CI so a Robolectric network failure
+// can be distinguished from an unnoticed fallback to the default Maven Central.
+logger.lifecycle(
+    "Robolectric runtime dependency repository: ${robolectricRuntimeRepoId.get()} (${robolectricRuntimeRepoUrl.get()})",
+)
 
 kotlin {
     compilerOptions {
