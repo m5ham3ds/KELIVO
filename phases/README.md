@@ -3,17 +3,18 @@
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
 ## آخر خط أساس
-CI #72: https://github.com/m5ham3ds/KELIVO/actions/runs/44969006889  
-Commit 94286ca8b07987d3a78bc81b2c01930eb4df88e4 · SUCCESS لكل خطوات الـworkflow النشطة.  
+CI #73: https://github.com/m5ham3ds/KELIVO/actions/runs/45036728943  
+Commit 8258af4ce3ed160919416a947abb06059d0e1f0a · SUCCESS لكل خطوات الـworkflow النشطة.  
 Flutter 3.47.6 · Java 21 · NDK 28.2.13676358 · CMake 3.22.1.  
-APK 41,825,267 bytes؛ 18 .so تحت arm64-v8a فقط؛ SHA-256 a6271844472413909fa927b5220601dc2825b86e1b01386ef3bc2cce6a56a3a3.
+APK Release 41,825,267 bytes؛ SHA-256 1c05d9f3356af5c94d155b1f92be4a88fb5b1d372545f701455169066727f585؛ خطوة packaging تحققت من ABI `arm64-v8a` فقط.  
+اجتازت 13Q.1 ثمانية اختبارات محلل read-only، ولا تعني قبول دورة MCP.
 
-**حدود النجاح:** workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ التحليل الثابت ليس تنفيذًا لتلك الاختبارات. اجتازت اختبارات الحزم المستقلة وAndroid JVM/Robolectric وPhase 13P emulator E2E وبقية الخطوات النشطة. 82 info-level lint suggestions ما زالت موجودة.
+**حدود النجاح:** workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ التحليل الثابت ليس تنفيذًا لتلك الاختبارات. اجتازت اختبارات الحزم المستقلة وAndroid JVM/Robolectric واختبارات Android integration الأربعة بما فيها Phase 13P emulator E2E وبقية الخطوات النشطة. 13Q.1 فقط اجتازت؛ دورة MCP الفعلية ما زالت مفتوحة. التحذيرات والملاحظات تبقى في تقرير البناء.
 
 ## حالة الآن
 - **13P:** اجتازت emulator E2E في CI #72، وليس هذا اختبار هاتف المستخدم أو عزل Kernel.
 - **13B:** ما زالت مفتوحة؛ Skill local-script موجود لكن Skill-owned MCP adapter ودورة tools/list/tools/call غير مكتملة.
-- **13Q:** بدأ 13Q.1 بمحلل read-only لـMCP config. لا تسجيل أو اتصال أو تشغيل حتى الآن.
+- **13Q:** 13Q.1 مقبولة في CI #73 (ثمانية اختبارات للمحلل read-only). 13Q.2–13Q.5 مفتوحة: ملكية الخادم، الاتصال وtools/list، tools/call بموافقة لكل أداة، والإلغاء عند تغير/حذف/تعطيل Skill.
 - **HTTP/API وWorkflow وnative tools:** تحتاج موائمات مستقلة؛ مجرد descriptor لا يجعلها قابلة للتشغيل.
 - **PRoot:** Linux userland داخل Android وليس Kernel sandbox؛ RootFS مشترك والشبكة ليست مقيدة بالكامل.
 
