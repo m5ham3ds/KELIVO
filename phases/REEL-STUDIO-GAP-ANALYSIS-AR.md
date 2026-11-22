@@ -48,7 +48,7 @@ KELIVO يملك بالفعل بعض الأساسات العامة التي يم�
 - **ElevenLabs وDeepgram:** خدمات API؛ مفاتيحها وإعداداتها تدار في مخزن أسرار scoped ومشفّر، لا عبر تثبيت نظام ولا داخل `SKILL.md` أو ملفات المشروع.
 - **IBM Plex Sans Arabic:** أصل خط مرخص OFL يضمّن مع المشروع مع ملف الترخيص؛ لا يحتاج زر apt افتراضي. نضيف اختيار مجلد خطوط للمستخدم ضمن إعدادات renderer.
 - **Tabler Icons وHealth Icons:** مكتبات أصول مع تسجيل ترخيص لكل مصدر وأيقونة، تُحزم انتقائياً حسب استخدام المشروع؛ ليست خدمة قابلة للتثبيت في PRoot.
-- **Playwright + Chromium:** غير موجودين ضمن الأدوات الحالية. المقالة تستهدف Node على حاسوب Linux/Windows/macOS؛ لم يثبت أن تثبيت Browser binary ومتطلباته مناسب وآمن ويعمل بثبات داخل Android ARM64 PRoot. لا أضيف زر تثبيت يوحي بدعم غير مختبر. يجب أولاً تنفيذ prototype يختبر Chromium executable، native libraries، sandbox flags، screenshot determinism، استهلاك RAM، وقيود الخلفية على جهاز ARM64 حقيقي. إن فشل، نستخدم Android WebView/renderer أو محرك FFmpeg/Canvas بديل عبر adapter.
+- **Playwright + Chromium:** أضيف كخيار تجريبي اختياري في Environment: Node.js 26.13.1 داخل مجلد خاص بـKELIVO، Playwright 1.65.1، تنزيل Chromium ومكتباته، ثم smoke test يفتح المتصفح headless ويلتقط صفحة عربية RTL. المثبّت يقيد نفسه بـUbuntu/Debian ARM64/x64 ويكتب علامة `.verified` بعد نجاح الاختبار فقط. Playwright يوثق توزيعات Linux المذكورة؛ Android PRoot ليس منصة معلنة الدعم، لذا لا نضمن عمله على الهاتف قبل التثبيت والاختبار الفعلي.
 
 ## 4. تصحيح معلومات المقالة قبل التنفيذ
 
@@ -63,10 +63,10 @@ KELIVO يملك بالفعل بعض الأساسات العامة التي يم�
 
 1. **Reel Project Contract:** إعدادات 9:16 و1080×1920 (مع 720×1280 design canvas)، FPS ومدة وخط ولغة/لهجة وSeries Style Guide، إضافة إلى versioned manifest.
 2. **Script Stage:** يطلب LLM عنواناً وhook وسؤال/قصة/تشبيه/خلاصة ومصادر. تحقق كلمات/ثانية وطول، وحفظ draft، تحرير المستخدم والموافقة.
-3. **Voice Stage:** اختيار TTS provider/voice أو استيراد تسجيل المستخدم. تخزين الصوت في مساحة المشروع لا في سجل المحادثة؛ حفظ provider/job IDs فقط.
-4. **Timing Stage:** استخدام character alignment لـTTS أو ASR/forced alignment للصوت المرفوع. توحيد النتيجة إلى `word/start/end/confidence/scriptTokenIndex`; المطابقة LCS بعد تطبيع عربي غير هدّام، مع إبقاء النص الأصلي للعرض ورفع الكلمات غير المطابقة إلى قائمة مراجعة.
+3. **Voice Stage:** إعادة استخدام `NetworkTtsService` ومزوّد ElevenLabs الحالي، مع إضافة مسار `with-timestamps` جديد كـReel adapter؛ أو استيراد تسجيل المستخدم. تخزين الصوت في مساحة المشروع، وحفظ provider/job IDs فقط. انقل مفاتيح TTS/ASR من `SharedPreferences` إلى `FlutterSecureStorage` قبل توصيلها بمشاريع الفيديو.
+4. **Timing Stage:** توحيد character alignment من ElevenLabs أو word timings من Deepgram/ASR إلى `word/start/end/confidence/scriptTokenIndex`; ASR الحالي يعيد transcript دون توقيت كلمة موحد، فلا يكفي كما هو. المطابقة LCS بعد تطبيع عربي غير هدّام، مع إبقاء النص الأصلي للعرض ورفع الكلمات غير المطابقة إلى قائمة مراجعة.
 5. **Storyboard Stage:** JSON schema versioned مع scene types: intro/question/concept/process/compare/stat/recap، templates: body/zoom/flow/cycle/timeline/chart/layers/cards/meter؛ التوقيت يرتبط بفهرس كلمة/زمن. يمر بمصحح بنيوي ثم self-review، ولا ينتقل تلقائياً إن كانت هناك حقول غير آمنة أو غير صالحة.
-6. **Motion Renderer Adapter:** keyframes حتمية تعتمد على `t`، easing وcamera moves وline-draw وicon pop، caption word highlighting، empty-frame checks، وإعادة استخدام أصول الخطوط والأيقونات المرخصة. المحرك قابل للاستبدال؛ Playwright مجرد احتمال بعد اختبار ARM64.
+6. **Motion Renderer Adapter:** keyframes حتمية تعتمد على `t`، easing وcamera moves وline-draw وicon pop، caption word highlighting، empty-frame checks، وإعادة استخدام أصول الخطوط والأيقونات المرخصة. Playwright/Chromium متاح كـrenderer اختياري تجريبي، لكن خيار التثبيت لا يثبت بعد وجود frame renderer متكامل أو أداء ثابت على Android.
 7. **Audio Mix Stage:** FFmpeg لدمج narration وSFX، ducking/normalization، scene-cut ticks/whooshes، ومقياس loudness configurable لا hard-code لـ-14 LUFS لكل المنصات.
 8. **Render/QA Stage:** frame batches، preview frame، ffprobe profile، black/silence scans، subtitle validation، contact sheet وملف QA. الفشل يعيد مرحلة محددة ويحفظ المراحل الناجحة.
 9. **Execution model:** state machine `idle/running/review/done/error/cancelled`، approval لكل مرحلة، checkpoints، live logs/progress، background notifications، no secrets in logs، safe cancellation، واستعادة الحالة عند إعادة فتح التطبيق.
@@ -92,4 +92,4 @@ KELIVO يملك بالفعل بعض الأساسات العامة التي يم�
 
 ## 8. مصدر المقالة مقابل ما تحقق منه في KELIVO
 
-المقالة والبرومت المرفقان هما مصدر المتطلبات، أما حالة KELIVO أعلاه فتمت مطابقتها مع ملفات `video_production` و`video_engines` و`video_hybrid` و`video_providers` و`video_quality` وخدمات Environment وPackage Manager الحالية. هذا المستند تحليل فجوات وخطة، وليس تقرير نجاح تنفيذ.
+المقالة والبرومت المرفقان هما مصدر المتطلبات. تمت مطابقة الحالة مع `video_production` و`video_engines` و`video_hybrid` و`video_providers` و`video_quality` و`NetworkTtsService` وموائمات ASR و`SettingsProvider` وEnvironment. تمت إضافة أدوات الوسائط وخيار Playwright الاختياري إلى المصدر في هذا التحديث، لكن Orchestrator ومحاذاة الكلمات وReel end-to-end لا تزال غير منفذة ولا تُسجل كمرحلة مكتملة.

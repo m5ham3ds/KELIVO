@@ -2,31 +2,35 @@
 
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
-## آخر بناء ونتيجة معتمدة
+## أحدث CI وبناء Release معتمد
 
-آخر بناء كامل ناجح: CI #73  
-https://github.com/m5ham3ds/KELIVO/actions/runs/45036728943  
-Commit `8258af4ce3ed160919416a947abb06059d0e1f0a` · Flutter 3.47.6 · Java 21 · NDK 28.2.13676358 · CMake 3.22.1.  
-APK Release 41,825,267 bytes؛ ABI `arm64-v8a` فقط؛ SHA-256 `1c05d9f3356af5c94d155b1f92be4a88fb5b1d372545f701455169066727f585`.
+آخر بناء كامل ناجح: [CI #78](https://github.com/m5ham3ds/KELIVO/actions/runs/45080129832) على commit `64e51a52958b58f3d0ba83099bcc90fb4384855d`. Flutter 3.47.6 · Java 21 · Gradle 8.14 · NDK 28.2.13676358 · CMake 3.22.1.
 
-## آخر تشغيل وفشله
+- Android-only audit وFlutter Analyze واختبارات Phase 13Q.1 والحزم المحلية: نجاح.
+- Android JVM/Robolectric: نجاح. سجل Gradle أكد فعلياً: `GoogleHostedMavenCentralMirror (https://maven-central.storage-download.googleapis.com/maven2/)`، ثم `:app:testDebugUnitTest` و`BUILD SUCCESSFUL in 3m 34s`.
+- Phase 13P Android Emulator E2E: نجاح.
+- Android ARM64 Release وchecksum ورفع Artifact: نجاح.
+- APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، حجمه 41,825,267 bytes، وداخل ZIP يوجد `lib/arm64-v8a` فقط (18 مكتبة أصلية)، ولا توجد ABI أخرى.
+- SHA-256: `136bdfbdb97a64e92cabdf50c7d94e370d255305dd67412a173338bbf26288f0`.
+- Artifact ID: `14777311841`.
 
-CI #77، المحاولة الأولى، فشل على commit `526a38435470ee825053669db84e220e2d23aa3a`:  
-https://github.com/m5ham3ds/KELIVO/actions/runs/45068500503
+## تشخيص الفشل السابق والإصلاح المثبت
 
-اجتاز التشغيل Android-only audit وFlutter Analyze واختبارات 13Q.1 واختبارات الحزم المحلية وإعداد Java/Gradle/NDK/CMake. فشل `:app:testDebugUnitTest` بعد بدء الاختبارات: اكتمل 136 اختباراً وفشلت 9 عند تهيئة Robolectric، وجميعها أظهرت `MavenArtifactFetcher.java:129` ثم `ExecutionException` و`IOException`. لا يظهر في ملخص #77 رمز HTTP صريح، لذلك لا ننسب إليه 429 دون دليل. كما أن إضافة مرآة Gradle في #77 لم تضبط مصدر تنزيل Robolectric runtime؛ بقي `MavenArtifactFetcher` يستخدم الخاصية الافتراضية `https://repo1.maven.org/maven2`.
+- CI #76 أثبت HTTP 429 من `repo.maven.apache.org` عند تنزيل `org.robolectric:nativeruntime-dist-compat:1.0.18` خلال Gradle dependency resolution.
+- CI #77 اجتاز حل اعتماديات Gradle لكنه فشل في 9 اختبارات عند `MavenArtifactFetcher.java:129` مع `IOException`؛ السجل لم يثبت رمز HTTP محدداً لهذه المحاولة.
+- السبب كان اختلاف مساري تنزيل Robolectric: مستودعات Gradle لا تضبط تنزيل Android runtime jars الذي ينفذه `MavenArtifactFetcher`.
+- CI #78 أثبت الإصلاح: ظهر عنوان مرآة Google في سجل Gradle، واجتازت `:app:testDebugUnitTest` وPhase 13P وRelease ARM64. لا توجد في #78 أخطاء `MavenArtifactFetcher` أو 429.
 
-تؤكد وثائق Robolectric أن `robolectric.dependency.repo.url` و`robolectric.dependency.repo.id` إعدادان منفصلان يجب تمريرهما كـSystem Properties لعمليات Gradle unit tests. أضيف الآن ضبطهما في `android/app/build.gradle.kts` لجميع Unit Test JVMs، مع مرآة Google كقيمة افتراضية وإمكانية override عبر Gradle property أو Environment Variable. هذا تصحيح لمصدر التنزيل وقت التشغيل، وليس ادعاء بأن المشكلة حُلّت قبل CI جديد.
+راجع `PHASE-13Q-CI-MAVEN-429-FIX-AR.md` لتاريخ التشخيص والإصلاح، و`ANDROID_BUILD_AR.md` لملخص البناء التفصيلي.
 
-لم تصل #77 إلى Android Emulator أو Phase 13P أو Release APK/ARM64 packaging/upload؛ لا يوجد APK من #77. يظل CI #73 آخر بناء كامل ناجح ومرجع APK الموضح أعلاه. راجع `PHASE-13Q-CI-MAVEN-429-FIX-AR.md` للمحاولتين والسبب الجذري.
-
-**حدود آخر نجاح:** workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ التحليل الثابت لا يعادل تنفيذ تلك الاختبارات. اجتازت في CI #73 اختبارات الحزم المستقلة وAndroid JVM/Robolectric واختبارات Android integration الأربعة بما فيها Phase 13P emulator E2E. 13Q.1 فقط اجتازت؛ دورة MCP الفعلية ما زالت مفتوحة.
+**حدود آخر نجاح:** workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ التحليل الثابت لا يعادل تنفيذ تلك الاختبارات. اجتازت في CI #78 الحزم المستقلة وAndroid JVM/Robolectric واختبارات Android integration الأربعة بما فيها Phase 13P emulator E2E. 13Q.1 فقط اجتازت؛ دورة MCP الفعلية ما زالت مفتوحة.
 
 ## حالة الآن
-- **13P:** اجتازت emulator E2E في CI #73، وليس هذا اختبار هاتف المستخدم أو عزل Kernel.
+- **13P:** اجتازت Android Emulator E2E في CI #78، لكنها ليست اختبار Force Stop على هاتف المستخدم ولا إثبات عزل Kernel.
 - **13B:** ما زالت مفتوحة؛ Skill local-script موجود لكن Skill-owned MCP adapter ودورة tools/list/tools/call غير مكتملة.
-- **13Q:** 13Q.1 اجتازت في CI #73 و#76. 13Q.2–13Q.5 مفتوحة: ملكية الخادم، الاتصال وtools/list، tools/call بموافقة لكل أداة، والإلغاء عند تغير/حذف/تعطيل Skill.
-- **Android CI repair:** أضيفت مرآة Gradle للمجموعة في #77، لكن فشل runtime fetch أثبت أن ذلك وحده غير كافٍ. تم الآن ضبط Robolectric runtime repo URL/ID بشكل مستقل؛ قبول الإصلاح ينتظر CI جديداً.
+- **13Q:** 13Q.1 اجتازت CI #78. 13Q.2–13Q.5 مفتوحة: ملكية الخادم، الاتصال وtools/list، tools/call بموافقة لكل أداة، والإلغاء عند تغير/حذف/تعطيل Skill.
+- **Android CI repair:** مقبول بناءً على #78: تم تمرير runtime URL/ID إلى Robolectric JVM، والسجل أكد مرآة Google، واجتازت Android JVM/Robolectric.
+- **Reel Studio:** تحليل الفجوات محدث. أضيفت خيارات بيئية لأدوات الوسائط وPlaywright التجريبي في تغييرات المصدر الحالية؛ قبولها البرمجي ينتظر CI #79، وتظل سلسلة Reel الكاملة غير منفذة.
 - **HTTP/API وWorkflow وnative tools:** تحتاج موائمات مستقلة؛ مجرد descriptor لا يجعلها قابلة للتشغيل.
 - **PRoot:** Linux userland داخل Android وليس Kernel sandbox؛ RootFS مشترك والشبكة ليست مقيدة بالكامل.
 
@@ -55,7 +59,7 @@ https://github.com/m5ham3ds/KELIVO/actions/runs/45068500503
 | 13A–13D | تقارير PHASE-13A/B/C/D-IMPLEMENTATION-REPORT.md | 13B مفتوحة حتى موائم MCP |
 | 13E–13P | مواصفات وتقارير Phases 13E–13P | 13P emulator E2E مقبولة في CI؛ الباقي يخضع لأدلته |
 | 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | 13Q.1 مقبولة فقط؛ 13Q.2–13Q.5 مفتوحة |
-| Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | تحليل فجوات وخطة تكامل؛ التنفيذ لم يبدأ |
+| Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | أدوات بيئية إضافية قيد تحقق CI؛ Orchestrator والإنتاج المتزامن غير منفذين |
 
 ## أرشيف CI
 أبقِ تقارير الفشل والإصلاح التاريخية للمراحل 02 و13E و13K.1–13K.5. هي سجل تشخيصي وليست الحالة الراهنة. تقارير البناء الخام موجودة في ../build-report/.

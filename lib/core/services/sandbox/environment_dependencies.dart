@@ -8,7 +8,7 @@ import 'package:Kelivo/core/models/environment_state.dart';
 import 'package:Kelivo/core/providers/environment_provider.dart';
 import 'package:Kelivo/core/services/workspace/workspace_runtime.dart';
 
-enum EnvironmentDependency { python, node, git, ssh, network, archive, mediaTools }
+enum EnvironmentDependency { python, node, git, ssh, network, archive, mediaTools, ytDlp, mediaInfo, ffmpegThumbnailer, imageMagick, browserRenderer }
 
 enum DependencyStatus { unknown, missing, installed }
 
@@ -27,6 +27,11 @@ extension EnvironmentDependencyCommands on EnvironmentDependency {
     EnvironmentDependency.network => 'curl wget',
     EnvironmentDependency.archive => 'zip unzip',
     EnvironmentDependency.mediaTools => 'ffmpeg',
+    EnvironmentDependency.ytDlp => 'yt-dlp',
+    EnvironmentDependency.mediaInfo => 'mediainfo',
+    EnvironmentDependency.ffmpegThumbnailer => 'ffmpegthumbnailer',
+    EnvironmentDependency.imageMagick => 'imagemagick',
+    EnvironmentDependency.browserRenderer => 'playwright@1.65.1',
   };
 
   String probe({required bool alpine}) => switch (this) {
@@ -39,6 +44,11 @@ extension EnvironmentDependencyCommands on EnvironmentDependency {
     EnvironmentDependency.network => 'curl --version && wget --version',
     EnvironmentDependency.archive => 'zip -v && unzip -v',
     EnvironmentDependency.mediaTools => 'ffmpeg -version && ffprobe -version',
+    EnvironmentDependency.ytDlp => 'yt-dlp --version',
+    EnvironmentDependency.mediaInfo => 'mediainfo --Version',
+    EnvironmentDependency.ffmpegThumbnailer => 'ffmpegthumbnailer -v',
+    EnvironmentDependency.imageMagick => 'magick -version || convert -version',
+    EnvironmentDependency.browserRenderer => r'test -x "$HOME/.local/share/kelivo/browser-renderer/node/bin/node" && grep -Fxq "node=26.13.1" "$HOME/.local/share/kelivo/browser-renderer/.verified" && grep -Fxq "playwright=1.65.1" "$HOME/.local/share/kelivo/browser-renderer/.verified" && PLAYWRIGHT_BROWSERS_PATH="$HOME/.local/share/kelivo/browser-renderer/browsers" timeout 30s "$HOME/.local/share/kelivo/browser-renderer/node/bin/node" "$HOME/.local/share/kelivo/browser-renderer/smoke.mjs"',
   };
 }
 
@@ -62,6 +72,16 @@ class EnvironmentDependencies extends ChangeNotifier {
   bool get supportsPackages =>
       env.state.distro == null ||
       {'ubuntu', 'debian', 'alpine'}.contains(env.state.distro);
+
+  /// Playwright documents Debian/Ubuntu on ARM64/x64; Android PRoot itself is
+  /// not listed as an official platform, so this install remains experimental.
+  bool supportsDependency(EnvironmentDependency dependency) {
+    if (dependency != EnvironmentDependency.browserRenderer) return true;
+    final arch = env.state.arch?.toLowerCase();
+    return !alpine &&
+        {'ubuntu', 'debian'}.contains(env.state.distro) &&
+        {'arm64', 'aarch64', 'x86_64', 'amd64'}.contains(arch);
+  }
   final MirrorService mirrors;
   MirrorCancelToken? _mirrorCancel;
   final Map<EnvironmentDependency, DependencyStatus> _statuses = {};
@@ -122,6 +142,9 @@ class EnvironmentDependencies extends ChangeNotifier {
       "'${value.replaceAll("'", "'\\''")}'";
 
   String installScript(EnvironmentDependency dependency) {
+    if (dependency == EnvironmentDependency.browserRenderer) {
+      return browserRendererInstallScript;
+    }
     final packages = dependency.packages(alpine: alpine);
     if (alpine) {
       return 'set -e\napk --wait 60 update\napk --wait 60 add $packages\n';
@@ -134,6 +157,46 @@ class EnvironmentDependencies extends ChangeNotifier {
         'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
         'install -y --no-install-recommends ca-certificates $packages\n';
   }
+
+  /// Installs a pinned renderer inside the guest rootfs only.
+  static const String browserRendererInstallScript = r'''set -euo pipefail
+NODE_VERSION=26.13.1
+PLAYWRIGHT_VERSION=1.65.1
+ROOT="$HOME/.local/share/kelivo/browser-renderer"
+TMP="$HOME/.cache/kelivo-browser-renderer"
+if [ "$(id -u)" -ne 0 ]; then echo "Guest root is required for Chromium system libraries."; exit 1; fi
+. /etc/os-release
+case "$ID:$VERSION_ID" in ubuntu:22.04|ubuntu:24.04|ubuntu:26.04|debian:12|debian:13) ;; *) echo "Supports Ubuntu 22.04/24.04/26.04 or Debian 12/13 only."; exit 1 ;; esac
+case "$(uname -m)" in aarch64|arm64) NODE_ARCH=arm64 ;; x86_64|amd64) NODE_ARCH=x64 ;; *) echo "Unsupported Linux architecture: $(uname -m)"; exit 1 ;; esac
+mkdir -p "$TMP" "$ROOT/node" "$ROOT/app" "$ROOT/browsers"
+apt-get update
+apt-get install -y --no-install-recommends ca-certificates curl xz-utils
+archive="node-v$NODE_VERSION-linux-$NODE_ARCH.tar.xz"
+curl --fail --location --silent --show-error --retry 3 "https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt" -o "$TMP/SHASUMS256.txt"
+curl --fail --location --silent --show-error --retry 3 "https://nodejs.org/dist/$NODE_VERSION/$archive" -o "$TMP/$archive"
+awk -v archive="$archive" '$2 == archive { print $1 "  " $2; found=1; exit } END { if (!found) exit 1 }' "$TMP/SHASUMS256.txt" > "$TMP/archive.sha256"
+(cd "$TMP" && sha256sum --check archive.sha256)
+tar -xJf "$TMP/$archive" --strip-components=1 -C "$ROOT/node"
+"$ROOT/node/bin/node" --version | grep -Fx "v$NODE_VERSION"
+"$ROOT/node/bin/npm" install --prefix "$ROOT/app" --no-audit --no-fund --save-exact "playwright@1.65.1"
+export PLAYWRIGHT_BROWSERS_PATH="$ROOT/browsers"
+"$ROOT/node/bin/node" "$ROOT/app/node_modules/playwright/cli.js" install-deps chromium
+"$ROOT/node/bin/node" "$ROOT/app/node_modules/playwright/cli.js" install chromium
+cat > "$ROOT/smoke.mjs" <<'JS'
+import { chromium } from './app/node_modules/playwright/index.mjs';
+const browser = await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--no-zygote']});
+try {
+ const page=await browser.newPage({viewport:{width:720,height:1280}});
+ await page.setContent('<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="background:#0c1014;color:#f4f3ee;font:28px sans-serif"><h1>اختبار التصيير العربي</h1><p>Reel Studio · موشن جرافيك</p></body></html>');
+ const image=await page.screenshot({type:'png'});
+ if(!image||image.length<1024) throw new Error('Chromium screenshot is empty');
+ console.log('CHROMIUM_SMOKE_OK bytes='+image.length);
+} finally { await browser.close(); }
+JS
+PLAYWRIGHT_BROWSERS_PATH="$ROOT/browsers" timeout 45s "$ROOT/node/bin/node" "$ROOT/smoke.mjs"
+printf 'node=%s\nplaywright=%s\nchromium=smoke-passed\n' "$NODE_VERSION" "$PLAYWRIGHT_VERSION" > "$ROOT/.verified"
+echo "Browser renderer installed and Chromium smoke test passed."
+''';
 
   Future<void> refresh() async {
     if (busy ||
@@ -158,6 +221,7 @@ class EnvironmentDependencies extends ChangeNotifier {
   }
 
   Future<void> install(EnvironmentDependency dependency) async {
+    if (!supportsDependency(dependency)) return;
     if (busy ||
         !supportsPackages ||
         env.state.phase != EnvironmentPhase.ready) {
@@ -177,7 +241,9 @@ class EnvironmentDependencies extends ChangeNotifier {
       final categories = {
         alpine ? MirrorCategory.apk : MirrorCategory.apt,
         if (dependency == EnvironmentDependency.python) MirrorCategory.pip,
-        if (dependency == EnvironmentDependency.node) MirrorCategory.npm,
+        if (dependency == EnvironmentDependency.node ||
+            dependency == EnvironmentDependency.browserRenderer)
+          MirrorCategory.npm,
       };
       for (final category in categories) {
         final selection = env.mirrors[category];
@@ -206,7 +272,7 @@ class EnvironmentDependencies extends ChangeNotifier {
       if (_cancelled) throw StateError('Cancelled');
       await _run(
         installScript(dependency),
-        timeout: const Duration(minutes: 30),
+        timeout: Duration(minutes: dependency == EnvironmentDependency.browserRenderer ? 60 : 30),
         showOutput: true,
       );
       if (_cancelled) throw StateError('Cancelled');

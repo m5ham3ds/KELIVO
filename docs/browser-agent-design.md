@@ -2,9 +2,10 @@
 
 The in-app browser uses one `browser` tool with explicit actions. It shares the
 user-visible WebView session, while tabs remain owned by a conversation. Agent
-access requires both the assistant's browser tool switch and the browser's global
-Agent switch. Human takeover invalidates queued work; resuming requires a user
-action. Cancelled mutations report an unknown outcome rather than being retried.
+access is controlled by the global Browser Agent setting, together with model tool-call
+support and platform/browser availability. There is no assistant-local Browser tool
+switch. Human takeover invalidates queued work; resuming requires a user action.
+Cancelled mutations report an unknown outcome rather than being retried.
 
 The supplied `deliverable(1)/04_browser_feature/tool_definitions.md` and
 `tool_dispatch.md` informed the open → snapshot → action interaction, optional

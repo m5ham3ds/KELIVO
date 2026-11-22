@@ -112,3 +112,26 @@
 ### مرجع الإعداد
 
 Robolectric يعرّف `robolectric.dependency.repo.url` و`robolectric.dependency.repo.id` كخصائص نظام منفصلة، ويشرح ضبطهما من `android.testOptions.unitTests.all`: https://robolectric.org/configuring/ .
+
+
+---
+
+## القبول النهائي للإصلاح — CI #78 (23 نوفمبر 2026)
+
+**التشغيل:** [CI #78](https://github.com/m5ham3ds/KELIVO/actions/runs/45080129832)  
+**Commit:** `64e51a52958b58f3d0ba83099bcc90fb4384855d`  
+**النتيجة:** Success؛ APK ARM64 Release مرفوع.
+
+سجل Android job أكد قبل تشغيل الاختبارات:
+
+```
+Robolectric runtime dependency repository: GoogleHostedMavenCentralMirror (https://maven-central.storage-download.googleapis.com/maven2/)
+> Task :app:testDebugUnitTest
+BUILD SUCCESSFUL in 3m 34s
+```
+
+كما نجحت Phase 13P Android Emulator E2E، وبناء Release، وفحص checksum ورفع APK. لذلك **يُقبل إصلاح مرآة Robolectric** بناءً على تشغيل فعلي، وليس بمجرد وجود إعداد في Gradle. لم يظهر في سجل #78 تكرار لخطأ `MavenArtifactFetcher` أو HTTP 429.
+
+APK الناتج: 41,825,267 bytes، ARM64 فقط (18 native libraries)، SHA-256: `136bdfbdb97a64e92cabdf50c7d94e370d255305dd67412a173338bbf26288f0`.
+
+يظل سجل CI #76/#77 التاريخي محفوظاً كما هو، ولا يلغي قبول #78 أن #76/#77 كانا فاشلين. لا توجد حاجة لإعادة تشغيلهما.

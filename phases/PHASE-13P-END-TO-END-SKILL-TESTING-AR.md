@@ -65,3 +65,10 @@ flutter test --no-pub -d <ANDROID_DEVICE_ID> \
 نجح تشغيل GitHub Actions #72 على commit 94286ca8b07987d3a78bc81b2c01930eb4df88e4. كانت خطوة phase13p_android_e2e ناجحة، وسجلت ملفات الاختبار الأربعة نجاحها على Android emulator، ومنها integration_test/workspace/skill_execution_e2e_test.dart لمسار Skill ZIP إلى تنفيذ Bash ومخرج مُتحقق منه.
 
 **النتيجة:** بوابة Phase 13P على المحاكي مقبولة في CI. لا يعني ذلك اختبار هاتف المستخدم، أو Force Stop recovery، أو ضمان ظهور الإشعارات عند رفض صلاحيتها، أو عزل PRoot على مستوى Kernel. كما لا يغطي MCP أو HTTP/API أو CLI المستقل أو Workflow adapters.
+
+
+## تحقق إضافي — CI #78 (23 نوفمبر 2026)
+
+نجح التشغيل [GitHub Actions #78](https://github.com/m5ham3ds/KELIVO/actions/runs/45080129832) على commit `64e51a52958b58f3d0ba83099bcc90fb4384855d`. كانت خطوة Phase 13P Android Emulator E2E ناجحة مرة أخرى، تلتها مرحلة Android ARM64 Release الناجحة.
+
+**القبول:** تأكيد قبول بوابة Phase 13P على المحاكي في CI. لا يضيف هذا دليلاً على Force Stop recovery أو اختبار جهاز المستخدم الفعلي أو عزل Kernel أو ظهور الإشعارات عند رفض صلاحيتها.

@@ -1,6 +1,6 @@
 # PHASE 13Q — موائم MCP المملوك للمهارات
 
-**الحالة:** 13Q.1 محلل قراءة فقط مضاف واجتاز CI #73؛ المرحلة غير مقبولة حتى تكتمل دورة lifecycle.
+**الحالة:** 13Q.1 محلل قراءة فقط مضاف واجتاز CI #73 و#78؛ المرحلة غير مقبولة حتى تكتمل دورة lifecycle.
 
 ## سبب المرحلة
 يكتشف مستورد Skills ملفات MCP ويحفظ metadata، لكن Capability Registry يصنف agent_skill.mcp_server بأنه manual_adapter_required. البنية العامة لـMCP (McpProvider وMcpToolService) لا تربط وحدها خادم Skill بملكية Skill أو بصمة المصدر أو موافقات تشغيله. نجاح 13P لا يختبر MCP؛ بل يغطي دورة Skill script.
@@ -60,3 +60,10 @@
 - لم تعمل خطوات Android Emulator وRelease APK بعد بوابة الاختبارات، ولم ينتج APK للمحاولة الثانية.
 
 أضيفت مرآة Google Hosted Maven Central لمجموعة `org.robolectric` في `android/build.gradle.kts` كإصلاح للبنية التحتية. هذا الإصلاح لا يغير سلوك MCP ولا يخفف اختبارات Robolectric. قبول البناء ينتظر CI التالي.
+
+
+## تحقق CI #78 — تأكيد 13Q.1 وبوابات البناء (23 نوفمبر 2026)
+
+نجح [CI #78](https://github.com/m5ham3ds/KELIVO/actions/runs/45080129832) على commit `64e51a52958b58f3d0ba83099bcc90fb4384855d`. اجتازت خطوة اختبارات اكتشاف إعداد MCP للقراءة فقط، كما اجتازت Android JVM/Robolectric وPhase 13P Emulator E2E وبناء Android ARM64 Release ورفع APK.
+
+**النطاق المثبت:** يؤكد هذا التشغيل اختبارات 13Q.1 فقط. لا يثبت تشغيل خادم MCP مملوك لمهارة أو دورة connect/tools/list/tools/call؛ لذلك تبقى 13Q.2–13Q.5 مفتوحة وتبقى Phase 13B غير مكتملة.

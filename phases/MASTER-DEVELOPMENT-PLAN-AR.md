@@ -4,13 +4,13 @@
 **الحالة:** الخطة المعتمدة لمسار التطوير الحالي. اجتازت Phase 2 بوابات Android CI وبناء Release وفق تقرير التشغيل `42424318897`. Phase 3 وPhase 4 لديهما تغييرات مصدر وتقارير تنفيذ، لكنهما ما زالتا تنتظران اعتماد GitHub Actions ومعايير القبول المتبقية. بناءً على طلب المستخدم بالاستمرار مباشرة، بدأ تنفيذ Phase 7 ثم Phase 8 ثم Phase 9 وPhase 10 ثم Phase 11 وPhase 12 بتوجيه المستخدم، مع إبقاء بوابات قبول المراحل السابقة معلقة حتى تحققها الفعلي.
 
 **تحديث الحالة — 23 نوفمبر 2026:**
-- آخر تشغيل مكتمل هو CI #77 (https://github.com/m5ham3ds/KELIVO/actions/runs/45068500503) على commit `526a38435470ee825053669db84e220e2d23aa3a`. اجتازت بوابات Android-only وFlutter analysis وPhase 13Q.1 والحزم المحلية وإعداد Java/Gradle/NDK.
-- فشلت بوابة `:app:testDebugUnitTest`: اكتمل 136 اختباراً وفشلت 9 اختبارات عند تهيئة Robolectric، وجميعها انتهت إلى `MavenArtifactFetcher.java:129` مع `ExecutionException` و`IOException`. ملخص #77 لا يثبت رمز HTTP بعينه؛ لا ننسب فشل #77 إلى 429 بشكل قاطع.
-- السبب الجذري للإصلاح الناقص في commit #77: مرآة `android/build.gradle.kts` كانت تخص حل Gradle dependencies فقط، بينما Robolectric ينزّل SDK runtime jars بمكوّن مستقل `MavenArtifactFetcher` ويستخدم افتراضياً `https://repo1.maven.org/maven2`. وثائق Robolectric تفصل إعداد `robolectric.dependency.repo.url` و`robolectric.dependency.repo.id` عبر `testOptions.unitTests.all`.
-- تم تصحيح `android/app/build.gradle.kts` الآن لتمرير URL وID صراحةً إلى كل Android unit-test JVM، باستخدام مرآة Google كافتراضي، مع إمكانية override عبر Gradle properties أو Environment Variables، وطباعة الوجهة الفعلية في سجل Gradle. لا يُعلن نجاح الإصلاح قبل CI يؤكد التنزيل والاختبارات.
-- في #77 لم تبدأ Phase 13P Emulator E2E ولا ARM64 Release ولا تغليف/رفع APK؛ لم ينتج APK من ذلك التشغيل. يظل CI #73 آخر خط أساس كامل ناجح: APK ARM64 Release بحجم 41,825,267 bytes وSHA-256 `1c05d9f3356af5c94d155b1f92be4a88fb5b1d372545f701455169066727f585`.
-- Phase 13Q.1 اجتازت في #73 و#76 و#77؛ 13Q.2–13Q.5 لا تزال مفتوحة. وتبقى Phase 13B مفتوحة حتى اكتمال Skill-owned MCP lifecycle بما فيه `tools/list` و`tools/call`.
-- تحليل Reel Studio محفوظ في `REEL-STUDIO-GAP-ANALYSIS-AR.md`: Node.js وFFmpeg/ffprobe موجودة بالفعل في شاشة البيئة، أما Playwright/Chromium وتوليد الصوت ومحاذاة الكلام ومحرر الموشن المتزامن فلم يثبت دعمها الحالي داخل Android PRoot، ولذلك وضعت كفجوات تطوير/تحقق لا كأدوات مثبتة أو مدعومة حالياً.
+- آخر تشغيل كامل ناجح: [CI #78](https://github.com/m5ham3ds/KELIVO/actions/runs/45080129832)، commit `64e51a52958b58f3d0ba83099bcc90fb4384855d`. اجتاز Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وإعداد Java/Gradle/NDK/CMake.
+- نجحت Android JVM/Robolectric بعد ظهور سجل فعلي بعنوان `GoogleHostedMavenCentralMirror (https://maven-central.storage-download.googleapis.com/maven2/)`، واجتازت `:app:testDebugUnitTest` مع `BUILD SUCCESSFUL in 3m 34s`. هذا يثبت تصحيح مسار `MavenArtifactFetcher` الذي لم تُضبطه مرآة Gradle وحدها.
+- نجحت Phase 13P Android Emulator E2E، ثم إعداد Plugin Registrant وبناء Android ARM64 Release، والتحقق من checksum ورفع artifact.
+- APK الناتج `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`: الحجم 41,825,267 bytes، 18 مكتبة أصلية تحت `lib/arm64-v8a` فقط، SHA-256 `136bdfbdb97a64e92cabdf50c7d94e370d255305dd67412a173338bbf26288f0`، Artifact ID `14777311841`.
+- تاريخ المشكلة: CI #76 تعثر عند Gradle dependency download بسبب HTTP 429؛ CI #77 اجتاز حل الاعتماديات لكنه فشل في 9 اختبارات عند `MavenArtifactFetcher.java:129` بـ`IOException` دون دليل على رمز HTTP محدد. CI #78 أثبت أن ضبط `robolectric.dependency.repo.url` و`repo.id` داخل Test JVM حل المشكلة.
+- Phase 13Q.1 اجتازت في #78؛ 13Q.2–13Q.5 لا تزال مفتوحة. Phase 13B تبقى مفتوحة حتى تنفيذ واختبار Skill-owned MCP lifecycle بما فيه `tools/list` و`tools/call`.
+- تحليل Reel Studio محدث في `REEL-STUDIO-GAP-ANALYSIS-AR.md`: TTS/ASR موجودان أساساً، لكن التوقيت الدقيق للكلمات وربط المراحل والمحرر المتزامن غير مكتمل. أضيفت خيارات تثبيت أدوات وسائط اختيارية وPlaywright/Chromium التجريبي في تغييرات المصدر الحالية؛ تنتظر CI #79. لا يدّعي ذلك جاهزية Reel end-to-end أو دعماً رسمياً لـAndroid PRoot.
 
 **سجل الحالة التاريخي للمراحل:**
 ## حالة التنفيذ الحالية

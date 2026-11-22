@@ -45,7 +45,7 @@ void main() {
           service.status(EnvironmentDependency.python),
           DependencyStatus.missing,
         );
-        for (final dependency in EnvironmentDependency.values) {
+        for (final dependency in EnvironmentDependency.values.where(service.supportsDependency)) {
           await service.install(dependency);
           expect(service.failure, isNull);
           expect(service.status(dependency), DependencyStatus.installed);
@@ -59,12 +59,54 @@ void main() {
                     r.command.contains('install -y') ||
                     r.command.contains('apk --wait 60 add'),
               )
-              .every((r) => r.timeout == const Duration(minutes: 30)),
+              .every((r) => r.timeout == const Duration(minutes: 30) ||
+                  (r.command.contains('playwright@1.65.1') &&
+                      r.timeout == const Duration(minutes: 60))),
           isTrue,
         );
       },
     );
   }
+
+  test('browser renderer installer is pinned and smoke-tests Chromium', () async {
+    await setup();
+    expect(service.supportsDependency(EnvironmentDependency.browserRenderer), isTrue);
+    final script = service.installScript(EnvironmentDependency.browserRenderer);
+    expect(script, contains('NODE_VERSION=26.13.1'));
+    expect(script, contains('PLAYWRIGHT_VERSION=1.65.1'));
+    expect(script, contains('SHASUMS256.txt'));
+    expect(script, contains('sha256sum --check'));
+    expect(script, contains('install-deps chromium'));
+    expect(script, contains('install chromium'));
+    expect(script, contains('CHROMIUM_SMOKE_OK'));
+    expect(script, contains('dir="rtl"'));
+    expect(script, contains('.verified'));
+    await service.install(EnvironmentDependency.browserRenderer);
+    expect(service.failure, isNull);
+    expect(service.status(EnvironmentDependency.browserRenderer), DependencyStatus.installed);
+    expect(runtime.requests.any((r) => r.command.contains('playwright@1.65.1')), isTrue);
+    await setup(alpine: true);
+    expect(service.supportsDependency(EnvironmentDependency.browserRenderer), isFalse);
+    final requestCount = runtime.requests.length;
+    await service.install(EnvironmentDependency.browserRenderer);
+    expect(runtime.requests.length, requestCount);
+  });
+
+  test('optional media utilities are installable independently', () async {
+    await setup();
+    final cases = <EnvironmentDependency, String>{
+      EnvironmentDependency.ytDlp: 'yt-dlp',
+      EnvironmentDependency.mediaInfo: 'mediainfo',
+      EnvironmentDependency.ffmpegThumbnailer: 'ffmpegthumbnailer',
+      EnvironmentDependency.imageMagick: 'imagemagick',
+    };
+    for (final entry in cases.entries) {
+      expect(entry.key.packages(alpine: false), entry.value);
+      await service.install(entry.key);
+      expect(service.failure, isNull);
+      expect(service.status(entry.key), DependencyStatus.installed);
+    }
+  });
 
   test('media preset installs FFmpeg and verifies both ffmpeg and ffprobe', () async {
     await setup();

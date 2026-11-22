@@ -5944,5 +5944,13 @@
   "kelivoPublicStorageBackupCopied": "備份也已複製到 KELIVO/Backups。",
   "kelivoPublicStorageBackupCopyFailed": "無法將備份複製到所選的 KELIVO 資料夾。",
   "kelivoPublicStorageSkillExportCopied": "Skill ZIP 也已複製到 KELIVO/Skills-Exports。",
-  "kelivoPublicStorageSkillExportCopyFailed": "無法將 Skill ZIP 複製到所選的 KELIVO 資料夾。"
+  "kelivoPublicStorageSkillExportCopyFailed": "無法將 Skill ZIP 複製到所選的 KELIVO 資料夾。",
+  "workspaceEnvDependencyYtDlp": "yt-dlp 影片與音訊下載工具",
+  "workspaceEnvDependencyMediaInfo": "MediaInfo 媒體中繼資料檢視工具",
+  "workspaceEnvDependencyThumbnailer": "FFmpegthumbnailer 媒體縮圖工具",
+  "workspaceEnvDependencyImageMagick": "ImageMagick 圖片轉換與處理工具",
+  "workspaceEnvDependencyBrowserRenderer": "Playwright + Chromium（實驗性）",
+  "workspaceEnvDependencyBrowserRendererDetail": "Ubuntu/Debian ARM64/x64 的私有 Node.js 26 + Playwright 1.65.1 + Chromium HTML 渲染執行環境。",
+  "workspaceEnvBrowserRendererExperimentalNote": "可選的環境內安裝。安裝會啟動 Chromium 並擷取阿拉伯語 RTL 測試畫面。Android PRoot 並非 Playwright 官方支援平台，特定裝置上可能失敗。",
+  "workspaceEnvDependencyUnsupported": "此發行版或架構不受支援"
 }

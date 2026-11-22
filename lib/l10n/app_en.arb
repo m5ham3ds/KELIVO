@@ -7663,5 +7663,13 @@
   "kelivoPublicStorageBackupCopied": "The backup was also copied to KELIVO/Backups.",
   "kelivoPublicStorageBackupCopyFailed": "The backup could not be copied to the selected KELIVO folder.",
   "kelivoPublicStorageSkillExportCopied": "The Skill ZIP was also copied to KELIVO/Skills-Exports.",
-  "kelivoPublicStorageSkillExportCopyFailed": "The Skill ZIP could not be copied to the selected KELIVO folder."
+  "kelivoPublicStorageSkillExportCopyFailed": "The Skill ZIP could not be copied to the selected KELIVO folder.",
+  "workspaceEnvDependencyYtDlp": "yt-dlp for downloading video and audio",
+  "workspaceEnvDependencyMediaInfo": "MediaInfo for inspecting media metadata",
+  "workspaceEnvDependencyThumbnailer": "FFmpegthumbnailer for media thumbnails",
+  "workspaceEnvDependencyImageMagick": "ImageMagick for image conversion and processing",
+  "workspaceEnvDependencyBrowserRenderer": "Playwright + Chromium (experimental)",
+  "workspaceEnvDependencyBrowserRendererDetail": "Private Node.js 26 + Playwright 1.65.1 + Chromium runtime for HTML rendering on Ubuntu/Debian ARM64/x64.",
+  "workspaceEnvBrowserRendererExperimentalNote": "Optional guest-only install. Setup launches Chromium and captures an Arabic RTL smoke frame. Android PRoot is not an officially supported Playwright platform and may fail on a particular device.",
+  "workspaceEnvDependencyUnsupported": "Not supported by this distro or architecture"
 }

@@ -36,7 +36,7 @@
 
 القيمة الافتراضية للمسارين هي `https://maven-central.storage-download.googleapis.com/maven2/`، ويمكن override لمسار runtime عبر `-ProbolectricDependencyRepoUrl=...` و`-ProbolectricDependencyRepoId=...` أو Environment Variables `ROBOLECTRIC_DEPENDENCY_REPO_URL/ID`.
 
-CI #77 أثبت أن إضافة Gradle mirror وحدها لم تكن كافية: نجح حل Gradle dependencies، لكن 9 اختبارات فشلت عند `MavenArtifactFetcher.java:129` مع `IOException`. لا يسجل هذا التقرير HTTP 429 لـ#77 لأن السجل لم يحدد رمز الاستجابة. التعديل الحالي يعالج مسار runtime المنفصل؛ ولا يعتبر الإصلاح مقبولاً حتى يثبت CI تنزيل runtime واكتمال كل الاختبارات فعلياً.
+CI #77 أثبت أن إضافة Gradle mirror وحدها لم تكن كافية: نجح حل Gradle dependencies، لكن 9 اختبارات فشلت عند `MavenArtifactFetcher.java:129` مع `IOException`. لا يسجل هذا التقرير HTTP 429 لـ#77 لأن السجل لم يحدد رمز الاستجابة. أما CI #78 فقد طبع عنوان مرآة Google الفعلي في سجل Gradle، ثم اجتازت `:app:testDebugUnitTest` بنجاح. اجتازت Phase 13P E2E وبناء ARM64 ورفع Artifact أيضاً؛ لذلك يُقبل الإصلاح.
 
 ## إصدارات الأدوات
 Flutter 3.47.6 · Java 21 · Gradle 8.14 · NDK 28.2.13676358 · CMake 3.22.1 · production ABI arm64-v8a.
@@ -50,3 +50,18 @@ APK 41,825,267 bytes · 18 .so ضمن arm64-v8a فقط · SHA-256 a6271844472413
 ## سجل CI الأحدث
 
 CI #76 على commit `f68e792b771822b31522705720a2ecc82c2d5606` فشل في المحاولة الثانية أثناء `:app:testDebugUnitTest`: لم يستطع Gradle تنزيل `org.robolectric:nativeruntime-dist-compat:1.0.18` لأن Maven Central أعاد HTTP 429. لم يتم إنشاء APK في ذلك التشغيل. أضيفت مرآة Google scoped لمجموعة Robolectric؛ يظل الإصلاح بانتظار إثباته في CI لاحق.
+
+
+## تحقق البناء النهائي — CI #78
+
+- التشغيل: https://github.com/m5ham3ds/KELIVO/actions/runs/45080129832
+- commit: `64e51a52958b58f3d0ba83099bcc90fb4384855d`
+- Android JVM/Robolectric: نجاح. سجل التنفيذ أظهر مرآة Google Hosted Maven Central ثم `BUILD SUCCESSFUL in 3m 34s`.
+- Phase 13P Emulator E2E: نجاح.
+- Android ARM64 Release + checksum + artifact upload: نجاح.
+- APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، 41,825,267 bytes.
+- ABI: `arm64-v8a` فقط، 18 native libraries ولا توجد ABI أخرى.
+- SHA-256: `136bdfbdb97a64e92cabdf50c7d94e370d255305dd67412a173338bbf26288f0`.
+- Artifact ID: `14777311841`.
+
+نجاح #78 يثبت إصلاح Robolectric runtime repository، لكنه لا يعني أن workflow شغّل كامل Flutter root test suite أو مجموعات الاختبارات التاريخية 13E–13O.

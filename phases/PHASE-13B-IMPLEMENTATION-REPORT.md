@@ -3,7 +3,7 @@
 **Phase:** 13B — Skill Executor & Tool Dispatch  
 **Project baseline:** `1.3.4+84`  
 **Implementation date:** 2026-11-10  
-**Current status (2026-11-22):** The local-script execution foundation remains implemented in source, but **Phase 13B is not accepted or complete** because the Skill-owned MCP adapter and its tools/list / tools/call lifecycle remain open. CI #73 passed the active gates and the separate Phase 13P emulator E2E, but it did not run the historical Phase 13B focused Flutter runner or exercise a Skill-declared MCP server. CI #76 passed Phase 13Q.1 but was blocked before APK packaging by Maven Central HTTP 429 while resolving a large Robolectric runtime artifact; a scoped Google-hosted Maven Central mirror was added for validation in the next CI run. See PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md.
+**Current status (2026-11-23):** The local-script execution foundation remains implemented in source, but **Phase 13B is not accepted or complete** because the Skill-owned MCP adapter and its tools/list / tools/call lifecycle remain open. CI #78 passed Android JVM/Robolectric and Phase 13P emulator E2E and produced a verified ARM64 Release APK. CI #78 validates the build/test infrastructure; it does not run the historical Phase 13B focused Flutter runner or exercise a Skill-declared MCP server. Phase 13Q.1 passed, but 13Q.2–13Q.5 remain open. See PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md.
 
 ## 1. Scope implemented in this delivery
 

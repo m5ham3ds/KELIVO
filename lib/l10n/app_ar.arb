@@ -7664,5 +7664,13 @@
   "kelivoPublicStorageBackupCopied": "تم أيضًا نسخ النسخة الاحتياطية إلى KELIVO/Backups.",
   "kelivoPublicStorageBackupCopyFailed": "تعذر نسخ النسخة الاحتياطية إلى مجلد KELIVO المحدد.",
   "kelivoPublicStorageSkillExportCopied": "تم أيضًا نسخ ملف المهارة إلى KELIVO/Skills-Exports.",
-  "kelivoPublicStorageSkillExportCopyFailed": "تعذر نسخ ملف المهارة إلى مجلد KELIVO المحدد."
+  "kelivoPublicStorageSkillExportCopyFailed": "تعذر نسخ ملف المهارة إلى مجلد KELIVO المحدد.",
+  "workspaceEnvDependencyYtDlp": "yt-dlp لتنزيل الفيديوهات والصوت",
+  "workspaceEnvDependencyMediaInfo": "MediaInfo لفحص معلومات ملفات الوسائط",
+  "workspaceEnvDependencyThumbnailer": "FFmpegthumbnailer لإنشاء الصور المصغّرة",
+  "workspaceEnvDependencyImageMagick": "ImageMagick لتحويل الصور ومعالجتها",
+  "workspaceEnvDependencyBrowserRenderer": "Playwright + Chromium (تجريبي)",
+  "workspaceEnvDependencyBrowserRendererDetail": "Node.js 26 وPlaywright 1.65.1 وChromium لتصيير صفحات HTML. حزمة تجريبية لـUbuntu/Debian على ARM64/x64.",
+  "workspaceEnvBrowserRendererExperimentalNote": "تثبيت اختياري داخل بيئة Linux فقط. يختبر التثبيت تشغيل Chromium والتقاط إطار عربي RTL؛ Android PRoot ليس منصة مدعومة رسمياً، وقد يفشل الاختبار حسب الجهاز.",
+  "workspaceEnvDependencyUnsupported": "غير مدعوم في هذا التوزيع أو لهذه المعمارية"
 }

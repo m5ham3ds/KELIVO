@@ -26,6 +26,11 @@ String _title(AppLocalizations l10n, EnvironmentDependency dependency) =>
       EnvironmentDependency.network => l10n.workspaceEnvDependencyNetwork,
       EnvironmentDependency.archive => l10n.workspaceEnvDependencyArchive,
       EnvironmentDependency.mediaTools => l10n.workspaceEnvDependencyMedia,
+      EnvironmentDependency.ytDlp => 'yt-dlp',
+      EnvironmentDependency.mediaInfo => 'MediaInfo',
+      EnvironmentDependency.ffmpegThumbnailer => 'FFmpegthumbnailer',
+      EnvironmentDependency.imageMagick => 'ImageMagick',
+      EnvironmentDependency.browserRenderer => l10n.workspaceEnvDependencyBrowserRenderer,
     };
 String _detail(AppLocalizations l10n, EnvironmentDependency dependency) =>
     switch (dependency) {
@@ -36,6 +41,11 @@ String _detail(AppLocalizations l10n, EnvironmentDependency dependency) =>
       EnvironmentDependency.network => 'curl · wget',
       EnvironmentDependency.archive => 'zip · unzip',
       EnvironmentDependency.mediaTools => l10n.workspaceEnvDependencyMediaDetail,
+      EnvironmentDependency.ytDlp => l10n.workspaceEnvDependencyYtDlp,
+      EnvironmentDependency.mediaInfo => l10n.workspaceEnvDependencyMediaInfo,
+      EnvironmentDependency.ffmpegThumbnailer => l10n.workspaceEnvDependencyThumbnailer,
+      EnvironmentDependency.imageMagick => l10n.workspaceEnvDependencyImageMagick,
+      EnvironmentDependency.browserRenderer => l10n.workspaceEnvDependencyBrowserRendererDetail,
     };
 IconData _icon(EnvironmentDependency dependency) => switch (dependency) {
   EnvironmentDependency.python => Lucide.Code,
@@ -45,6 +55,11 @@ IconData _icon(EnvironmentDependency dependency) => switch (dependency) {
   EnvironmentDependency.network => Lucide.Globe,
   EnvironmentDependency.archive => LucideIcons.archive,
   EnvironmentDependency.mediaTools => LucideIcons.film,
+  EnvironmentDependency.ytDlp => Lucide.Package,
+  EnvironmentDependency.mediaInfo => Lucide.Package,
+  EnvironmentDependency.ffmpegThumbnailer => Lucide.Package,
+  EnvironmentDependency.imageMagick => Lucide.Image,
+  EnvironmentDependency.browserRenderer => Lucide.Globe,
 };
 String _status(
   AppLocalizations l10n,
@@ -165,7 +180,9 @@ class _EnvironmentDependencyPageState extends State<EnvironmentDependencyPage> {
     final categories = <MirrorCategory>{
       service.alpine ? MirrorCategory.apk : MirrorCategory.apt,
       if (dependency == EnvironmentDependency.python) MirrorCategory.pip,
-      if (dependency == EnvironmentDependency.node) MirrorCategory.npm,
+      if (dependency == EnvironmentDependency.node ||
+          dependency == EnvironmentDependency.browserRenderer)
+        MirrorCategory.npm,
     };
     return ListenableBuilder(
       listenable: service,
@@ -173,7 +190,8 @@ class _EnvironmentDependencyPageState extends State<EnvironmentDependencyPage> {
         final enabled =
             env.state.phase == EnvironmentPhase.ready &&
             !service.busy &&
-            !_detecting;
+            !_detecting &&
+            service.supportsDependency(dependency);
         return Scaffold(
           backgroundColor: cs.surface,
           appBar: AppBar(
@@ -242,6 +260,11 @@ class _EnvironmentDependencyPageState extends State<EnvironmentDependencyPage> {
                   ),
                 ],
               ),
+              if (dependency == EnvironmentDependency.browserRenderer) ...[
+                IosSectionFooter(text: l10n.workspaceEnvBrowserRendererExperimentalNote),
+                if (!service.supportsDependency(dependency))
+                  IosSectionFooter(text: l10n.workspaceEnvDependencyUnsupported),
+              ],
               if (dependency == EnvironmentDependency.mediaTools) ...[
                 IosSectionHeader(text: l10n.workspaceEnvMediaVersions),
                 SectionCard(
@@ -254,25 +277,6 @@ class _EnvironmentDependencyPageState extends State<EnvironmentDependencyPage> {
                         subtitle: l10n.workspaceEnvDependencyMediaDetail,
                         detailText: service.mediaToolVersion(command) ??
                             l10n.workspaceEnvMediaVersionNotDetected,
-                      ),
-                    ],
-                  ],
-                ),
-                IosSectionHeader(text: l10n.workspaceEnvOptionalMediaTools),
-                SectionCard(
-                  children: [
-                    for (final command in EnvironmentDependencies.optionalMediaTools) ...[
-                      if (command != EnvironmentDependencies.optionalMediaTools.first)
-                        const EnvironmentRowDivider(),
-                      IosNavRow(
-                        icon: Lucide.Package,
-                        label: command,
-                        subtitle: l10n.workspaceEnvOptionalToolNotInstalledAutomatically,
-                        detailText: switch (service.optionalMediaStatus(command)) {
-                          DependencyStatus.installed => l10n.workspaceEnvDependencyInstalled,
-                          DependencyStatus.missing => l10n.workspaceEnvPhaseNotInstalled,
-                          DependencyStatus.unknown => l10n.workspaceEnvDependencyUnknown,
-                        },
                       ),
                     ],
                   ],
@@ -299,8 +303,8 @@ class _EnvironmentDependencyPageState extends State<EnvironmentDependencyPage> {
                   label: l10n.workspaceEnvCancel,
                   onTap: () => unawaited(service.cancel()),
                 ),
-              ] else if (service.status(dependency) !=
-                  DependencyStatus.installed)
+              ] else if (service.supportsDependency(dependency) &&
+                  service.status(dependency) != DependencyStatus.installed)
                 IosTileButton(
                   key: const ValueKey('environment-dependency-install'),
                   icon: Lucide.Download,

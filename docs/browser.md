@@ -146,8 +146,10 @@ shadow, avoiding rectangular clipping at the material's outer bounds.
 
 ## Agent and user control
 
-Enable **Browser control** for the assistant in chat tools, then enable assistant
-browser access in browser settings. Each conversation owns its tabs. A different
+Enable **Allow assistant browser access** in the global Browser settings. The
+browser tool is offered only when the selected model supports tool calls and the
+browser is initialized on a supported platform; there is no separate assistant-local
+Browser control switch. Each conversation owns its tabs. A different
 conversation cannot address those tab IDs through the tool. The website login
 profile is shared by the browser, so tab ownership is not separate cookie jars.
 
@@ -1765,8 +1767,10 @@ Settings offer mobile, desktop and custom UA choices, with validation,
 persistence, live-engine application and a reload of the active webpage.
 Inactive engines receive settings without being reloaded or created. Apple
 plugin setters now clear WKWebView.customUserAgent when switching back to a
-preset. New/missing assistant-browser preferences default on; a saved explicit
-off remains off, and assistant tool selection and session ownership still apply.
+preset. Historical note: the earlier assistant-browser preference and per-assistant tool
+selection were superseded by the global Browser Agent setting. The current tool gate
+is global Browser Agent enabled + supported model tool calls + initialized supported
+browser; conversation tab ownership remains unchanged.
 
 Per the user's request, no browser UI acceptance automation was performed in
 this round. ADB identified the connected arm64 Android phone; the app was not
