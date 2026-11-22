@@ -1,6 +1,6 @@
 # PHASE 13Q — موائم MCP المملوك للمهارات
 
-**الحالة:** 13Q.1 محلل قراءة فقط مضاف إلى المصدر واختبار CI؛ المرحلة غير مقبولة حتى تكتمل دورة lifecycle.
+**الحالة:** 13Q.1 محلل قراءة فقط مضاف واجتاز CI #73؛ المرحلة غير مقبولة حتى تكتمل دورة lifecycle.
 
 ## سبب المرحلة
 يكتشف مستورد Skills ملفات MCP ويحفظ metadata، لكن Capability Registry يصنف agent_skill.mcp_server بأنه manual_adapter_required. البنية العامة لـMCP (McpProvider وMcpToolService) لا تربط وحدها خادم Skill بملكية Skill أو بصمة المصدر أو موافقات تشغيله. نجاح 13P لا يختبر MCP؛ بل يغطي دورة Skill script.
@@ -39,4 +39,13 @@
 - تغير المصدر أو حذف Skill يبطل الاتصال.
 - توثيق اختبار المحاكي وحدود التحقق على الجهاز.
 
-CI #72 نجح على commit 94286ca8b07987d3a78bc81b2c01930eb4df88e4، وPhase 13P emulator E2E passed. لا يوجد حتى الآن اختبار MCP server حقيقي في التطبيق؛ 13Q لم تكتمل.
+## سجل التحقق — CI #73 (22 نوفمبر 2026)
+
+نجح التشغيل [#73](https://github.com/m5ham3ds/KELIVO/actions/runs/45036728943) على commit `8258af4ce3ed160919416a947abb06059d0e1f0a`.
+
+- اجتازت خطوة `Run Phase 13Q Skill MCP configuration discovery tests` جميع الحالات الثماني: stdio metadata، رفض env literals، رفض shell fragments، التحقق من args/NUL، HTTPS descriptors، رفض credentials/query/fragment، رفض headers، ورفض JSON/path غير الصالح.
+- نجح Flutter analysis، واختبارات الحزم المحلية، ومجموعة Android JVM/Robolectric، واختبارات Android integration الأربعة بما فيها Phase 13P Skill lifecycle.
+- نجح Android ARM64 Release build ورفع APK.
+- لم يشغل هذا CI دورة خادم MCP حقيقية، ولم ينفذ 13Q.2–13Q.5. كما لم يشغّل Flutter root unit/widget suite أو مجموعات 13E–13O التاريخية؛ لا تسجل على أنها ناجحة.
+
+**النتيجة:** قبول 13Q.1 فقط. لا يوجد حتى الآن اختبار MCP server حقيقي مملوك لـSkill داخل التطبيق؛ 13Q لم تكتمل.
