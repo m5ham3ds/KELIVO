@@ -37,9 +37,11 @@ if grep -Fq 'abiFilters += listOf("armeabi-v7a")' "$gradle" \
   || grep -Fq 'abiFilters += listOf("x86_64")' "$gradle"; then
   fail 'Android build must use only the gated ABI selector, never a hard-coded non-production ABI'
 fi
-if grep -Fq 'ORG_GRADLE_PROJECT_kelivoE2E' .github/workflows/android-build.yml; then
-  fail 'The x86_64 test-only ABI must not be enabled globally in the workflow or release build'
+if grep -Fq 'ORG_GRADLE_PROJECT_kelivoE2E=true' .github/workflows/android-build.yml; then
+  fail 'The x86_64 test-only ABI must not be enabled in a workflow-wide or production build step'
 fi
+[[ "$(grep -Fc "ORG_GRADLE_PROJECT_kelivoE2E: 'false'" .github/workflows/android-build.yml)" == '2' ]] \
+  || fail 'Production plugin-registrant preparation and APK build must explicitly select ARM64 mode'
 grep -Fq 'signingConfigs.getByName("debug")' "$gradle" || fail 'internal CI signing fallback changed; review release signing before updating this audit'
 
 grep -Fq '/android/key.properties' "$ignore" || fail 'android/key.properties is not ignored'
