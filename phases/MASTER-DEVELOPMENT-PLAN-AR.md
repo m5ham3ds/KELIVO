@@ -3,6 +3,15 @@
 
 **الحالة:** الخطة المعتمدة لمسار التطوير الحالي. اجتازت Phase 2 بوابات Android CI وبناء Release وفق تقرير التشغيل `42424318897`. Phase 3 وPhase 4 لديهما تغييرات مصدر وتقارير تنفيذ، لكنهما ما زالتا تنتظران اعتماد GitHub Actions ومعايير القبول المتبقية. بناءً على طلب المستخدم بالاستمرار مباشرة، بدأ تنفيذ Phase 7 ثم Phase 8 ثم Phase 9 وPhase 10 ثم Phase 11 وPhase 12 بتوجيه المستخدم، مع إبقاء بوابات قبول المراحل السابقة معلقة حتى تحققها الفعلي.
 
+**تحديث الحالة — 22 نوفمبر 2026:**
+- أحدث خط أساس ناجح هو CI #72 (https://github.com/m5ham3ds/KELIVO/actions/runs/44969006889) على commit 94286ca8b07987d3a78bc81b2c01930eb4df88e4. اكتملت جميع خطوات workflow النشطة بما فيها Android ARM64 Release وPhase 13P emulator E2E.
+- فُحص APK المنزّل: 18 مكتبة أصلية ضمن arm64-v8a فقط. Java الحالي في CI هو 21؛ Flutter 3.47.6؛ NDK 28.2.13676358؛ CMake 3.22.1.
+- workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ لا تسجل هذه الاختبارات كناجحة.
+- Phase 13P مقبولة لبوابة المحاكي في CI #72 فقط. Phase 13B ما زالت مفتوحة بسبب موائم MCP للمهارات ودورة tools/list / tools/call.
+- بدأت Phase 13Q بقطعة 13Q.1 للقراءة والتحقق من MCP config فقط. لا يوجد تشغيل MCP server مملوك لـSkill حتى الآن.
+- حالات Phase 3–12 تخضع لمعايير قبول تقاريرها؛ نجاح APK #72 لا يعني قبول محركات الفيديو أو مزوديها أو تجارب الهاتف غير المنفذة.
+
+**سجل الحالة التاريخي للمراحل:**
 ## حالة التنفيذ الحالية
 
 - **Phase 0:** خط الأساس محفوظ.
@@ -1321,3 +1330,8 @@ KELIVO يجب أن يكون **نواة محادثة ووكلاء وإدارة إ
 ## Phase 13K.4 — مزامنة اختبار سياسة تثبيت المهارات
 
 كشف CI run `43780091708` أن اختبار `core capabilities are independent from installed Skills` كان ينتظر عبارة قديمة `never pretend it was installed` لم تعد موجودة حرفياً في prompt. النص الحالي يقرر القاعدة بصورة أدق: عدم الادعاء بتثبيت Skill حتى تُحفظ ملفاتها ويُتحقق منها. تم تعديل assertion ليختبر النص الحالي، وإضافة فحص Preflight يضمن تطابق سياسة prompt مع regression test. لم يتغير سلوك الإنتاج أو تخفيف سياسة السلامة. كما تم تصحيح وصف وضع الاختبارات في مولد تقرير CI ليصف النطاق المركّز Phase 13E–13K. اختبارات Flutter وDart analysis وRobolectric وAPK ما زالت بحاجة إلى GitHub Actions؛ لا تعاد اختبارات 13A–13D. راجع `PHASE-13K.4-PROMPT-POLICY-TEST-SYNC-AR.md`.
+
+
+## Phase 13Q — Skill-owned MCP Adapter
+
+بدأت 13Q.1 بمحلل read-only لإعداد MCP المعلن داخل Skill. لا تعتبر هذه القطعة موائم تشغيل. يتطلب الإكمال ربط الملكية والموافقة ثم tools/list وtools/call، مع إيقاف الاتصال عند تغير بصمة المصدر. راجع PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md.

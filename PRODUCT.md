@@ -1,33 +1,19 @@
-# Product
+# Product — Kelivo Android Edition
 
-## Register
+Kelivo is an Android-first, conversation-centric LLM workspace for model providers, chat, files, tools, search, voice, assistants, workspaces and optional Agent Skills.
 
-product
+The current repository and supported release target are Android only. Linux command-line environments run inside the Android PRoot workspace; they are not Linux desktop builds. iOS, Windows, macOS, desktop Linux and Web are not currently supported targets in this source snapshot.
 
-## Users
-
-People who use multiple LLM providers across mobile and desktop and need a dependable, configurable chat workspace for text, files, tools, search, voice, and custom assistants.
-
-## Product Purpose
-
-Kelivo makes advanced LLM capabilities practical in one cross-platform client while keeping conversations, settings, and user-owned data portable and recoverable.
-
-## Brand Personality
-
-Practical, calm, and capable. The interface should feel familiar to Material You users, stay out of the conversation, and explain exceptional states without alarming or trapping people.
-
-## Anti-references
-
-Avoid harsh monochrome outlines, decorative recovery screens, diagnostic-only dead ends, generic AI-dashboard styling, and controls that diverge from the established Material 3 vocabulary. RikkaHub's practical information density and interaction clarity are positive references, not surfaces to copy verbatim.
-
-## Design Principles
-
-- Keep the conversation and the user's current task visually primary.
-- Make safety mechanisms actionable and understandable, not merely technically correct.
-- Preserve familiar platform and Material 3 interaction patterns across form factors.
-- Use restrained hierarchy and color so status is clear without visual noise.
+## Product principles
+- Keep conversation and the user's current task visually primary.
+- Explain what safety controls enforce and what they cannot enforce.
+- Keep Skills, MCP servers, video engines and extensions optional.
+- Never treat imported extension metadata as permission to execute code or connect to a service.
 - Prefer recoverable, user-owned data flows with explicit outcomes.
+- Preserve Android accessibility, localization, scalable text, keyboard/touch support and light/dark themes.
 
-## Accessibility & Inclusion
-
-Support light and dark themes, dynamic color, localization, scalable text, keyboard and touch input, sufficient text contrast, meaningful semantics, and reduced-motion-friendly state changes across Android, iOS, Windows, macOS, and Linux.
+## Current boundaries
+- Skill-local Python/Bash/Node execution uses an approved Android PRoot path; PRoot is not a kernel sandbox.
+- Skill-declared MCP configuration is discovered and preserved, but the Skill-owned activation and tool-dispatch adapter is still in progress.
+- HTTP/API connectors, generic workflows and native Kelivo tools are not executable merely because their descriptors were imported.
+- Without private signing configuration, a successful CI APK is debug-signed and is not a Play Store publishing credential.

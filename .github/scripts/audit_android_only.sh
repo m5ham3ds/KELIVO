@@ -156,6 +156,12 @@ grep -Fq 'bash .github/scripts/run_flutter_analyze_gate.sh' "$workflow" \
   || fail 'Complete Flutter analyzer must use the dedicated analysis quality gate'
 grep -Fq 'flutter analyze --no-pub lib test integration_test' .github/scripts/run_flutter_analyze_gate.sh \
   || fail 'Complete Flutter analyzer gate must use the resolved dependency graph'
+grep -Fq 'id: phase13q_mcp_config_tests' "$workflow" \
+  || fail 'Android workflow must run the focused Phase 13Q MCP configuration tests'
+grep -Fq 'run_phase13q_tests.sh' "$workflow" \
+  || fail 'Phase 13Q test runner is missing from the Android workflow'
+grep -Fq 'skill_mcp_config_test.dart' .github/scripts/run_phase13q_tests.sh \
+  || fail 'Phase 13Q test runner is not invoking its declared regression suite'
 grep -Fq 'analyzer errors or warnings' .github/scripts/run_flutter_analyze_gate.sh \
   || fail 'Complete Flutter analyzer gate must block analyzer warnings and errors'
 if grep -Eq 'id: full_flutter_tests|flutter test --no-pub --reporter expanded' "$workflow"; then
@@ -248,6 +254,7 @@ for step_id in \
   l10n_parity \
   generate_l10n \
   full_flutter_analyze \
+  phase13q_mcp_config_tests \
   local_package_tests \
   setup_java \
   setup_gradle \
@@ -265,7 +272,7 @@ for step_id in \
 done
 
 # All expensive validation and release stages must run only after success.
-for step_id in toolchain_versions flutter_pub_get l10n_parity generate_l10n full_flutter_analyze local_package_tests setup_java setup_gradle android_sdk_components android_full_unit_tests phase13p_android_e2e prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
+for step_id in toolchain_versions flutter_pub_get l10n_parity generate_l10n full_flutter_analyze phase13q_mcp_config_tests local_package_tests setup_java setup_gradle android_sdk_components android_full_unit_tests phase13p_android_e2e prepare_android_plugin_registrant build_android_arm64 package_apk upload_apk; do
   step_line="$(grep -n -m1 -E "^[[:space:]]*id: ${step_id}$" "$workflow" | cut -d: -f1)"
   block="$(sed -n "${step_line},$((step_line + 3))p" "$workflow")"
   grep -Fq 'if: success()' <<< "$block" || fail "Required quality/build step must remain success-gated: $step_id"

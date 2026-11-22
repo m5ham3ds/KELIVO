@@ -186,7 +186,7 @@ def write_report() -> str:
     run_url = f"{env('GITHUB_SERVER_URL', 'https://github.com')}/{repository}/actions/runs/{run_id}"
     status = env("FINAL_JOB_STATUS", "unknown").lower()
     build_mode = env("BUILD_MODE", "release")
-    phase13_test_mode = "focused Phase 13E–13P regressions; complete Flutter source analysis; independent local package tests; full Android JVM/Robolectric tests; Browser and Skill Android emulator E2E on main; historical Phase 13A–13D suites are not repeated"
+    phase13_test_mode = "Phase 13Q read-only Skill MCP configuration tests; Flutter/Dart static analysis (lib, test, integration_test); independent vendored package tests (mcp_client, downsize, flutter_math_fork, markstream, terminal_view); complete Android JVM/Robolectric tests; four Android emulator integration tests including the Phase 13P Skill lifecycle test on main. The full root Flutter unit/widget suite and Phase 13E–13O focused suites are not run by this workflow."
     branch = env("GITHUB_REF_NAME", env("GITHUB_REF"))
     sha = env("GITHUB_SHA", git_value(["git", "rev-parse", "HEAD"]))
     short_sha = sha[:12] if sha not in {"Not recorded", "Unavailable"} else sha
@@ -215,7 +215,7 @@ def write_report() -> str:
             "phase13n_syntax_preflight", "phase13n_ci_self_test", "phase13n_preflight", "phase13n_tests",
             "phase13o_syntax_preflight", "phase13o_ci_self_test", "phase13o_preflight", "phase13o_tests",
             "phase13p_syntax_preflight", "phase13p_ci_self_test", "phase13p_preflight", "phase13p_tests",
-            "l10n_parity", "generate_l10n", "full_flutter_analyze",
+            "l10n_parity", "generate_l10n", "full_flutter_analyze", "phase13q_mcp_config_tests",
             "setup_java", "android_sdk_components", "android_full_unit_tests", "phase13p_android_e2e",
             "prepare_android_plugin_registrant", "build_android_arm64", "package_apk", "upload_apk",
         ])
@@ -251,7 +251,7 @@ def write_report() -> str:
         "## 2. Build configuration",
         "",
         f"- Flutter: `{env('FLUTTER_VERSION', '3.47.6')}`",
-        f"- Java: `{env('JAVA_VERSION', '17')}`",
+        f"- Java: `{env('JAVA_VERSION', '21')}`",
         f"- Android NDK: `{env('ANDROID_NDK_VERSION', '28.2.13676358')}`",
         f"- CMake: `{env('CMAKE_VERSION', '3.22.1')}`",
         f"- Target: `Android arm64-v8a`",
@@ -316,9 +316,9 @@ def write_report() -> str:
 
     lines.extend([
         "",
-        "## 7. Errors and failure indicators",
+        "## 7. Error/failure-like text matches (not failed-stage counts)",
         "",
-        f"Total error/failure-pattern matches in captured command logs: **{len(errors)}**.",
+        f"Total lines matching broad error/failure text patterns: **{len(errors)}**. These matches may be expected negative-test messages, test names, handled diagnostics, or shell/help text; they are not proof of a failed CI step. Use the exact GitHub Actions step conclusions in Section 4 and the overall result above to determine whether the run failed.",
         "",
     ])
     if errors:
@@ -405,7 +405,7 @@ def write_report() -> str:
             f"**Result:** {outcome_emoji}",
             f"**Build mode:** `{build_mode}` · **Commit:** `{short_sha}` · **Event:** `{env('GITHUB_EVENT_NAME')}`",
             f"**Phase 13 tests:** `{phase13_test_mode}`",
-            f"**Warnings:** {len(warnings)} · **Error/failure matches:** {len(errors)}",
+            f"**Warning text matches:** {len(warnings)} · **Error-like text matches (not failure count):** {len(errors)}",
             f"[Open full report artifact and raw logs]({run_url})",
             "",
             "The complete Markdown report and per-stage logs are uploaded as the `Kelivo-Build-Report` artifact.",

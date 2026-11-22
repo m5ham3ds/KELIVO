@@ -152,6 +152,15 @@ jobs:
           bash .github/scripts/capture_step.sh full_flutter_analyze "Analyze complete Flutter source" -- \
             bash .github/scripts/run_flutter_analyze_gate.sh
 
+      - name: Run Phase 13Q Skill MCP configuration discovery tests
+        id: phase13q_mcp_config_tests
+        if: success()
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase13q_mcp_config_tests "Phase 13Q read-only Skill MCP configuration discovery" -- \
+            bash .github/scripts/run_phase13q_tests.sh
+
       # Local path dependencies have independent pubspecs and test suites.
       # Running their tests from the app root does not cover these test trees.
       - name: Run vendored local package test suites

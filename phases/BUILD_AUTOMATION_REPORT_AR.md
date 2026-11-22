@@ -1,78 +1,32 @@
-# KELIVO — التشغيل التلقائي وتقرير البناء
+# KELIVO — Automation build report
 
-## متى يعمل GitHub Actions؟
+## Events
+push to main, pull request create/update, and manual workflow dispatch.
 
-ملف `.github/workflows/android-build.yml` يعمل تلقائياً عند:
+## Active pipeline
+1. Checkout and initialize report.
+2. Android-only and release-hardening audits.
+3. Flutter 3.47.6 dependency resolution and Linux GTK/GLib native-asset prerequisites.
+4. Arabic ARB key/placeholder parity and gen-l10n.
+5. Flutter static analysis across lib, test and integration_test.
+6. Focused Phase 13Q read-only Skill MCP configuration tests.
+7. Independent tests for mcp_client, downsize, flutter_math_fork, markstream, terminal_view.
+8. Java 21, Gradle 8.14, NDK 28.2.13676358 and CMake 3.22.1.
+9. Android JVM/Robolectric suite.
+10. Four Android emulator integration files on main, including Phase 13P Skill lifecycle.
+11. Build-mode plugin registrant preparation.
+12. ARM64 APK build, actual APK archive ABI validation, SHA-256 and upload.
+13. Separate report job captures logs and publishes a Markdown build report where possible.
 
-- كل `push` إلى الفرع الرئيسي `main`.
-- فتح Pull Request أو تحديثه.
-- التشغيل اليدوي من تبويب Actions، مع اختيار `release` أو `debug`.
+## Not run by this workflow
+- The complete root Flutter unit/widget test suite.
+- Historical focused regression suites for Phases 13E–13O.
+- MCP server startup or Skill-owned tools/list/tools/call. The Phase 13Q parser test is read-only.
 
-عمليات الرفع من واجهة GitHub التي تنشئ commit عاديّاً تُطلق حدث `push`. لا نستخدم `paths` filters حتى لا يتم تخطي البناء بسبب مسار ملف لم تتم إضافته إلى القائمة.
+Broad warning/error Regex totals are text matches, not counts of failing gates. Expected negative-test messages and words such as error in test names can be included; use GitHub Actions step conclusions to decide pass/fail.
 
-## ماذا ينفّذ المسار؟
-
-1. Checkout للمصدر وسجل الـ commit.
-2. تدقيق Android-only وARM64 وملفات PRoot.
-3. إعداد Java وFlutter/Dart.
-4. تسجيل إصدارات أدوات البناء وAndroid SDK.
-5. قبول تراخيص SDK وتثبيت NDK وCMake المحددين.
-6. تنزيل تبعيات التطبيق مرة واحدة؛ تُحل تبعية markstream ضمن `flutter pub get` دون تشغيل تثبيت منفصل.
-7. تنسيق ملفات Dart التابعة للمشروع التي تغيّرت فقط، مع حفظ Patch التنسيق إن وُجد.
-8. توليد ملفات الترجمة وفحصها فقط عند تغيير ملفات ARB أو `l10n.yaml`.
-9. تحليل ملفات التطبيق واختباراته ضمن `lib/`, `test/`, و`integration_test/` دون تحليل مجلدات اختبارات الحزم المحلية المستقلة ضمن سياق تطبيق الجذر.
-10. تشغيل جميع اختبارات Flutter للوحدة والواجهات داخل `test/`.
-11. تشغيل اختبارات الحزم المحلية المستقلة: `mcp_client`, `downsize`, `flutter_math_fork`, `markstream`, و`terminal_view`.
-12. تشغيل اختبارات Android JVM/Robolectric، ثم اختبار دورة حياة Skill على محاكي Android في كل Push إلى `main`.
-13. بناء APK بنظام ARM64 فقط، وإنشاء SHA-256 ورفعهما عند نجاح البناء.
-14. إنشاء تقرير Markdown ورفع التقرير والسجلات الخام حتى عند فشل مرحلة سابقة.
-
-## أين أجد التقرير؟
-
-بعد تشغيل Workflow، افتح:
-
-`GitHub Repository → Actions → Android ARM64 Build & Comprehensive Report → Run → Artifacts`
-
-ستجد ملفاً باسم قريب من:
-
-`Kelivo-Build-Report-<run-number>`
-
-يحتوي على:
-
-- `KELIVO_BUILD_REPORT.md`: ملخص النتائج، مراحل التنفيذ، الزمن، التحذيرات، مؤشرات الأخطاء، وحالة APK.
-- جدول خطوات GitHub Actions الرسمي: النتيجة الدقيقة لكل خطوة، بما في ذلك الخطوات التي تم تخطيها أو لم تبدأ، ومدد التنفيذ التي يعيدها GitHub.
-- `workflow-jobs.json`: بيانات GitHub المنظمة لحالة الوظيفة وخطواتها، وتستخدم لبناء جدول النتائج الدقيق.
-- `logs/`: مخرجات stdout/stderr الكاملة لكل أمر CI تم تشغيله بواسطة أداة الالتقاط، بالإضافة إلى سجل GitHub Actions الكامل لوظيفة البناء متى نجح تنزيله.
-- `github-actions-full-job.log`: السجل النصي الكامل للوظيفة، ويشمل مخرجات checkout وتهيئة Java وFlutter إلى جانب أوامر البناء.
-- `steps.tsv`: حالة كل مرحلة ومدتها ومسار سجلها.
-- `dart-format-fixes.patch` و`dart-format-changed-files.txt`: التغييرات الناتجة عن المنسّق في بيئة CI المؤقتة وقائمة الملفات التي تغيّرت؛ لا يدفع Workflow هذه التغييرات إلى المستودع.
-- `run-metadata.txt`: معلومات الـ run والـ commit.
-
-تظهر خلاصة مختصرة أيضاً في `GITHUB_STEP_SUMMARY` داخل صفحة تشغيل Actions.
-
-## ملاحظات مهمة
-
-- البناء التلقائي على `push` و`pull_request` يستخدم `release` افتراضياً. التشغيل اليدوي يسمح باختيار `debug` أو `release`.
-- يرفع APK فقط عند نجاح المراحل السابقة. أما تقرير البناء والسجلات فيُرفعان باستخدام `if: always()` حتى عند الفشل.
-- عند وجود Push وPull Request للفرع نفسه، تستخدم المهمتان مجموعة concurrency واحدة لتجنب تكرار بناء Android المكلف؛ قد تُلغى المهمة الأقدم ويُكمل الأحدث.
-- التقرير يضم جميع الأسطر التي تطابق أنماط التحذير/الإهمال والخطأ/الفشل في السجلات الملتقطة. هذا تصنيف آلي نصي وليس تشخيصاً دلالياً؛ يجب مراجعة السجل الخام المرتبط بكل سطر.
-- يجلب Job التقرير سجل الوظيفة المكتملة عبر GitHub Actions REST API باستخدام `actions: read`، كما يجلب حالة كل خطوة ومدتها. يضيف السجل وبيانات الخطوات إلى الأرشيف ويستخرج منه التحذيرات والأخطاء. رابط تنزيل السجل المؤقت يتبع آلية التحويل (HTTP 302) لدى GitHub، ويُطلب فوراً أثناء Job التقرير.
-- `pr-check.yml` أصبح مساراً اختيارياً يدوياً لأن الفحوص الأساسية والتحليل والاختبارات نُقلت إلى المسار الرئيسي الذي يبني APK ويصدر التقرير، لتجنب تشغيل الاختبارات مرتين على كل commit.
-- إذا لم يبدأ Workflow، تحقق أن GitHub Actions مفعّل في إعدادات المستودع، وأن ملف Workflow موجود في الفرع الافتراضي، وأن الرفع أنشأ commit على المستودع نفسه.
-
-## التحقق من التقرير محلياً
-
-يمكن تشغيل مولّد التقرير على runner أو بيئة Python عادية بعد تهيئة متغير `KELIVO_CI_REPORT_DIR` وملفات السجلات:
-
-```bash
-python3 .github/scripts/generate_build_report.py
-```
-
-
-## سياسة التحليل والاختبارات الحالية
-
-أظهر تقرير البناء الأخير (`42376282409`) أن التحليل توقف بسبب استيراد غير مستخدم في اختبار بحث الإعدادات، قبل أن يبدأ أي اختبار أو بناء APK. كما أظهرت سجلات التشغيل السابقة أن تشغيل `flutter test` على كامل المستودع يجر آلاف الاختبارات ويضم سيناريوهات لمنصات iOS وmacOS وWindows وLinux لم تعد أهداف بناء لهذا المشروع.
-
-تشغّل البوابة الحالية اختبارات Phase 13E–13P المركزة، وتحليل ملفات التطبيق واختباراته ضمن المسارات `lib/`, `test/`, و`integration_test/`, ثم كامل اختبارات Flutter للوحدة والواجهات. وتُشغّل اختبارات الحزم المستقلة الموجودة تحت `dependencies/` من داخل كل حزمة عبر `.github/scripts/run_local_package_tests.sh`، فلا تُحل اعتمادياتها أو تُحلّل مجلدات اختبارها عن طريق الخطأ من سياق تطبيق الجذر. بعد ذلك تعمل اختبارات Android JVM/Robolectric وتجربة Phase 13P على محاكي Android عند دفع commit إلى `main`، ثم يبنى APK لمعمارية `arm64-v8a`.
-
-تبقى فحوص Release hardening، وArabic ARB parity، وتوليد الترجمات مطلوبة. ويُعامل كل فشل في أي حزمة أو مجموعة اختبار كبوابة فشل فعلية؛ لا تُخفى النتائج ولا تُحوّل الاختبارات غير الناجحة إلى خطوات متخطاة.
+## Last verified run
+CI #72: https://github.com/m5ham3ds/KELIVO/actions/runs/44969006889  
+Commit 94286ca8b07987d3a78bc81b2c01930eb4df88e4  
+APK 41,825,267 bytes; 18 .so files within arm64-v8a only; SHA-256 a6271844472413909fa927b5220601dc2825b86e1b01386ef3bc2cce6a56a3a3.  
+Arabic parity: 4,801 messages; 4,680 Arabic translations (97.48%); 121 English fallbacks.

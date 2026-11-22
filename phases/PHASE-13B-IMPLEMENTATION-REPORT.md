@@ -3,7 +3,7 @@
 **Phase:** 13B — Skill Executor & Tool Dispatch  
 **Project baseline:** `1.3.4+84`  
 **Implementation date:** 2026-11-10  
-**Status:** Script-execution foundation implemented in source; **Phase 13B is not accepted or complete**. The focused Dart/Flutter tests, Android ARM64 Release build, and on-device execution checks have not been run in this environment. The explicit MCP adapter item from the architecture plan remains open.
+**Current status (2026-11-22):** The local-script execution foundation remains implemented in source, but **Phase 13B is not accepted or complete** because the Skill-owned MCP adapter and its tools/list / tools/call lifecycle remain open. CI #72 passed the active gates and the separate Phase 13P emulator E2E, but it did not run the historical Phase 13B focused Flutter runner or exercise a Skill-declared MCP server. See PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md.
 
 ## 1. Scope implemented in this delivery
 
@@ -51,9 +51,9 @@ The dispatcher:
 - `.github/scripts/run_phase13b_executor_tests.sh` — narrow Phase 13B regression runner.
 - `.github/workflows/android-build.yml` — captured Phase 13B test step after dependency resolution and Phase 13A tests.
 
-## 4. Tests added / intended CI coverage
+## 4. Tests added / historical CI coverage
 
-The new focused CI runner invokes only:
+The focused Phase 13B runner and its tests remain in the repository as regression assets, but the current Android workflow does not invoke that historical runner. CI #72 ran Phase 13Q parser tests, static analysis, independent vendored package suites, Android JVM/Robolectric and Phase 13P emulator integration tests; it did not execute these Phase 13B unit tests:
 
 - `test/core/services/skills/skill_executor_test.dart`
 - `test/core/services/runtime_profiles/runtime_profile_models_test.dart`

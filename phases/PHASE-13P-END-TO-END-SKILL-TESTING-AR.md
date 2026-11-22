@@ -58,3 +58,10 @@ flutter test --no-pub -d <ANDROID_DEVICE_ID> \
 ## بوابة القبول
 
 لا تُعلن PHASE13P مكتملة تشغيلّياً إلا بعد ظهور نتيجة نجاح فعلية لخطوة `phase13p_android_e2e` على محاكي أو جهاز Android. تجهيز الاختبار وربطه بـCI لا يعني أن الاختبار شُغّل بالفعل.
+
+
+## تحقق CI اللاحق — 22 نوفمبر 2026
+
+نجح تشغيل GitHub Actions #72 على commit 94286ca8b07987d3a78bc81b2c01930eb4df88e4. كانت خطوة phase13p_android_e2e ناجحة، وسجلت ملفات الاختبار الأربعة نجاحها على Android emulator، ومنها integration_test/workspace/skill_execution_e2e_test.dart لمسار Skill ZIP إلى تنفيذ Bash ومخرج مُتحقق منه.
+
+**النتيجة:** بوابة Phase 13P على المحاكي مقبولة في CI. لا يعني ذلك اختبار هاتف المستخدم، أو Force Stop recovery، أو ضمان ظهور الإشعارات عند رفض صلاحيتها، أو عزل PRoot على مستوى Kernel. كما لا يغطي MCP أو HTTP/API أو CLI المستقل أو Workflow adapters.

@@ -1,75 +1,36 @@
-# البناء التلقائي لنسخة Kelivo المخصصة لنظام Android
+# دليل بناء Kelivo لنظام Android
 
-هذا المستودع مخصص لهدف Android فقط. تم حذف مشروعات التشغيل الأصلية الخاصة بـ iOS وWindows وLinux المكتبي وmacOS وWeb، مع الاحتفاظ بشيفرات Flutter المشتركة التي تستخدمها واجهة Android وبيئة Linux داخل PRoot لأنها تعمل داخل Android وليست نسخة Linux مكتبية.
+المستودع يستهدف Android حاليًا؛ APK الإنتاج arm64-v8a فقط.
 
-## التشغيل التلقائي عبر GitHub Actions
-
-ملف `.github/workflows/android-build.yml` يعمل تلقائياً عند:
-
-- رفع commit جديد (`push`) إلى الفرع الرئيسي `main`.
+## أحداث التشغيل
+- push إلى main.
 - فتح Pull Request أو تحديثه.
+- تشغيل يدوي مع اختيار release أو debug وإمكانية طلب اختبارات Skill E2E.
 
-لا تحتاج إلى الضغط على **Run workflow** بعد كل رفع. ارفع ملفات المشروع إلى المستودع مع الحفاظ على المجلد المخفي `.github/`، ثم افتح **Actions** لمتابعة التشغيل الذي بدأ تلقائياً. لا يستخدم المسار مرشحات `paths` التي قد تتسبب في تخطي البناء عند تغيير ملفات معينة.
+## تسلسل CI الفعلي
+1. Checkout وتهيئة التقرير.
+2. Android-only وRelease hardening audit، بما فيها فحص ABI داخل APK النهائي.
+3. Flutter 3.47.6 وحل dependencies وإعداد GTK/GLib على Linux runner.
+4. Arabic ARB key/placeholder parity ثم flutter gen-l10n.
+5. flutter analyze --no-pub lib test integration_test.
+6. اختبارات Phase 13Q للقراءة فقط لإعداد MCP المعلن من Skill، دون تشغيل الخادم.
+7. اختبارات الحزم المحلية: mcp_client وdownsize وflutter_math_fork وmarkstream وterminal_view.
+8. Java 21 وGradle 8.14 وNDK 28.2.13676358 وCMake 3.22.1.
+9. Android JVM/Robolectric عبر :app:testDebugUnitTest.
+10. أربعة Android emulator integration tests على main، ومنها skill_execution_e2e_test.dart.
+11. إعداد plugin registrant لوضع البناء وتعطيل ABI التجريبي.
+12. بناء ARM64 APK والتحقق من ZIP وحساب SHA-256 ورفع artifact.
 
-يستخدم البناء التلقائي وضع `release`. يمكنك تشغيله يدوياً من Actions واختيار `release` أو `debug` عند الحاجة.
+## ما لا يشغله workflow
+- لا يشغّل كامل Flutter root unit/widget test suite.
+- لا يشغّل الاختبارات المركزة التاريخية للمراحل 13E–13O.
+- التحليل الثابت لا يعادل تنفيذ الاختبارات.
+- Phase 13P emulator E2E لا يثبت اختبارات Force Stop على هاتف المستخدم أو عزل PRoot على مستوى Kernel.
 
-## أين تجد APK والتقرير؟
+## إصدارات الأدوات
+Flutter 3.47.6 · Java 21 · Gradle 8.14 · NDK 28.2.13676358 · CMake 3.22.1 · production ABI arm64-v8a.
 
-بعد انتهاء التشغيل ستجد عادةً Artifactين:
+إذا غاب android/key.properties يستخدم Release مفتاح Debug الافتراضي؛ هذا APK للاختبار وليس مفتاح نشر Google Play.
 
-1. `Kelivo-Android-arm64-v8a-*`: ملف APK وملف SHA-256، ويُرفعان فقط عند نجاح الفحوص والبناء.
-2. `Kelivo-Build-Report-*`: يحتوي على `KELIVO_BUILD_REPORT.md`، وسجل الوظيفة الكامل من GitHub Actions، وسجلات كل مرحلة وبيانات التشغيل. يُرفع حتى عند فشل مرحلة من مراحل البناء ما دام GitHub يستطيع إكمال Job التقرير.
-
-يفتح التقرير معلومات الـ commit والفرع ونوع الحدث وإصدارات Flutter/Dart/Java/NDK/CMake، ونتيجة كل مرحلة ومدتها، ونتيجة كل خطوة رسمية من GitHub بما فيها الخطوات المتخطاة، وبيانات APK إن تم إنتاجه، وجميع أسطر التحذيرات والأخطاء التي تم اكتشافها آلياً مع مرجع ملف السجل ورقم السطر.
-
-## مراحل CI التلقائية
-
-1. Checkout وتسجيل بيانات التشغيل.
-2. تدقيق Android-only وARM64 وملفات PRoot.
-3. إعداد Java وFlutter/Dart وتسجيل إصداراتها.
-4. قبول تراخيص Android SDK وتثبيت NDK وCMake المحددين.
-5. تنزيل تبعيات Flutter مرة واحدة؛ تُحل تبعية markstream ضمن تبعيات التطبيق ولا تُشغّل لها مرحلة مستقلة.
-6. تنسيق ملفات Dart التابعة للمشروع التي تغيّرت في هذا commit فقط، مع حفظ أي Patch تنسيق في التقرير.
-7. توليد ملفات الترجمة ومقارنة الرسائل غير المكتملة فقط عندما تتغير ملفات ARB أو `l10n.yaml`.
-8. تحليل جميع مصادر الإنتاج في `lib` وتحليل ملفات الاختبار المحددة في manifest الخاص بـ Phase 2، ثم تشغيل اختبارات Android المركزة فقط.
-9. بناء APK لمعمارية `arm64-v8a` فقط.
-10. تجهيز APK وSHA-256 ورفعهما عند النجاح.
-11. بعد انتهاء Job البناء، يجلب Job تقرير مستقل سجل التشغيل الكامل وبيانات نتائج الخطوات الرسمية من GitHub، ثم ينشئ تقرير Markdown ويرفعه مع السجلات حتى عند الفشل.
-
-
-
-### نطاق الاختبارات الحالي
-
-- `flutter analyze --no-pub lib test integration_test`: تحليل ملفات التطبيق واختباراته واختبارات التكامل، دون إدخال مجلدات الاختبار الداخلية للحزم المستقلة في سياق تحليل تطبيق الجذر.
-- `flutter test --no-pub --reporter expanded`: جميع اختبارات الوحدة والواجهات داخل `test/` في تطبيق KELIVO.
-- `.github/scripts/run_local_package_tests.sh`: تشغيل اختبارات الحزم المحلية المستقلة من مجلداتها مع حل اعتماديات كل حزمة بشكل منفصل: `mcp_client` و`downsize` و`flutter_math_fork` و`markstream` و`terminal_view`. يُعاد توليد Mockito mocks الخاصة بـ`terminal_view` قبل اختبارها لتوافق النسخة المحلولة.
-- `gradle --no-daemon -p android :app:testDebugUnitTest`: جميع اختبارات Android JVM/Robolectric.
-- اختبار Phase 13P المتكامل لدورة حياة Skill على محاكي Android عند كل Push إلى `main`، ويمكن طلبه يدوياً أيضاً.
-
-بهذا لا تختلط اختبارات الحزم التابعة مع تحليل تطبيق الجذر ولا تُترك خارج التشغيل. لا يُعد نجاح الفحوص البنيوية وحده دليلاً على نجاح الاختبارات؛ يجب مراجعة نتائج كل خطوة وArtifact بناء APK.
-
-## إعدادات البناء
-
-- Flutter: `3.47.6`
-- Java: `17`
-- Android NDK: `28.2.13676358`
-- CMake: `3.22.1`
-- ABI: `arm64-v8a` فقط
-- لا يحتاج بناء الاختبار إلى API Keys أو أسرار توقيع خاصة.
-- إذا لم يوجد `android/key.properties`، يستخدم Gradle مفتاح Debug الافتراضي لتوقيع APK الاختباري. هذا المفتاح غير مناسب لإصدار عام أو للنشر على Google Play.
-
-## إصلاحات CI
-
-- عولج `yes: Broken pipe` في خطوة `sdkmanager --licenses` بفحص رمز خروج `sdkmanager` نفسه بدلاً من اعتبار SIGPIPE من `yes` فشلاً.
-- أصبح اسم ملف رسائل الترجمة `untranslated_messages.json` بدلاً من الاسم المؤقت `desiredFileName.txt`، مع توافق مؤقت عند مقارنة أول commit مع خط الأساس السابق.
-- يحتفظ التقرير بالسجلات الخام، ولا يكتفي برسالة فشل عامة. اكتشاف التحذيرات والأخطاء آلي نصي؛ يجب مراجعة السطر المقابل في السجل لفهم السبب.
-
-## إذا لم يبدأ التشغيل تلقائياً
-
-تحقق من أن:
-
-- GitHub Actions مفعّل في إعدادات المستودع.
-- ملفات `.github/workflows/android-build.yml` وملفات `.github/scripts/` موجودة في الفرع الذي رفعت إليه.
-- عملية الرفع أنشأت commit فعلياً على المستودع؛ رفع ZIP إلى محادثة أو حفظ ملف محلياً لا يطلق حدث `push`.
-
-راجع [BUILD_AUTOMATION_REPORT_AR.md](BUILD_AUTOMATION_REPORT_AR.md) لمعرفة تفاصيل التقرير والـ artifacts.
+CI #72 (22 November 2026) نجح: https://github.com/m5ham3ds/KELIVO/actions/runs/44969006889  
+APK 41,825,267 bytes · 18 .so ضمن arm64-v8a فقط · SHA-256 a6271844472413909fa927b5220601dc2825b86e1b01386ef3bc2cce6a56a3a3.
