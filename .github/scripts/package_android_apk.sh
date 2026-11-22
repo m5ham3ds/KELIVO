@@ -27,7 +27,7 @@ if ! command -v unzip >/dev/null 2>&1; then
   echo "unzip is required to validate packaged Android ABIs." >&2
   exit 1
 fi
-ACTUAL_ABIS="$(unzip -Z1 "$SOURCE" | awk -F/ '$1 == "lib" && NF >= 3 && $3 ~ /\\.so$/ {print $2}' | sort -u)"
+ACTUAL_ABIS="$(unzip -Z1 "$SOURCE" | awk -F/ '$1 == "lib" && NF >= 3 && $3 ~ /\.so$/ {print $2}' | sort -u)"
 EXPECTED_ABIS="arm64-v8a"
 if [[ "$ACTUAL_ABIS" != "$EXPECTED_ABIS" ]]; then
   echo "APK ABI validation failed." >&2
