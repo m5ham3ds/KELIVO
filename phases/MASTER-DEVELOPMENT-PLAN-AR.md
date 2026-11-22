@@ -4,12 +4,13 @@
 **الحالة:** الخطة المعتمدة لمسار التطوير الحالي. اجتازت Phase 2 بوابات Android CI وبناء Release وفق تقرير التشغيل `42424318897`. Phase 3 وPhase 4 لديهما تغييرات مصدر وتقارير تنفيذ، لكنهما ما زالتا تنتظران اعتماد GitHub Actions ومعايير القبول المتبقية. بناءً على طلب المستخدم بالاستمرار مباشرة، بدأ تنفيذ Phase 7 ثم Phase 8 ثم Phase 9 وPhase 10 ثم Phase 11 وPhase 12 بتوجيه المستخدم، مع إبقاء بوابات قبول المراحل السابقة معلقة حتى تحققها الفعلي.
 
 **تحديث الحالة — 22 نوفمبر 2026:**
-- أحدث خط أساس ناجح هو CI #73 (https://github.com/m5ham3ds/KELIVO/actions/runs/45036728943) على commit 8258af4ce3ed160919416a947abb06059d0e1f0a. اكتملت خطوات التحليل، واختبارات MCP config 13Q.1 الثمانية، واختبارات الحزم المحلية، واختبارات Android JVM/Robolectric، واختبارات Android integration الأربعة، وبناء Android ARM64 Release ورفع APK.
-- فُحص APK المنزّل من artifact نفسه: 41,825,267 bytes، و18 مكتبة أصلية ضمن arm64-v8a فقط؛ SHA-256: 1c05d9f3356af5c94d155b1f92be4a88fb5b1d372545f701455169066727f585.
-- workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ لا تسجل هذه الاختبارات كناجحة.
-- Phase 13P اجتازت Android emulator E2E في CI #73. لا يعني ذلك اختبار هاتف المستخدم أو Force Stop recovery أو Kernel isolation.
-- Phase 13Q.1 فقط اجتازت CI #73. 13Q.2–13Q.5 لا تزال مفتوحة (ملكية الخادم، الاتصال وtools/list، tools/call بموافقة، وإلغاء الاتصال عند تغيير/حذف Skill). لذلك Phase 13B تظل مفتوحة حتى إغلاق موائم MCP ودورة الأدوات.
-- أحدث تحديثين توثيقيين بعد CI #73: commit 332adf58e06dc11d0978aea0c1fd8a2b7a844998 لتقرير 13Q، ثم c9459e74deea4c48fc4f5291497ec8a98470b26 لفهرس المراحل.
+- أحدث تشغيل مكتمل هو CI #76 (https://github.com/m5ham3ds/KELIVO/actions/runs/45040545406) على commit `f68e792b771822b31522705720a2ecc82c2d5606`، والمحاولة الثانية انتهت بالفشل في `:app:testDebugUnitTest`.
+- اجتازت في المحاولة الثانية خطوات Android-only audit وFlutter setup/dependencies وLinux native dependencies والتوطين وFlutter Analyze و13Q.1 واختبارات الحزم المحلية. فشلت بوابة Android بسبب HTTP 429 من Maven Central عند تنزيل `org.robolectric:nativeruntime-dist-compat:1.0.18`; لم يتم تشغيل Android Emulator أو بناء APK.
+- المحاولة الأولى من CI #76 واجهت `IOException` في `MavenArtifactFetcher.java:129` أثناء اختبار Robolectric. في المحاولة الثانية ظهر رفض 429 بوضوح، ما يثبت أن العائق تنزيل اعتماد خارجي وليس فشلًا في شيفرة MCP.
+- أضيفت مرآة Google Hosted Maven Central scoped إلى مجموعة `org.robolectric` في `android/build.gradle.kts`. ينتظر الإصلاح تشغيل CI جديدًا؛ لا يعتبر ناجحًا قبل اجتياز Robolectric وبناء/رفع APK.
+- آخر خط أساس كامل ناجح لا يزال CI #73 على commit `8258af4ce3ed160919416a947abb06059d0e1f0a`: APK ARM64 Release بحجم 41,825,267 bytes وبصمة SHA-256 `1c05d9f3356af5c94d155b1f92be4a88fb5b1d372545f701455169066727f585`.
+- Phase 13Q.1 اجتازت اختبارات المحلل في CI #73 و#76؛ 13Q.2–13Q.5 لا تزال مفتوحة. تظل Phase 13B مفتوحة حتى إغلاق موائم MCP ودورة `tools/list` و`tools/call`.
+
 **سجل الحالة التاريخي للمراحل:**
 ## حالة التنفيذ الحالية
 

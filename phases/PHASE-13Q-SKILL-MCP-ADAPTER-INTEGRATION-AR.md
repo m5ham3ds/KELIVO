@@ -49,3 +49,14 @@
 - لم يشغل هذا CI دورة خادم MCP حقيقية، ولم ينفذ 13Q.2–13Q.5. كما لم يشغّل Flutter root unit/widget suite أو مجموعات 13E–13O التاريخية؛ لا تسجل على أنها ناجحة.
 
 **النتيجة:** قبول 13Q.1 فقط. لا يوجد حتى الآن اختبار MCP server حقيقي مملوك لـSkill داخل التطبيق؛ 13Q لم تكتمل.
+
+
+## سجل CI #76 — عطل تنزيل خارجي
+
+في 22 نوفمبر 2026، نجحت اختبارات 13Q.1 في المحاولتين من تشغيل CI #76، وكذلك Flutter Analyze واختبارات الحزم المستقلة. تعثر Android JVM/Robolectric قبل قبول البناء:
+
+- المحاولة الأولى: فشل اختبارا `AndroidSelectionMenuTest` و`HighRefreshRateControllerTest` داخل `MavenArtifactFetcher.java:129` بسبب `IOException` أثناء جلب runtime artifacts.
+- المحاولة الثانية: فشل Gradle في حل `debugUnitTestRuntimeClasspath` عند تنزيل `org.robolectric:nativeruntime-dist-compat:1.0.18` من Maven Central بسبب HTTP 429.
+- لم تعمل خطوات Android Emulator وRelease APK بعد بوابة الاختبارات، ولم ينتج APK للمحاولة الثانية.
+
+أضيفت مرآة Google Hosted Maven Central لمجموعة `org.robolectric` في `android/build.gradle.kts` كإصلاح للبنية التحتية. هذا الإصلاح لا يغير سلوك MCP ولا يخفف اختبارات Robolectric. قبول البناء ينتظر CI التالي.

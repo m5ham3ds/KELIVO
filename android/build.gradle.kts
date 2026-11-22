@@ -1,5 +1,16 @@
 allprojects {
     repositories {
+        // Robolectric runtime artifacts can be very large. Maven Central started
+        // returning HTTP 429 for these downloads in CI. Use Google's hosted mirror
+        // for the Robolectric group only; keep Google Maven and Maven Central for
+        // every other dependency and retain Maven Central as the fallback source.
+        maven {
+            name = "GoogleHostedMavenCentralMirror"
+            url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+            content {
+                includeGroup("org.robolectric")
+            }
+        }
         google()
         mavenCentral()
     }
