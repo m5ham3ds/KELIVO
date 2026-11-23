@@ -480,6 +480,9 @@ echo "Browser renderer installed and Chromium smoke test passed."
     _output.clear();
     _statuses[dependency] = DependencyStatus.unknown;
     notifyListeners();
+    final backgroundId = await _startBackgroundOperation(
+      'Installing ${dependency.name}',
+    );
     try {
       _mirrorCancel = MirrorCancelToken();
       final categories = {
@@ -534,6 +537,7 @@ echo "Browser renderer installed and Chromium smoke test passed."
       _mirrorCancel = null;
       installing = null;
       busy = false;
+      await _finishBackgroundOperation(backgroundId);
       notifyListeners();
     }
   }
