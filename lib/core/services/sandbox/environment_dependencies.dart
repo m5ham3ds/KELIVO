@@ -104,6 +104,23 @@ class EnvironmentDependencies extends ChangeNotifier {
       _optionalMediaStatuses[command] ?? DependencyStatus.unknown;
 
   String? mediaToolVersion(String command) => _mediaVersions[command];
+  DependencyStatus mediaCommandStatus(String command) {
+    if (command == 'ffmpeg' || command == 'ffprobe') {
+      return _mediaVersions.containsKey(command)
+          ? DependencyStatus.installed
+          : (status(EnvironmentDependency.mediaTools) == DependencyStatus.unknown
+              ? DependencyStatus.unknown
+              : DependencyStatus.missing);
+    }
+    return optionalMediaStatus(command);
+  }
+
+  String? mediaCommandVersion(String command) {
+    final direct = _mediaVersions[command];
+    if (direct != null) return direct;
+    return _mediaVersions[command];
+  }
+
 
   void _environmentChanged() {
     if (env.state.phase != EnvironmentPhase.ready) {
