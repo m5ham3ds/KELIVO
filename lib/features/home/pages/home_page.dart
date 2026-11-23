@@ -334,9 +334,15 @@ class _HomePageState extends State<HomePage>
         ],
       ),
     );
-    await preferences.setBool(askedKey, true);
-    if (!mounted || accepted != true) return;
-    await NotificationService.ensureAndroidNotificationsPermission();
+    if (accepted != true) {
+      await preferences.setBool(askedKey, true);
+      return;
+    }
+    if (!mounted) return;
+    final granted = await NotificationService.ensureAndroidNotificationsPermission();
+    // Remember only an accepted permission flow. A denied Android permission
+    // is not re-prompted here; the user can enable it from system settings.
+    await preferences.setBool(askedKey, granted);
   }
 
   @override
