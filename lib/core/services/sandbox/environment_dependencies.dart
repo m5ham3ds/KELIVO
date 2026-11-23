@@ -164,29 +164,15 @@ class EnvironmentDependencies extends ChangeNotifier {
         ? 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick'
         : 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick';
     if (alpine) {
-      return 'set -e\\napk --wait 60 update\\napk --wait 60 add $packages\\n';
+      return 'set -e\napk --wait 60 update\napk --wait 60 add $packages\n';
     }
-    return 'set -e\\nexport DEBIAN_FRONTEND=noninteractive\\n'
-        'dpkg --configure -a\\n'
+    return 'set -e\nexport DEBIAN_FRONTEND=noninteractive\n'
+        'dpkg --configure -a\n'
         'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
-        '-o APT::Update::Error-Mode=any update\\n'
-        'apt-get -o DPkg::Lock::Timeout=60 -f install -y\\n'
+        '-o APT::Update::Error-Mode=any update\n'
+        'apt-get -o DPkg::Lock::Timeout=60 -f install -y\n'
         'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
-        'install -y --no-install-recommends ca-certificates $packages\\n';
-  }
-
-  String mediaToolsInstallScript() {
-    const packages = 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick';
-    if (alpine) {
-      return 'set -e\\napk --wait 60 update\\napk --wait 60 add $packages\\n';
-    }
-    return 'set -e\\nexport DEBIAN_FRONTEND=noninteractive\\n'
-        'dpkg --configure -a\\n'
-        'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
-        '-o APT::Update::Error-Mode=any update\\n'
-        'apt-get -o DPkg::Lock::Timeout=60 -f install -y\\n'
-        'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
-        'install -y --no-install-recommends ca-certificates $packages\\n';
+        'install -y --no-install-recommends ca-certificates $packages\n';
   }
 
   /// Installs a pinned renderer inside the guest rootfs only.
