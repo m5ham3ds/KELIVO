@@ -242,7 +242,7 @@ void main() {
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.mobile());
 
-  testWidgets('Android install opens source selection before any download', (
+  testWidgets('Android install starts from source selection and keeps the page open', (
     tester,
   ) async {
     await setup(tester, ready: false);
@@ -267,6 +267,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(installer.calls, 1);
     expect(installer.usedSource, RootfsDownloadSource.tuna);
+    expect(find.byType(EnvironmentDownloadPage), findsOneWidget);
     expect(mirrors.autoDetectCalls, 0);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
@@ -363,6 +364,29 @@ void main() {
     expect(find.byType(EnvironmentDownloadPage), findsNothing);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('Media tools page exposes an individual install action per row', (
+    tester,
+  ) async {
+    await setup(tester);
+    await tester.runAsync(service.refresh);
+    await pump(tester, MediaToolsPage(service: service));
+    await tester.pumpAndSettle();
+    for (final command in [
+      'ffmpeg', 'ffprobe', 'yt-dlp', 'mediainfo',
+      'ffmpegthumbnailer', 'magick',
+    ]) {
+      expect(
+        find.byKey(ValueKey('environment-media-tool-install-$command')),
+        findsOneWidget,
+      );
+    }
+    expect(
+      find.byKey(const ValueKey('environment-media-tools-install-all')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.mobile());
 
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
     testWidgets(

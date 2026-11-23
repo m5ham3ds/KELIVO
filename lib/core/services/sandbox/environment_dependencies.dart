@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
+import 'package:Kelivo/core/services/mobile_background.dart';
 import 'package:uuid/uuid.dart';
 import 'package:Kelivo/core/services/sandbox/mirror_service.dart';
 
@@ -78,6 +80,9 @@ class EnvironmentDependencies extends ChangeNotifier {
   MirrorCancelToken? _mirrorCancel;
   final Map<EnvironmentDependency, DependencyStatus> _statuses = {};
   final Map<String, DependencyStatus> _optionalMediaStatuses = {};
+  String? installingMediaCommand;
+  String? lastInstalledMediaCommand;
+  String? _backgroundTaskId;
   final Map<String, String> _mediaVersions = {};
   static const List<String> optionalMediaTools = [
     'yt-dlp',
@@ -111,6 +116,11 @@ class EnvironmentDependencies extends ChangeNotifier {
           : status(EnvironmentDependency.mediaTools) == DependencyStatus.unknown
               ? DependencyStatus.unknown
               : DependencyStatus.missing;
+    }
+    if (command == 'magick' &&
+        (optionalMediaStatus('magick') == DependencyStatus.installed ||
+            optionalMediaStatus('convert') == DependencyStatus.installed)) {
+      return DependencyStatus.installed;
     }
     return optionalMediaStatus(command);
   }
@@ -173,10 +183,16 @@ class EnvironmentDependencies extends ChangeNotifier {
         'install -y --no-install-recommends ca-certificates $packages\n';
   }
 
-  /// Installs the six media commands as one catalog entry. FFmpeg and
-  /// FFprobe share the same OS package; each executable is verified separately.
-  String mediaToolsInstallScript() {
-    const packages = 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick';
+  String _mediaToolPackage(String command) => switch (command) {
+    'ffmpeg' || 'ffprobe' => 'ffmpeg',
+    'yt-dlp' => 'yt-dlp',
+    'mediainfo' => 'mediainfo',
+    'ffmpegthumbnailer' => 'ffmpegthumbnailer',
+    'magick' || 'convert' || 'identify' => 'imagemagick',
+    _ => throw ArgumentError.value(command, 'command', 'Unknown media tool'),
+  };
+
+  String _packageInstallScript(String packages) {
     if (alpine) {
       return 'set -e\napk --wait 60 update\napk --wait 60 add $packages\n';
     }
@@ -188,6 +204,13 @@ class EnvironmentDependencies extends ChangeNotifier {
         'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
         'install -y --no-install-recommends ca-certificates $packages\n';
   }
+
+  String mediaToolInstallScript(String command) =>
+      _packageInstallScript(_mediaToolPackage(command));
+
+  String mediaToolsInstallScript() => _packageInstallScript(
+    'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick',
+  );
 
   /// Installs a pinned renderer inside the guest rootfs only.
   static const String browserRendererInstallScript = r'''set -euo pipefail
@@ -251,6 +274,88 @@ echo "Browser renderer installed and Chromium smoke test passed."
     }
   }
 
+  Future<void> _applyPackageMirror() async {
+    final category = alpine ? MirrorCategory.apk : MirrorCategory.apt;
+    final selection = env.mirrors[category];
+    if (selection == null) return;
+    final entry = selection.useMirror
+        ? MirrorService.findEntry(
+            category,
+            id: selection.mirrorId,
+            url: selection.selectedBaseUrl,
+            arch: env.state.arch ?? 'arm64',
+            distro: env.state.distro ?? 'ubuntu',
+          )
+        : MirrorService.officialEntry(
+            category,
+            arch: env.state.arch ?? 'arm64',
+            distro: env.state.distro ?? 'ubuntu',
+          );
+    if (entry == null) throw StateError('Unknown package source');
+    await mirrors.applyEntry(
+      category,
+      entry,
+      manual: selection.manual,
+      cancelToken: _mirrorCancel,
+    );
+  }
+
+  Future<String?> _startBackgroundOperation(String title) async {
+    if (!Platform.isAndroid) return null;
+    final id = 'environment-dependency-${const Uuid().v4()}';
+    final coordinator = MobileBackgroundCoordinator.instance;
+    try {
+      await coordinator.start(
+        id: id,
+        conversationId: '',
+        title: title,
+        cancel: cancel,
+      );
+      _backgroundTaskId = id;
+      return id;
+    } catch (error) {
+      debugPrint('[EnvironmentDependencies] Background service unavailable: $error');
+      try {
+        await coordinator.finish(
+          id,
+          BackgroundTaskOutcome.failed,
+          resultPersisted: false,
+        );
+      } catch (_) {}
+      return null;
+    }
+  }
+
+  Future<void> _finishBackgroundOperation(String? id) async {
+    if (id == null) return;
+    if (_backgroundTaskId == id) _backgroundTaskId = null;
+    final outcome = _cancelled
+        ? BackgroundTaskOutcome.cancelled
+        : failure == null
+            ? BackgroundTaskOutcome.completed
+            : BackgroundTaskOutcome.failed;
+    try {
+      await MobileBackgroundCoordinator.instance.finish(
+        id,
+        outcome,
+        resultPersisted: false,
+      );
+    } catch (error) {
+      debugPrint('[EnvironmentDependencies] Background completion failed: $error');
+    }
+  }
+
+  void _updateBackgroundOperation() {
+    final id = _backgroundTaskId;
+    if (id == null) return;
+    MobileBackgroundCoordinator.instance.update(
+      id,
+      phase: BackgroundTaskPhase.tool,
+      toolName: 'APT / APK',
+      progressLabel: 'Installing packages',
+    );
+  }
+
   Future<void> installMediaTools({
     Future<bool> Function()? confirm,
   }) async {
@@ -267,32 +372,10 @@ echo "Browser renderer installed and Chromium smoke test passed."
     _output.clear();
     _statuses[EnvironmentDependency.mediaTools] = DependencyStatus.unknown;
     notifyListeners();
+    final backgroundId = await _startBackgroundOperation('Installing Media tools');
     try {
       _mirrorCancel = MirrorCancelToken();
-      final category = alpine ? MirrorCategory.apk : MirrorCategory.apt;
-      final selection = env.mirrors[category];
-      if (selection != null) {
-        final entry = selection.useMirror
-            ? MirrorService.findEntry(
-                category,
-                id: selection.mirrorId,
-                url: selection.selectedBaseUrl,
-                arch: env.state.arch ?? 'arm64',
-                distro: env.state.distro ?? 'ubuntu',
-              )
-            : MirrorService.officialEntry(
-                category,
-                arch: env.state.arch ?? 'arm64',
-                distro: env.state.distro ?? 'ubuntu',
-              );
-        if (entry == null) throw StateError('Unknown package source');
-        await mirrors.applyEntry(
-          category,
-          entry,
-          manual: selection.manual,
-          cancelToken: _mirrorCancel,
-        );
-      }
+      await _applyPackageMirror();
       if (_cancelled) throw StateError('Cancelled');
       await _run(
         mediaToolsInstallScript(),
@@ -324,6 +407,59 @@ echo "Browser renderer installed and Chromium smoke test passed."
       _mirrorCancel = null;
       installing = null;
       busy = false;
+      await _finishBackgroundOperation(backgroundId);
+      notifyListeners();
+    }
+  }
+
+  Future<void> installMediaTool(
+    String command, {
+    Future<bool> Function()? confirm,
+  }) async {
+    final package = _mediaToolPackage(command);
+    if (mediaCommandStatus(command) == DependencyStatus.installed) return;
+    if (confirm != null && !await confirm()) return;
+    if (busy || !supportsPackages || env.state.phase != EnvironmentPhase.ready) {
+      return;
+    }
+    busy = true;
+    _cancelled = false;
+    installing = EnvironmentDependency.mediaTools;
+    installingMediaCommand = command;
+    lastAttempt = EnvironmentDependency.mediaTools;
+    lastInstalled = null;
+    lastInstalledMediaCommand = null;
+    failure = null;
+    _output.clear();
+    notifyListeners();
+    final backgroundId = await _startBackgroundOperation('Installing $command');
+    try {
+      _mirrorCancel = MirrorCancelToken();
+      await _applyPackageMirror();
+      if (_cancelled) throw StateError('Cancelled');
+      await _run(
+        _packageInstallScript(package),
+        timeout: const Duration(minutes: 30),
+        showOutput: true,
+      );
+      if (_cancelled) throw StateError('Cancelled');
+      await _probe();
+      if (mediaCommandStatus(command) != DependencyStatus.installed) {
+        throw StateError('Media tool failed executable verification: $command');
+      }
+      lastInstalled = EnvironmentDependency.mediaTools;
+      lastInstalledMediaCommand = command;
+      await env.clearCachedDiskUsage();
+    } catch (_) {
+      failure = _cancelled
+          ? DependencyFailure.cancelled
+          : DependencyFailure.install;
+    } finally {
+      _mirrorCancel = null;
+      installing = null;
+      installingMediaCommand = null;
+      busy = false;
+      await _finishBackgroundOperation(backgroundId);
       notifyListeners();
     }
   }
@@ -479,6 +615,7 @@ echo "Browser renderer installed and Chromium smoke test passed."
             output.removeRange(0, output.length - 65536);
           }
           if (showOutput) {
+            _updateBackgroundOperation();
             _output.addAll(event.bytes);
             if (_output.length > 65536) {
               _output.removeRange(0, _output.length - 65536);

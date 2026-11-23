@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:Kelivo/core/models/environment_state.dart';
 import 'package:Kelivo/core/providers/environment_provider.dart';
+import 'package:Kelivo/core/services/mobile_background.dart';
 import 'package:Kelivo/core/services/logging/flutter_logger.dart';
 import 'package:Kelivo/core/services/sandbox/environment_manager.dart';
 import 'package:Kelivo/core/services/sandbox/mirror_speed_test.dart';
@@ -111,6 +112,8 @@ class EnvironmentInstaller implements EnvironmentManager {
 
   bool _cancelled = false;
   bool _installing = false;
+  String? _backgroundTaskId;
+  bool get isInstalling => _installing;
   Completer<void>? _abortDownload;
   Completer<void>? _downloadDone;
   StreamSubscription<List<int>>? _downloadSub;
@@ -147,6 +150,7 @@ class EnvironmentInstaller implements EnvironmentManager {
           : null;
       await channel.setEnvironmentBusy(true);
       processesStopped = true;
+      await _startBackgroundTask();
       await channel.keepScreenOn(true);
       await _installBody();
     } on _InstallStopped {
@@ -180,6 +184,7 @@ class EnvironmentInstaller implements EnvironmentManager {
         await channel.setEnvironmentBusy(false);
         await channel.keepScreenOn(false);
       } catch (_) {}
+      await _finishBackgroundTask();
       _installing = false;
     }
   }
@@ -721,9 +726,82 @@ class EnvironmentInstaller implements EnvironmentManager {
     );
   }
 
+  Future<void> _startBackgroundTask() async {
+    if (!Platform.isAndroid) return;
+    final id = 'environment-install-${DateTime.now().microsecondsSinceEpoch}';
+    final coordinator = MobileBackgroundCoordinator.instance;
+    try {
+      await coordinator.start(
+        id: id,
+        conversationId: '',
+        title: 'Installing system image',
+        cancel: cancel,
+      );
+      _backgroundTaskId = id;
+    } catch (error) {
+      FlutterLogger.log(
+        'Could not attach system image install to foreground service: $error',
+        tag: 'Environment',
+      );
+      try {
+        await coordinator.finish(
+          id,
+          BackgroundTaskOutcome.failed,
+          resultPersisted: false,
+        );
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _finishBackgroundTask() async {
+    final id = _backgroundTaskId;
+    _backgroundTaskId = null;
+    if (id == null) return;
+    final outcome = _cancelled ||
+            env.state.errorMessage == EnvironmentError.cancelled
+        ? BackgroundTaskOutcome.cancelled
+        : env.state.phase == EnvironmentPhase.ready
+            ? BackgroundTaskOutcome.completed
+            : BackgroundTaskOutcome.failed;
+    try {
+      await MobileBackgroundCoordinator.instance.finish(
+        id,
+        outcome,
+        resultPersisted: false,
+      );
+    } catch (error) {
+      FlutterLogger.log(
+        'Could not finish system image foreground task: $error',
+        tag: 'Environment',
+      );
+    }
+  }
+
+  void _updateBackgroundTask(EnvironmentState state) {
+    final id = _backgroundTaskId;
+    if (id == null) return;
+    MobileBackgroundCoordinator.instance.update(
+      id,
+      phase: BackgroundTaskPhase.tool,
+      toolName: 'Environment',
+      progress: state.progress,
+      progressLabel: switch (state.phase) {
+        EnvironmentPhase.downloading => 'Downloading system image',
+        EnvironmentPhase.verifying => 'Verifying image checksum',
+        EnvironmentPhase.extracting => 'Extracting root filesystem',
+        EnvironmentPhase.patching => 'Configuring environment',
+        EnvironmentPhase.ready => 'Environment ready',
+        EnvironmentPhase.error => 'Installation failed',
+        EnvironmentPhase.needsRestart => 'Restart required',
+        EnvironmentPhase.notInstalled => 'Preparing installation',
+      },
+    );
+  }
+
   Future<void> _setPhase(EnvironmentState state) async {
     await env.setState(state);
     _onProgress?.call(state);
+    _updateBackgroundTask(state);
   }
 
   Future<bool> _validateInstalledArchitecture() async {

@@ -235,27 +235,29 @@ class _EnvironmentPaneState extends State<EnvironmentPane> {
     setState(() => _busy = true);
     try {
       if (manager is EnvironmentInstaller) {
-        final confirmed = await Navigator.of(context).push<bool>(
-          MaterialPageRoute<bool>(
-            builder: (_) =>
-                EnvironmentDownloadPage(installer: manager, install: true),
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => EnvironmentDownloadPage(
+              installer: manager,
+              install: true,
+              beforeInstall: () async {
+                if (!await manager.rootfsDir.exists()) return true;
+                if (!mounted) return false;
+                final l10n = AppLocalizations.of(context)!;
+                return showWorkspaceConfirm(
+                  context: context,
+                  title: l10n.workspaceEnvReplaceSystem,
+                  message: l10n.workspaceEnvReplaceSystemHint,
+                  confirmLabel: l10n.workspaceEnvReplaceSystem,
+                  destructive: true,
+                );
+              },
+            ),
           ),
         );
-        if (confirmed != true || !mounted) return;
-        if (await manager.rootfsDir.exists()) {
-          if (!mounted) return;
-          final l10n = AppLocalizations.of(context)!;
-          final replace = await showWorkspaceConfirm(
-            context: context,
-            title: l10n.workspaceEnvReplaceSystem,
-            message: l10n.workspaceEnvReplaceSystemHint,
-            confirmLabel: l10n.workspaceEnvReplaceSystem,
-            destructive: true,
-          );
-          if (!replace || !mounted) return;
-        }
+      } else {
+        await manager.install();
       }
-      await manager.install();
       await _refreshRuntime();
       if (!mounted) return;
       if (manager.env.state.phase == EnvironmentPhase.ready &&

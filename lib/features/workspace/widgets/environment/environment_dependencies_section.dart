@@ -76,32 +76,51 @@ class MediaToolsPage extends StatelessWidget {
   const MediaToolsPage({super.key, required this.service});
   final EnvironmentDependencies service;
 
-  Future<void> _confirmAndInstall(BuildContext context) async {
+  Future<bool> _confirm(BuildContext context, String title, String detail) async {
     final l10n = AppLocalizations.of(context)!;
-    await service.installMediaTools(
-      confirm: () async {
-        return await showDialog<bool>(
-              context: context,
-              builder: (dialogContext) => AlertDialog(
-                title: const Text('Install Media tools?'),
-                content: const Text(
-                  'This installs FFmpeg (including FFprobe), yt-dlp, MediaInfo, '
-                  'FFmpegthumbnailer and ImageMagick in the active environment.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext, false),
-                    child: Text(l10n.workspaceEnvCancel),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(dialogContext, true),
-                    child: Text(l10n.workspaceEnvInstall),
-                  ),
-                ],
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(title),
+            content: Text(detail),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(l10n.workspaceEnvCancel),
               ),
-            ) ??
-            false;
-      },
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(l10n.workspaceEnvInstall),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _confirmAndInstall(BuildContext context) async {
+    await service.installMediaTools(
+      confirm: () => _confirm(
+        context,
+        'Install Media tools?',
+        'This installs FFmpeg (including FFprobe), yt-dlp, MediaInfo, '
+            'FFmpegthumbnailer and ImageMagick in the active environment.',
+      ),
+    );
+  }
+
+  Future<void> _confirmAndInstallTool(
+    BuildContext context,
+    String command,
+    String label,
+  ) async {
+    await service.installMediaTool(
+      command,
+      confirm: () => _confirm(
+        context,
+        'Install $label?',
+        'This installs only the $label package in the active environment.',
+      ),
     );
   }
 
@@ -112,11 +131,6 @@ class MediaToolsPage extends StatelessWidget {
     return ListenableBuilder(
       listenable: service,
       builder: (context, _) {
-        final installed = service.status(EnvironmentDependency.mediaTools) ==
-            DependencyStatus.installed;
-        final enabled = !service.busy &&
-            service.env.state.phase == EnvironmentPhase.ready &&
-            service.supportsPackages;
         final commands = <(String, String, String)>[
           ('FFmpeg', 'ffmpeg', 'ffmpeg package (includes FFprobe)'),
           ('FFprobe', 'ffprobe', 'ffmpeg package (independently verified)'),
@@ -125,6 +139,13 @@ class MediaToolsPage extends StatelessWidget {
           ('FFmpegthumbnailer', 'ffmpegthumbnailer', 'ffmpegthumbnailer package'),
           ('ImageMagick', 'magick', 'imagemagick package (magick / convert)'),
         ];
+        final installed = commands.every(
+          (item) => service.mediaCommandStatus(item.$2) ==
+              DependencyStatus.installed,
+        );
+        final enabled = !service.busy &&
+            service.env.state.phase == EnvironmentPhase.ready &&
+            service.supportsPackages;
         return Scaffold(
           appBar: AppBar(
             leading: IosIconButton(
@@ -144,14 +165,41 @@ class MediaToolsPage extends StatelessWidget {
                       icon: i < 2 ? LucideIcons.film : Lucide.Package,
                       label: commands[i].$1,
                       subtitle: commands[i].$3,
-                      detailText: service.mediaCommandStatus(commands[i].$2) ==
-                              DependencyStatus.installed
-                          ? (service.mediaCommandVersion(commands[i].$2) ??
-                              l10n.workspaceEnvDependencyInstalled)
+                      detailText: service.installingMediaCommand == commands[i].$2
+                          ? l10n.workspaceEnvDependencyInstalling
                           : service.mediaCommandStatus(commands[i].$2) ==
-                                  DependencyStatus.unknown
-                              ? l10n.workspaceEnvDependencyUnknown
-                              : l10n.workspaceEnvPhaseNotInstalled,
+                                  DependencyStatus.installed
+                              ? (service.mediaCommandVersion(commands[i].$2) ??
+                                  l10n.workspaceEnvDependencyInstalled)
+                              : service.mediaCommandStatus(commands[i].$2) ==
+                                      DependencyStatus.unknown
+                                  ? l10n.workspaceEnvDependencyUnknown
+                                  : l10n.workspaceEnvPhaseNotInstalled,
+                      trailing: service.mediaCommandStatus(commands[i].$2) ==
+                              DependencyStatus.installed
+                          ? Icon(Lucide.Check, size: 18, color: cs.primary)
+                          : TextButton.icon(
+                              key: ValueKey(
+                                'environment-media-tool-install-${commands[i].$2}',
+                              ),
+                              onPressed: enabled
+                                  ? () => unawaited(
+                                      _confirmAndInstallTool(
+                                        context,
+                                        commands[i].$2,
+                                        commands[i].$1,
+                                      ),
+                                    )
+                                  : null,
+                              icon: service.installingMediaCommand == commands[i].$2
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Lucide.Download, size: 14),
+                              label: Text(l10n.workspaceEnvInstall),
+                            ),
                     ),
                   ],
                 ],

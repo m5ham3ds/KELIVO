@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:Kelivo/core/models/environment_state.dart';
 import 'package:Kelivo/core/providers/environment_provider.dart';
 import 'package:Kelivo/core/services/sandbox/environment_installer.dart';
 import 'package:Kelivo/core/services/sandbox/mirror_speed_test.dart';
@@ -35,9 +36,11 @@ class EnvironmentDownloadPage extends StatefulWidget {
     super.key,
     required this.installer,
     this.install = false,
+    this.beforeInstall,
   });
   final EnvironmentInstaller installer;
   final bool install;
+  final Future<bool> Function()? beforeInstall;
   @override
   State<EnvironmentDownloadPage> createState() =>
       _EnvironmentDownloadPageState();
@@ -71,6 +74,7 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
   }
 
   Future<void> _save() async {
+    if (widget.install && widget.installer.isInstalling) return;
     setState(() {
       _saving = true;
       _error = null;
@@ -82,7 +86,15 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
         customUrl: _url.text,
         localArchivePath: _localPath,
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (!widget.install) {
+        if (mounted) Navigator.of(context).pop(true);
+        return;
+      }
+      final allowed = await widget.beforeInstall?.call() ?? true;
+      if (!allowed || !mounted) return;
+      // Leaving this route does not cancel the app-level installer. On Android
+      // its operation is also represented by the existing foreground task.
+      await widget.installer.install();
     } on FormatException {
       if (mounted) {
         setState(
@@ -222,7 +234,12 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
+    return AnimatedBuilder(
+      animation: widget.installer.env,
+      builder: (context, _) {
+        final state = widget.installer.env.state;
+        final installing = widget.installer.isInstalling;
+        return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(
         leading: IosIconButton(
@@ -241,7 +258,7 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
                   key: const ValueKey('rootfs-distro'),
                   label: l10n.workspaceEnvDistribution,
                   detailText: RootfsImage.distroName(_image.distro),
-                  onTap: _saving || _probing
+                  onTap: _saving || _probing || installing
                       ? null
                       : () => unawaited(_pickDistribution()),
                 ),
@@ -250,7 +267,7 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
                   key: const ValueKey('rootfs-version'),
                   label: l10n.workspaceEnvSystemVersion,
                   detailText: _image.version,
-                  onTap: _saving || _probing
+                  onTap: _saving || _probing || installing
                       ? null
                       : () => unawaited(_pickVersion()),
                 ),
@@ -282,7 +299,7 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
                         Icon(Lucide.Check, size: 18, color: cs.primary),
                     ],
                   ),
-                  onTap: _saving || _probing
+                  onTap: _saving || _probing || installing
                       ? null
                       : () => setState(() {
                           _source = source;
@@ -320,13 +337,77 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
                   icon: Lucide.FileArchive,
                   label: l10n.workspaceEnvChooseImage,
                   subtitle: _localPath.isEmpty ? null : p.basename(_localPath),
-                  onTap: _saving ? null : () => unawaited(_pickLocal()),
+                  onTap: _saving || installing ? null : () => unawaited(_pickLocal()),
                 ),
               ],
             ),
             IosSectionFooter(text: l10n.workspaceEnvLocalImageHint),
           ] else
             IosSectionFooter(text: l10n.workspaceEnvDownloadVerified),
+          if (widget.install &&
+              (installing ||
+                  state.phase == EnvironmentPhase.ready ||
+                  state.phase == EnvironmentPhase.error ||
+                  state.phase == EnvironmentPhase.needsRestart)) ...[
+            const SizedBox(height: 12),
+            SectionCard(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              installing
+                                  ? 'Environment installation in progress'
+                                  : 'Environment: ${state.phase.name}',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          if (state.progress != null)
+                            Text('${(state.progress! * 100).round()}%'),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (installing)
+                        LinearProgressIndicator(
+                          value: state.progress?.clamp(0.0, 1.0),
+                        )
+                      else if (state.phase == EnvironmentPhase.ready)
+                        const LinearProgressIndicator(value: 1),
+                      if (state.bytesDownloaded != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          state.bytesTotal == null
+                              ? '${state.bytesDownloaded} bytes processed'
+                              : '${state.bytesDownloaded} / ${state.bytesTotal} bytes',
+                        ),
+                      ],
+                      if (state.errorMessage != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          state.errorMessage!,
+                          style: TextStyle(color: cs.error),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (installing) ...[
+            const SizedBox(height: 10),
+            IosTileButton(
+              key: const ValueKey('system-image-install-cancel'),
+              icon: Lucide.X,
+              label: l10n.workspaceEnvCancel,
+              onTap: () => unawaited(widget.installer.cancel()),
+            ),
+          ],
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -338,7 +419,7 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
               label: _probing
                   ? l10n.workspaceEnvDetectingMirrors
                   : l10n.workspaceEnvSpeedTest,
-              enabled: !_probing && !_saving,
+              enabled: !_probing && !_saving && !installing,
               onTap: () => unawaited(_probe()),
             ),
           const SizedBox(height: 12),
@@ -346,16 +427,20 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
             key: const ValueKey('download-source-save'),
             icon: widget.install ? Lucide.Download : Lucide.Check,
             label: widget.install
-                ? _source == RootfsDownloadSource.local
-                      ? l10n.workspaceEnvImportImage
-                      : l10n.workspaceEnvDownloadStart
+                ? installing
+                      ? l10n.workspaceEnvDependencyInstalling
+                      : _source == RootfsDownloadSource.local
+                            ? l10n.workspaceEnvImportImage
+                            : l10n.workspaceEnvDownloadStart
                 : l10n.workspaceEnvDownloadSave,
-            enabled: !_saving,
+            enabled: !_saving && !installing,
             backgroundColor: cs.primary,
             onTap: () => unawaited(_save()),
           ),
         ],
       ),
+        );
+      },
     );
   }
 }
