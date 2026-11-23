@@ -232,6 +232,13 @@ void main() {
       };
       final installer = buildInstaller(servingTarball());
       Future<void>? lateCancel;
+      var terminalStateNotified = false;
+      void observeTerminalState() {
+        if (env.state.phase == EnvironmentPhase.ready && !installer.isInstalling) {
+          terminalStateNotified = true;
+        }
+      }
+      env.addListener(observeTerminalState);
       await installer.install(
         onProgress: (state) {
           if (state.phase == EnvironmentPhase.ready) {
@@ -239,11 +246,13 @@ void main() {
           }
         },
       );
+      env.removeListener(observeTerminalState);
       await lateCancel;
       expect(env.state.phase, EnvironmentPhase.ready);
       expect(env.state.errorMessage, isNull);
       expect(installer.isInstalling, isFalse);
       expect(installer.canCancel, isFalse);
+      expect(terminalStateNotified, isTrue);
       expect(
         await File(p.join(installer.rootfsDir.path, kKelivoVersionFile)).exists(),
         isTrue,

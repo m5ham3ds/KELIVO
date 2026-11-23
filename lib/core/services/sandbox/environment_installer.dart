@@ -192,6 +192,12 @@ class EnvironmentInstaller implements EnvironmentManager {
       } catch (_) {}
       _installing = false;
       _installActive = false;
+      // EnvironmentDownloadPage listens to EnvironmentProvider. Emit one
+      // terminal notification after the local installer flag is released so
+      // the page immediately replaces its spinner with the final state.
+      try {
+        await env.setState(env.state);
+      } catch (_) {}
       await _finishBackgroundTask();
     }
   }
