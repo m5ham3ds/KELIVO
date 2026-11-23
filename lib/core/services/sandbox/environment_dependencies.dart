@@ -160,9 +160,7 @@ class EnvironmentDependencies extends ChangeNotifier {
   /// Installs the six media commands as one catalog entry. FFmpeg and
   /// FFprobe share the same OS package; each executable is verified separately.
   String mediaToolsInstallScript() {
-    final packages = alpine
-        ? 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick'
-        : 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick';
+    const packages = 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick';
     if (alpine) {
       return 'set -e\napk --wait 60 update\napk --wait 60 add $packages\n';
     }
