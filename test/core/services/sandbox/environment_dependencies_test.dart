@@ -101,7 +101,9 @@ void main() {
     expect(service.failure, isNull);
     expect(service.status(EnvironmentDependency.mediaTools), DependencyStatus.installed);
     final command = runtime.requests.singleWhere(
-      (request) => request.command.contains('ffmpegthumbnailer'),
+      (request) =>
+          request.command.contains('install -y') &&
+          request.command.contains('ffmpegthumbnailer'),
     );
     expect(command.command, contains('dpkg --configure -a'));
     expect(command.command, contains('imagemagick'));
