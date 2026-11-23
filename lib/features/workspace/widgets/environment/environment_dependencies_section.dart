@@ -144,15 +144,13 @@ class MediaToolsPage extends StatelessWidget {
                       icon: i < 2 ? LucideIcons.film : Lucide.Package,
                       label: commands[i].$1,
                       subtitle: commands[i].$3,
-                      detailText: i < 2
-                          ? service.mediaToolVersion(commands[i].$2) ??
-                              l10n.workspaceEnvMediaVersionNotDetected
-                          : (service.optionalMediaStatus(commands[i].$2) ==
-                                      DependencyStatus.installed ||
-                                  (i == 5 &&
-                                      service.optionalMediaStatus('convert') ==
-                                          DependencyStatus.installed))
-                              ? l10n.workspaceEnvDependencyInstalled
+                      detailText: service.mediaCommandStatus(commands[i].$2) ==
+                              DependencyStatus.installed
+                          ? (service.mediaCommandVersion(commands[i].$2) ??
+                              l10n.workspaceEnvDependencyInstalled)
+                          : service.mediaCommandStatus(commands[i].$2) ==
+                                  DependencyStatus.unknown
+                              ? l10n.workspaceEnvDependencyUnknown
                               : l10n.workspaceEnvPhaseNotInstalled,
                     ),
                   ],
