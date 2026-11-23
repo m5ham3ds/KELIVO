@@ -26,10 +26,6 @@ String _title(AppLocalizations l10n, EnvironmentDependency dependency) =>
       EnvironmentDependency.network => l10n.workspaceEnvDependencyNetwork,
       EnvironmentDependency.archive => l10n.workspaceEnvDependencyArchive,
       EnvironmentDependency.mediaTools => l10n.workspaceEnvDependencyMedia,
-      EnvironmentDependency.ytDlp => 'yt-dlp',
-      EnvironmentDependency.mediaInfo => 'MediaInfo',
-      EnvironmentDependency.ffmpegThumbnailer => 'FFmpegthumbnailer',
-      EnvironmentDependency.imageMagick => 'ImageMagick',
       EnvironmentDependency.browserRenderer => l10n.workspaceEnvDependencyBrowserRenderer,
     };
 String _detail(AppLocalizations l10n, EnvironmentDependency dependency) =>
@@ -41,10 +37,6 @@ String _detail(AppLocalizations l10n, EnvironmentDependency dependency) =>
       EnvironmentDependency.network => 'curl · wget',
       EnvironmentDependency.archive => 'zip · unzip',
       EnvironmentDependency.mediaTools => l10n.workspaceEnvDependencyMediaDetail,
-      EnvironmentDependency.ytDlp => l10n.workspaceEnvDependencyYtDlp,
-      EnvironmentDependency.mediaInfo => l10n.workspaceEnvDependencyMediaInfo,
-      EnvironmentDependency.ffmpegThumbnailer => l10n.workspaceEnvDependencyThumbnailer,
-      EnvironmentDependency.imageMagick => l10n.workspaceEnvDependencyImageMagick,
       EnvironmentDependency.browserRenderer => l10n.workspaceEnvDependencyBrowserRendererDetail,
     };
 IconData _icon(EnvironmentDependency dependency) => switch (dependency) {
@@ -55,10 +47,6 @@ IconData _icon(EnvironmentDependency dependency) => switch (dependency) {
   EnvironmentDependency.network => Lucide.Globe,
   EnvironmentDependency.archive => LucideIcons.archive,
   EnvironmentDependency.mediaTools => LucideIcons.film,
-  EnvironmentDependency.ytDlp => Lucide.Package,
-  EnvironmentDependency.mediaInfo => Lucide.Package,
-  EnvironmentDependency.ffmpegThumbnailer => Lucide.Package,
-  EnvironmentDependency.imageMagick => Lucide.Image,
   EnvironmentDependency.browserRenderer => Lucide.Globe,
 };
 String _status(
@@ -101,10 +89,11 @@ class EnvironmentDependenciesSection extends StatelessWidget {
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IosSectionHeader(text: l10n.workspaceEnvDependencies),
+          IosSectionHeader(text: 'Environment Presets'),
           SectionCard(
             children: [
-              for (final dependency in EnvironmentDependency.values) ...[
+              for (final dependency in EnvironmentDependency.values
+                  .where((item) => item != EnvironmentDependency.mediaTools)) ...[
                 if (dependency.index > 0) const EnvironmentRowDivider(),
                 IosNavRow(
                   key: ValueKey('environment-dependency-${dependency.name}'),
@@ -137,6 +126,25 @@ class EnvironmentDependenciesSection extends StatelessWidget {
                     : const SizedBox.shrink(),
                 onTap: enabled && !service.busy
                     ? () => unawaited(service.refresh())
+                    : null,
+              ),
+            ],
+          ),
+          IosSectionHeader(text: 'Media tools'),
+          SectionCard(
+            children: [
+              IosNavRow(
+                key: const ValueKey('environment-dependency-mediaTools'),
+                icon: _icon(EnvironmentDependency.mediaTools),
+                label: 'Media tools',
+                subtitle: 'FFmpeg · FFprobe · yt-dlp · MediaInfo · FFmpegthumbnailer · ImageMagick',
+                detailText: _status(l10n, service, EnvironmentDependency.mediaTools),
+                onTap: enabled && !service.busy
+                    ? () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const MediaToolsPagePlaceholder(),
+                        ),
+                      )
                     : null,
               ),
             ],
