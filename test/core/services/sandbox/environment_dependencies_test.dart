@@ -95,7 +95,7 @@ void main() {
   test('grouped media installer installs unique packages and verifies six tools', () async {
     await setup();
     expect(service.mediaToolsInstallScript(), contains('ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick'));
-    expect(RegExp(r'\\bffmpeg\\b').allMatches(service.mediaToolsInstallScript()).length, 1);
+    expect(RegExp(r'\bffmpeg\b').allMatches(service.mediaToolsInstallScript()).length, 1);
     final future = service.installMediaTools();
     await future;
     expect(service.failure, isNull);
