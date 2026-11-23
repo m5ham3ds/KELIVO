@@ -33,7 +33,22 @@ abstract final class PackageManagerEnvironmentTools {
     required String? distro,
   }) {
     final raw = arguments['tools'];
-    if (raw == null) return arguments;
+    if (raw == null) {
+      final single = arguments['package'];
+      if (single is! String) return arguments;
+      final canonical = single.trim().toLowerCase();
+      final package = _packages[canonical];
+      if (package == null) return arguments;
+      final resolved = <String, dynamic>{
+        ...arguments,
+        'ecosystem': 'system',
+        'manager': (distro ?? '').toLowerCase() == 'alpine' ? 'apk' : 'apt',
+        'scope': 'runtime',
+        'packages': [package],
+        'requested_tools': [canonical],
+      }..remove('package');
+      return resolved;
+    }
     if (raw is! List || raw.isEmpty || raw.length > 6) {
       throw const FormatException('environment_tools_must_be_one_to_six_names');
     }
