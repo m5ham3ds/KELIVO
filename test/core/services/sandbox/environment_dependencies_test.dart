@@ -105,6 +105,7 @@ void main() {
     );
     expect(command.command, contains('dpkg --configure -a'));
     expect(command.command, contains('imagemagick'));
+    expect(runtime.requests.length, 2); // one full probe and one package transaction
   });
 
   test('media preset installs FFmpeg and verifies both ffmpeg and ffprobe', () async {
