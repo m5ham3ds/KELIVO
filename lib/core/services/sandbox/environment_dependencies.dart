@@ -302,7 +302,7 @@ echo "Browser renderer installed and Chromium smoke test passed."
       );
       if (_cancelled) throw StateError('Cancelled');
       await _probe();
-        final allRequiredPresent =
+      final allRequiredPresent =
           _mediaVersions.containsKey('ffmpeg') &&
           _mediaVersions.containsKey('ffprobe') &&
           optionalMediaStatus('yt-dlp') == DependencyStatus.installed &&
