@@ -78,27 +78,31 @@ class MediaToolsPage extends StatelessWidget {
 
   Future<void> _confirmAndInstall(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Install Media tools?'),
-        content: const Text(
-          'This installs FFmpeg (including FFprobe), yt-dlp, MediaInfo, '
-          'FFmpegthumbnailer and ImageMagick in the active environment.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.workspaceEnvInstall),
-          ),
-        ],
-      ),
+    await service.installMediaTools(
+      confirm: () async {
+        return await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('Install Media tools?'),
+                content: const Text(
+                  'This installs FFmpeg (including FFprobe), yt-dlp, MediaInfo, '
+                  'FFmpegthumbnailer and ImageMagick in the active environment.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: Text(l10n.commonCancel),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: Text(l10n.workspaceEnvInstall),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+      },
     );
-    if (accepted == true) await service.installMediaTools();
   }
 
   @override
