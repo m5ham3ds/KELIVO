@@ -91,7 +91,7 @@ class MediaToolsPage extends StatelessWidget {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext, false),
-                    child: Text(l10n.commonCancel),
+                    child: Text(l10n.workspaceEnvCancel),
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(dialogContext, true),
