@@ -14,6 +14,52 @@ abstract final class PackageManagerToolNames {
   static const Set<String> all = {manage};
 }
 
+/// Resolves canonical media utility names to unique system packages.
+/// FFmpeg and FFprobe intentionally map to the same ffmpeg package.
+abstract final class PackageManagerEnvironmentTools {
+  static const Map<String, String> _packages = {
+    'ffmpeg': 'ffmpeg',
+    'ffprobe': 'ffmpeg',
+    'yt-dlp': 'yt-dlp',
+    'mediainfo': 'mediainfo',
+    'ffmpegthumbnailer': 'ffmpegthumbnailer',
+    'imagemagick': 'imagemagick',
+  };
+
+  static Map<String, dynamic> resolve(
+    Map<String, dynamic> arguments, {
+    required String? distro,
+  }) {
+    final raw = arguments['tools'];
+    if (raw == null) return arguments;
+    if (raw is! List || raw.isEmpty || raw.length > 6) {
+      throw const FormatException('environment_tools_must_be_one_to_six_names');
+    }
+    final requested = <String>[];
+    final packages = <String>[];
+    for (final value in raw) {
+      if (value is! String) {
+        throw const FormatException('invalid_environment_tool_name');
+      }
+      final canonical = value.trim().toLowerCase();
+      final package = _packages[canonical];
+      if (package == null) {
+        throw FormatException('unsupported_environment_tool:$value');
+      }
+      requested.add(canonical);
+      if (!packages.contains(package)) packages.add(package);
+    }
+    return <String, dynamic>{
+      ...arguments,
+      'ecosystem': 'system',
+      'manager': (distro ?? '').toLowerCase() == 'alpine' ? 'apk' : 'apt',
+      'scope': 'runtime',
+      'packages': packages,
+      'requested_tools': requested.toSet().toList(growable: false),
+    }..remove('package');
+  }
+}
+
 abstract final class PackageManagerToolCatalog {
   static List<Map<String, dynamic>> definitions() => [
     {
@@ -74,6 +120,16 @@ abstract final class PackageManagerToolCatalog {
               'type': 'string',
               'description': 'One registry package name for a single-package action.',
               'maxLength': 214,
+            },
+            'tools': {
+              'type': 'array',
+              'description': 'Canonical media utilities: ffmpeg, ffprobe, yt-dlp, mediainfo, ffmpegthumbnailer, imagemagick. FFmpeg and FFprobe map to one package.',
+              'items': {
+                'type': 'string',
+                'enum': ['ffmpeg', 'ffprobe', 'yt-dlp', 'mediainfo', 'ffmpegthumbnailer', 'imagemagick'],
+              },
+              'maxItems': 6,
+              'uniqueItems': true,
             },
             'packages': {
               'type': 'array',
