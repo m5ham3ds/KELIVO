@@ -137,6 +137,7 @@ void main() {
     expect(runtime.requests.last.command, contains('imagemagick'));
   });
 
+  test('media preset installs FFmpeg and verifies both ffmpeg and ffprobe', () async {
     await setup();
     final script = service.installScript(EnvironmentDependency.mediaTools);
     expect(service.status(EnvironmentDependency.mediaTools), DependencyStatus.unknown);
