@@ -139,16 +139,17 @@ class MediaToolsPage extends StatelessWidget {
                     IosNavRow(
                       icon: i < 2 ? LucideIcons.film : Lucide.Package,
                       label: commands[i].$1,
+                      subtitle: commands[i].$3,
                       detailText: i < 2
                           ? service.mediaToolVersion(commands[i].$2) ??
                               l10n.workspaceEnvMediaVersionNotDetected
-                          : service.optionalMediaStatus(commands[i].$2) ==
-                                  DependencyStatus.installed ||
-                              (i == 5 &&
-                                  service.optionalMediaStatus('convert') ==
-                                      DependencyStatus.installed)
-                          ? l10n.workspaceEnvDependencyInstalled
-                          : l10n.workspaceEnvPhaseNotInstalled,
+                          : (service.optionalMediaStatus(commands[i].$2) ==
+                                      DependencyStatus.installed ||
+                                  (i == 5 &&
+                                      service.optionalMediaStatus('convert') ==
+                                          DependencyStatus.installed))
+                              ? l10n.workspaceEnvDependencyInstalled
+                              : l10n.workspaceEnvPhaseNotInstalled,
                     ),
                   ],
                 ],
