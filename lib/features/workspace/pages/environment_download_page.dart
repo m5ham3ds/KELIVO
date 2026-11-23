@@ -374,7 +374,9 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
                       const SizedBox(height: 10),
                       if (installing)
                         LinearProgressIndicator(
-                          value: state.progress?.clamp(0.0, 1.0),
+                          value: state.progress == null
+                              ? null
+                              : state.progress!.clamp(0.0, 1.0).toDouble(),
                         )
                       else if (state.phase == EnvironmentPhase.ready)
                         const LinearProgressIndicator(value: 1),

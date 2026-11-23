@@ -69,7 +69,7 @@ class DependencyTestRuntime extends WorkspaceRuntime {
           'ffmpeg', 'yt-dlp', 'mediainfo', 'ffmpegthumbnailer', 'imagemagick',
         ]) {
           if (request.command.contains(' $package ') ||
-              request.command.contains(' $package\\n')) {
+              request.command.contains(' $package\n')) {
             installedMediaPackages.add(package);
           }
         }

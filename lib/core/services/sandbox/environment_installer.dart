@@ -757,10 +757,11 @@ class EnvironmentInstaller implements EnvironmentManager {
     final id = _backgroundTaskId;
     _backgroundTaskId = null;
     if (id == null) return;
-    final outcome = _cancelled ||
-            env.state.errorMessage == EnvironmentError.cancelled
+    final error = env.state.errorMessage;
+    final outcome = _cancelled || error == EnvironmentError.cancelled
         ? BackgroundTaskOutcome.cancelled
-        : env.state.phase == EnvironmentPhase.ready
+        : env.state.phase == EnvironmentPhase.ready &&
+                (error == null || error == EnvironmentError.cleanupIncomplete)
             ? BackgroundTaskOutcome.completed
             : BackgroundTaskOutcome.failed;
     try {
