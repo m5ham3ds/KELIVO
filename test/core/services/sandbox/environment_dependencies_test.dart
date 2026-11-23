@@ -115,8 +115,11 @@ void main() {
     expect(service.mediaCommandStatus('yt-dlp'), DependencyStatus.installed);
     expect(service.mediaCommandStatus('ffmpeg'), DependencyStatus.missing);
     expect(service.mediaCommandStatus('ffprobe'), DependencyStatus.missing);
-    expect(runtime.requests.last.command, contains('yt-dlp'));
-    expect(runtime.requests.last.command, isNot(contains('imagemagick')));
+    final transaction = runtime.requests.singleWhere(
+      (request) => request.command.contains('install -y'),
+    );
+    expect(transaction.command, contains('yt-dlp'));
+    expect(transaction.command, isNot(contains('imagemagick')));
   });
 
   test('individual FFprobe install verifies the shared FFmpeg package', () async {
@@ -125,7 +128,11 @@ void main() {
     expect(service.failure, isNull);
     expect(service.mediaCommandStatus('ffmpeg'), DependencyStatus.installed);
     expect(service.mediaCommandStatus('ffprobe'), DependencyStatus.installed);
-    expect(runtime.requests.last.command, contains('ffmpeg'));
+    final transaction = runtime.requests.singleWhere(
+      (request) => request.command.contains('install -y'),
+    );
+    expect(transaction.command, contains('ffmpeg'));
+    expect(transaction.command, isNot(contains('yt-dlp')));
   });
 
   test('ImageMagick individual install recognizes the convert alias', () async {
@@ -134,7 +141,11 @@ void main() {
     expect(service.failure, isNull);
     expect(service.mediaCommandStatus('magick'), DependencyStatus.installed);
     expect(service.mediaCommandStatus('convert'), DependencyStatus.installed);
-    expect(runtime.requests.last.command, contains('imagemagick'));
+    final transaction = runtime.requests.singleWhere(
+      (request) => request.command.contains('install -y'),
+    );
+    expect(transaction.command, contains('imagemagick'));
+    expect(transaction.command, isNot(contains('ffmpegthumbnailer')));
   });
 
   test('media preset installs FFmpeg and verifies both ffmpeg and ffprobe', () async {
