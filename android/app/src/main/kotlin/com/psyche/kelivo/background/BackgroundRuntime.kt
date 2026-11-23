@@ -38,6 +38,7 @@ data class BackgroundTask(
     val tokens: Int,
     val progressPercent: Int? = null,
     val progressLabel: String = "",
+    val cancellable: Boolean = true,
     val outcome: String = "",
     val finishedAt: Long = 0,
 ) {
@@ -51,6 +52,7 @@ data class BackgroundTask(
             (map["tokens"] as? Number)?.toInt() ?: 0,
             (map["progressPercent"] as? Number)?.toInt()?.coerceIn(0, 100),
             map["progressLabel"] as? String ?: "",
+            map["cancellable"] as? Boolean ?: true,
             map["outcome"] as? String ?: "",
             (map["finishedAt"] as? Number)?.toLong() ?: 0,
         )
@@ -277,15 +279,34 @@ class BackgroundRuntime(private val context: Context) {
         channel?.invokeMethod("statusChanged", null)
     }
 
-    fun stopTasks(reason: String? = null) {
-        val ids = tasks.map { it.id }
-        blocked = true
-        if (reason != null) recordError(reason)
-        (context as? KelivoApplication)?.scheduledTasks?.stopAll(reason ?: "cancelled")
-        channel?.invokeMethod(if (reason == null) "cancelTasks" else "interrupted",
-            mapOf("ids" to ids, "reason" to reason))
-        overlay.dismissAll()
-        service?.stopGenerationService()
+    fun stopTasks(reason: String? = null): Boolean {
+        if (reason != null) {
+            val ids = tasks.map { it.id }
+            blocked = true
+            recordError(reason)
+            (context as? KelivoApplication)?.scheduledTasks?.stopAll(reason)
+            channel?.invokeMethod(
+                "interrupted",
+                mapOf("ids" to ids, "reason" to reason),
+            )
+            overlay.dismissAll()
+            service?.stopGenerationService()
+            return false
+        }
+
+        val ids = tasks.filter { it.cancellable }.map { it.id }
+        (context as? KelivoApplication)?.scheduledTasks?.stopAll("cancelled")
+        if (ids.isNotEmpty()) {
+            channel?.invokeMethod("cancelTasks", mapOf("ids" to ids))
+        } else {
+            // A stale Stop action cannot tear down a task past its commit point.
+            reconcileService()
+        }
+        // Dart owns completion and removes the foreground service only after
+        // sending a snapshot that confirms all remaining work has ended.
+        // Keep the foreground service until Dart sends the terminal snapshot,
+        // whether the user stopped a cancellable process or a committed install.
+        return shouldRunService()
     }
 
     fun onTaskRemoved() {
@@ -333,13 +354,14 @@ class BackgroundRuntime(private val context: Context) {
         val stop = PendingIntent.getService(context, 8,
             Intent(context, GenerationForegroundService::class.java).setAction(GenerationForegroundService.STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val canCancelTasks = tasks.any { it.cancellable } || hasScheduledRuns
         if (Build.VERSION.SDK_INT >= 36 && enabled("liveUpdatesEnabled") && canPromote()) {
             val style = Notification.ProgressStyle()
                 .addProgressSegment(Notification.ProgressStyle.Segment(100))
                 .setStyledByProgress(false)
                 .setProgress(task?.progressPercent ?: 0)
                 .setProgressIndeterminate(task?.progressPercent == null)
-            return Notification.Builder(context, CHANNEL_ID)
+            val builder = Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_background_generation)
                 .setContentTitle(title).setContentText(content)
                 .setStyle(style).setOngoing(true).setOnlyAlertOnce(true)
@@ -347,12 +369,14 @@ class BackgroundRuntime(private val context: Context) {
                 .setWhen(task?.startedAt ?: System.currentTimeMillis()).setUsesChronometer(true)
                 .setContentIntent(open).setColorized(false)
                 .addExtras(Bundle().apply { putBoolean("android.requestPromotedOngoing", true) })
-                .addAction(Notification.Action.Builder(
+            if (canCancelTasks) {
+                builder.addAction(Notification.Action.Builder(
                     Icon.createWithResource(context, R.drawable.ic_background_stop),
                     label("stop", "Stop tasks"), stop).build())
-                .build()
+            }
+            return builder.build()
         }
-        return NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_background_generation)
             .setContentTitle(title).setContentText(content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(content))
@@ -360,8 +384,10 @@ class BackgroundRuntime(private val context: Context) {
             .setProgress(100, task?.progressPercent ?: 0, task?.progressPercent == null)
             .setWhen(task?.startedAt ?: System.currentTimeMillis()).setUsesChronometer(true)
             .setContentIntent(open).setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .addAction(R.drawable.ic_background_stop, label("stop", "Stop tasks"), stop)
-            .build()
+        if (canCancelTasks) {
+            builder.addAction(R.drawable.ic_background_stop, label("stop", "Stop tasks"), stop)
+        }
+        return builder.build()
     }
 
     private fun approvalNotificationId(conversationId: String, toolCallId: String): Int {

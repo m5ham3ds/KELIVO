@@ -26,8 +26,14 @@ class GenerationForegroundService : Service() {
                 BackgroundRuntime.NOTIFICATION_ID, runtime.buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
             else startForeground(BackgroundRuntime.NOTIFICATION_ID, runtime.buildNotification())
             runtime.serviceStarted(this)
-            if (intent?.action == STOP) runtime.stopTasks()
-            else if (!runtime.shouldRunService()) stopGenerationService()
+            if (intent?.action == STOP) {
+                val keepForCommittedWork = runtime.stopTasks()
+                if (!keepForCommittedWork) {
+                    // Explicit cancellation is terminal; don't ask Android to
+                    // recreate the service if the process is reclaimed now.
+                    stopGenerationService()
+                }
+            } else if (!runtime.shouldRunService()) stopGenerationService()
             else {
                 acquireWakeLock()
                 if (runtime.hasScheduledRuns) android.os.Handler(mainLooper).post {
@@ -46,7 +52,13 @@ class GenerationForegroundService : Service() {
         // shared FlutterEngine remain alive, ask it to recreate the foreground
         // service rather than abandoning an active generation. A force-stop or
         // process death still cannot resume an in-flight HTTP stream.
-        return if (intent?.action == STOP) START_NOT_STICKY else START_STICKY
+        return if (intent?.action == STOP && !runtime.shouldRunService()) {
+            START_NOT_STICKY
+        } else if (intent?.action == STOP && runtime.shouldRunService()) {
+            START_STICKY
+        } else {
+            START_STICKY
+        }
     }
 
     fun refresh() {

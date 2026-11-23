@@ -207,11 +207,16 @@ class MediaToolsPage extends StatelessWidget {
               if (service.busy) ...[
                 const SizedBox(height: 12),
                 const EnvironmentInlineSpinner(radius: 10),
-                IosTileButton(
-                  icon: Lucide.X,
-                  label: l10n.workspaceEnvCancel,
-                  onTap: () => unawaited(service.cancel()),
-                ),
+                if (service.canCancel)
+                  IosTileButton(
+                    icon: Lucide.X,
+                    label: l10n.workspaceEnvCancel,
+                    onTap: () => unawaited(service.cancel()),
+                  )
+                else
+                  IosSectionFooter(
+                    text: 'Verifying installed packages. Cancellation is disabled.',
+                  ),
               ] else
                 IosTileButton(
                   key: const ValueKey('environment-media-tools-install-all'),
@@ -304,7 +309,9 @@ class EnvironmentDependenciesSection extends StatelessWidget {
                 label: 'Media tools',
                 subtitle: 'FFmpeg · FFprobe · yt-dlp · MediaInfo · FFmpegthumbnailer · ImageMagick',
                 detailText: _status(l10n, service, EnvironmentDependency.mediaTools),
-                onTap: enabled && !service.busy
+                onTap: enabled &&
+                        (!service.busy ||
+                            service.installing == EnvironmentDependency.mediaTools)
                     ? () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => MediaToolsPage(service: service),
@@ -471,11 +478,16 @@ class _EnvironmentDependencyPageState extends State<EnvironmentDependencyPage> {
               if (service.busy) ...[
                 const EnvironmentInlineSpinner(radius: 10),
                 const SizedBox(height: 12),
-                IosTileButton(
-                  icon: Lucide.X,
-                  label: l10n.workspaceEnvCancel,
-                  onTap: () => unawaited(service.cancel()),
-                ),
+                if (service.canCancel)
+                  IosTileButton(
+                    icon: Lucide.X,
+                    label: l10n.workspaceEnvCancel,
+                    onTap: () => unawaited(service.cancel()),
+                  )
+                else
+                  IosSectionFooter(
+                    text: 'Verifying installed packages. Cancellation is disabled.',
+                  ),
               ] else if (service.supportsDependency(dependency) &&
                   service.status(dependency) != DependencyStatus.installed)
                 IosTileButton(

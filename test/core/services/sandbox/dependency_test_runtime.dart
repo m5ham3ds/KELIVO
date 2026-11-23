@@ -9,6 +9,8 @@ class DependencyTestRuntime extends WorkspaceRuntime {
   final installed = <EnvironmentDependency>{};
   final installedMediaPackages = <String>{};
   Completer<void>? installGate;
+  Completer<void>? probeGate;
+  Completer<void>? probeStarted;
   bool failInstall = false;
   bool incompleteProbe = false;
   bool cancelled = false;
@@ -32,7 +34,11 @@ class DependencyTestRuntime extends WorkspaceRuntime {
   @override
   Stream<CommandEvent> run(CommandRequest request) async* {
     requests.add(request);
-    if (request.command.contains('__kelivo_dep_')) {
+    if (request.command.contains('__kelivo_dep_') ||
+        request.command.contains('__kelivo_media_optional_')) {
+      final started = probeStarted;
+      if (started != null && !started.isCompleted) started.complete();
+      await probeGate?.future;
       final body = incompleteProbe
           ? '__kelivo_dep_python=1\n'
           : [
@@ -44,7 +50,7 @@ class DependencyTestRuntime extends WorkspaceRuntime {
                 '__kelivo_media_version_ffmpeg=ffmpeg version test 7.0\n',
                 '__kelivo_media_version_ffprobe=ffprobe version test 7.0\n',
               ],
-              for (final command in EnvironmentDependencies.optionalMediaTools)
+              for (final command in EnvironmentDependencies.mediaProbeCommands)
                 '__kelivo_media_optional_${command}=${_mediaCommandInstalled(command) ? 1 : 0}\n',
             ].join();
       yield CommandOutput(

@@ -43,11 +43,18 @@ class _Installer extends EnvironmentInstaller {
         ),
       );
   int calls = 0;
+  bool activeInstall = false;
   RootfsDownloadSource? usedSource;
+  @override
+  bool get isInstalling => activeInstall;
+  @override
+  bool get canCancel => activeInstall;
   @override
   Future<void> install({void Function(EnvironmentState)? onProgress}) async {
     calls++;
+    activeInstall = true;
     usedSource = env.downloadSource;
+    activeInstall = false;
   }
 }
 
@@ -387,6 +394,67 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.mobile());
+
+  testWidgets(
+    'System image can be reopened while its existing install is running',
+    (tester) async {
+      await setup(tester, ready: false);
+      installer.activeInstall = true;
+      await pump(tester, const Scaffold(body: EnvironmentPane()));
+      await tester.pumpAndSettle();
+
+      final entry = find.byKey(const ValueKey('environment-download-source'));
+      await tester.ensureVisible(entry);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(EnvironmentDownloadPage), findsOneWidget);
+      expect(find.text('Environment installation in progress'), findsOneWidget);
+      expect(find.byKey(const ValueKey('system-image-install-cancel')), findsOneWidget);
+      expect(installer.calls, 0);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(entry);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(find.byType(EnvironmentDownloadPage), findsOneWidget);
+      expect(installer.calls, 0);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
+    'Media tools page can be reopened during its own active installation',
+    (tester) async {
+      await setup(tester);
+      await tester.runAsync(service.refresh);
+      service.busy = true;
+      service.installing = EnvironmentDependency.mediaTools;
+      service.installingMediaCommand = 'yt-dlp';
+      service.notifyListeners();
+
+      await pump(
+        tester,
+        Scaffold(
+          body: EnvironmentDependenciesSection(service: service, enabled: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final entry = find.byKey(
+        const ValueKey('environment-dependency-mediaTools'),
+      );
+      await tester.ensureVisible(entry);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MediaToolsPage), findsOneWidget);
+      expect(find.text('Media tools'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.mobile(),
+  );
 
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
     testWidgets(

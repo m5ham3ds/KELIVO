@@ -89,8 +89,10 @@ class BackgroundRuntimeTest {
         val messenger = Messenger()
         return app.backgroundRuntime.also { it.configure(messenger) } to messenger
     }
-    private fun task(id: String) = mapOf("id" to id, "conversationId" to "chat-$id", "title" to id,
-        "detail" to "Generating", "startedAt" to System.currentTimeMillis(), "tokens" to 7)
+    private fun task(id: String, cancellable: Boolean = true) = mapOf(
+        "id" to id, "conversationId" to "chat-$id", "title" to id,
+        "detail" to "Generating", "startedAt" to System.currentTimeMillis(),
+        "tokens" to 7, "cancellable" to cancellable)
     private fun sync(m: Messenger, revision: Int, ids: List<String>, settings: Map<String, Any> = emptyMap(), terminal: Map<String, Any>? = null) {
         m.call("sync", mapOf("revision" to revision, "settings" to settings,
             "tasks" to ids.map(::task), "terminal" to terminal))
@@ -134,6 +136,60 @@ class BackgroundRuntimeTest {
         assertTrue(retryLock.isHeld)
         sync(m, 5, emptyList(), enabled)
         assertFalse(retryLock.isHeld)
+        controller.destroy()
+    }
+
+    @Test fun notificationStopNeverTearsDownACommittedTask() {
+        val (runtime, messenger) = setup()
+        val enabled = mapOf<String, Any>("androidEnabled" to true)
+        messenger.call(
+            "sync",
+            mapOf("revision" to 1, "settings" to enabled,
+                "tasks" to listOf(task("verify", cancellable = false))),
+        )
+        val controller = Robolectric.buildService(GenerationForegroundService::class.java).create()
+        val service = controller.get()
+        service.onStartCommand(Intent(), 0, 1)
+        val lock = ShadowPowerManager.getLatestWakeLock()
+        assertTrue(lock.isHeld)
+        assertTrue(runtime.buildNotification().actions.isNullOrEmpty())
+
+        runtime.stopTasks()
+        assertTrue(runtime.shouldRunService())
+        assertSame(service, runtime.service)
+        assertTrue(lock.isHeld)
+        assertFalse(messenger.events.any { it.method == "cancelTasks" })
+
+        sync(messenger, 2, emptyList(), enabled)
+        assertFalse(lock.isHeld)
+        assertNull(runtime.service)
+        controller.destroy()
+    }
+
+    @Test fun notificationStopOnlyRequestsCancellationForCancellableTasks() {
+        val (runtime, messenger) = setup()
+        val enabled = mapOf<String, Any>("androidEnabled" to true)
+        messenger.call(
+            "sync",
+            mapOf("revision" to 1, "settings" to enabled,
+                "tasks" to listOf(
+                    task("cancel-me", cancellable = true),
+                    task("keep-verifying", cancellable = false),
+                )),
+        )
+        val controller = Robolectric.buildService(GenerationForegroundService::class.java).create()
+        val service = controller.get()
+        service.onStartCommand(Intent(), 0, 1)
+        runtime.stopTasks()
+        val request = messenger.events.last { it.method == "cancelTasks" }
+        assertEquals(listOf("cancel-me"), (request.arguments as Map<*, *>)["ids"])
+        assertTrue(runtime.shouldRunService())
+        assertSame(service, runtime.service)
+        sync(messenger, 2, listOf("keep-verifying"), enabled)
+        assertTrue(runtime.shouldRunService())
+        assertTrue(runtime.buildNotification().actions.isNullOrEmpty())
+        sync(messenger, 3, emptyList(), enabled)
+        assertFalse(runtime.shouldRunService())
         controller.destroy()
     }
 

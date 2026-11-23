@@ -4,13 +4,13 @@
 **الحالة:** الخطة المعتمدة لمسار التطوير الحالي. اجتازت Phase 2 بوابات Android CI وبناء Release وفق تقرير التشغيل `42424318897`. Phase 3 وPhase 4 لديهما تغييرات مصدر وتقارير تنفيذ، لكنهما ما زالتا تنتظران اعتماد GitHub Actions ومعايير القبول المتبقية. بناءً على طلب المستخدم بالاستمرار مباشرة، بدأ تنفيذ Phase 7 ثم Phase 8 ثم Phase 9 وPhase 10 ثم Phase 11 وPhase 12 بتوجيه المستخدم، مع إبقاء بوابات قبول المراحل السابقة معلقة حتى تحققها الفعلي.
 
 **تحديث الحالة — 23 نوفمبر 2026:**
-- آخر تشغيل كامل ناجح: [CI #78](https://github.com/m5ham3ds/KELIVO/actions/runs/45080129832)، commit `64e51a52958b58f3d0ba83099bcc90fb4384855d`. اجتاز Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وإعداد Java/Gradle/NDK/CMake.
-- نجحت Android JVM/Robolectric بعد ظهور سجل فعلي بعنوان `GoogleHostedMavenCentralMirror (https://maven-central.storage-download.googleapis.com/maven2/)`، واجتازت `:app:testDebugUnitTest` مع `BUILD SUCCESSFUL in 3m 34s`. هذا يثبت تصحيح مسار `MavenArtifactFetcher` الذي لم تُضبطه مرآة Gradle وحدها.
-- نجحت Phase 13P Android Emulator E2E، ثم إعداد Plugin Registrant وبناء Android ARM64 Release، والتحقق من checksum ورفع artifact.
-- APK الناتج `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`: الحجم 41,825,267 bytes، 18 مكتبة أصلية تحت `lib/arm64-v8a` فقط، SHA-256 `136bdfbdb97a64e92cabdf50c7d94e370d255305dd67412a173338bbf26288f0`، Artifact ID `14777311841`.
-- تاريخ المشكلة: CI #76 تعثر عند Gradle dependency download بسبب HTTP 429؛ CI #77 اجتاز حل الاعتماديات لكنه فشل في 9 اختبارات عند `MavenArtifactFetcher.java:129` بـ`IOException` دون دليل على رمز HTTP محدد. CI #78 أثبت أن ضبط `robolectric.dependency.repo.url` و`repo.id` داخل Test JVM حل المشكلة.
-- Phase 13Q.1 اجتازت في #78؛ 13Q.2–13Q.5 لا تزال مفتوحة. Phase 13B تبقى مفتوحة حتى تنفيذ واختبار Skill-owned MCP lifecycle بما فيه `tools/list` و`tools/call`.
-- تحليل Reel Studio محدث في `REEL-STUDIO-GAP-ANALYSIS-AR.md`: TTS/ASR موجودان أساساً، لكن التوقيت الدقيق للكلمات وربط المراحل والمحرر المتزامن غير مكتمل. أضيفت خيارات تثبيت أدوات وسائط اختيارية وPlaywright/Chromium التجريبي في تغييرات المصدر الحالية؛ تنتظر CI #79. لا يدّعي ذلك جاهزية Reel end-to-end أو دعماً رسمياً لـAndroid PRoot.
+- آخر بناء كامل ناجح قبل إصلاح دورة تثبيت البيئة: [CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038)، commit 85e4653674916ecc65e3d30daa417e29547245a6. اجتاز Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وAndroid JVM/Robolectric وPhase 13P Android Emulator E2E وبناء ARM64 ورفع Artifact.
+- Android JVM/Robolectric: BUILD SUCCESSFUL in 5m 16s. تحليل Flutter لم يسجل أخطاء أو تحذيرات analyzer.
+- APK #120: 41,842,583 bytes، ABI arm64-v8a فقط؛ SHA-256 5791a197b30bb3a160c41739a788a1c1b5053ca77599a9ba007de84acd632654؛ Artifact ID 14840756161.
+- CI #116–#119 أُلغيت أثناء commits متتالية ولم تصل إلى نتيجة فشل اختبار؛ لا تصنفها كفشل CI.
+- Phase 13R تعالج إعادة فتح صفحات System image وMedia tools، probe غير المحدد الذي يتبع تثبيت Preset، ونقطة commit التي تمنع إلغاء تثبيت حزمة أصبحت مثبتة بالفعل. أضيفت اختبارات Flutter مركزة وRobolectric إلى مسار التحقق التالي. لا تُقبل هذه المرحلة قبل نجاح CI الجديد واختبار الجهاز.
+- Phase 13Q.1 اجتازت في CI #120؛ 13Q.2–13Q.5 لا تزال مفتوحة. Phase 13B تبقى مفتوحة حتى تنفيذ واختبار Skill-owned MCP lifecycle بما فيه tools/list وtools/call.
+- تحليل Reel Studio محدث في REEL-STUDIO-GAP-ANALYSIS-AR.md: TTS/ASR موجودان أساساً، لكن التوقيت الدقيق للكلمات وربط المراحل والمحرر المتزامن غير مكتمل. لا يدّعي ذلك جاهزية Reel end-to-end أو دعماً رسمياً لـAndroid PRoot.
 
 **سجل الحالة التاريخي للمراحل:**
 ## حالة التنفيذ الحالية

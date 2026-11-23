@@ -32,6 +32,7 @@ class _BackgroundTask {
     required this.scheduled,
     this.scheduledNotify = true,
     this.scheduledPreview = true,
+    this.cancellable = true,
   });
 
   final String id;
@@ -41,6 +42,7 @@ class _BackgroundTask {
   final DateTime startedAt;
   final bool scheduled;
   final bool scheduledNotify, scheduledPreview;
+  bool cancellable;
   BackgroundTaskPhase phase = BackgroundTaskPhase.requesting;
   String toolName = '';
   int tokens = 0;
@@ -142,6 +144,7 @@ class MobileBackgroundCoordinator extends ChangeNotifier
     bool scheduled = false,
     bool scheduledNotify = true,
     bool scheduledPreview = true,
+    bool cancellable = true,
   }) async {
     if (!supported || _tasks.containsKey(id)) return;
     _tasks[id] = _BackgroundTask(
@@ -153,6 +156,7 @@ class MobileBackgroundCoordinator extends ChangeNotifier
       scheduled: scheduled,
       scheduledNotify: scheduledNotify,
       scheduledPreview: scheduledPreview,
+      cancellable: cancellable,
     );
     await initialize();
     await _sync();
@@ -177,6 +181,19 @@ class MobileBackgroundCoordinator extends ChangeNotifier
       _updateTimer = null;
       unawaited(_sync());
     });
+  }
+
+  /// Flushes cancellation capability before a transaction becomes irreversible.
+  Future<void> updateCancellability(
+    String id, {
+    required bool cancellable,
+    String? progressLabel,
+  }) async {
+    final task = _tasks[id];
+    if (task == null) return;
+    task.cancellable = cancellable;
+    if (progressLabel != null) task.progressLabel = progressLabel.trim();
+    await _sync();
   }
 
   /// Update the active notification for a tool that knows its conversation
@@ -287,6 +304,7 @@ class MobileBackgroundCoordinator extends ChangeNotifier
           ? null
           : (task.progress! * 100).round().clamp(0, 100),
       'progressLabel': _settings.privacyMode ? '' : task.progressLabel,
+      'cancellable': task.cancellable,
       'startedAt': task.startedAt.millisecondsSinceEpoch,
     };
   }
@@ -412,10 +430,12 @@ class MobileBackgroundCoordinator extends ChangeNotifier
           task.interrupted = true;
         }
       }
-      // A channel callback must not wait for cancellation to call back into the
-      // same native sync queue (notably while an iOS assertion is expiring).
+      // Don't await: cancellation may finish through this coordinator and
+      // call the same native sync queue. Push a fresh snapshot once it settles.
       for (final task in tasks) {
-        unawaited(task.cancel().catchError(_recordError));
+        unawaited(
+          task.cancel().then((_) => _sync()).catchError(_recordError),
+        );
       }
     } else if (call.method == 'pauseSpeech') {
       final pause = pauseSpeech;

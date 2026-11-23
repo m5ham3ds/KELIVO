@@ -93,14 +93,23 @@ class EnvironmentDependencies extends ChangeNotifier {
     'convert',
     'identify',
   ];
+  static const List<String> mediaProbeCommands = [
+    'ffmpeg',
+    'ffprobe',
+    ...optionalMediaTools,
+  ];
+  static const Set<String> mediaVersionCommands = {'ffmpeg', 'ffprobe'};
   final List<int> _output = [];
   String? _runId;
   bool _cancelled = false;
+  bool _packageTransactionCompleted = false;
   bool busy = false;
   EnvironmentDependency? installing;
   EnvironmentDependency? lastInstalled;
   EnvironmentDependency? lastAttempt;
   DependencyFailure? failure;
+  bool get canCancel => busy && !_packageTransactionCompleted;
+  bool get isVerifyingInstalledPackages => busy && _packageTransactionCompleted;
   String get log => utf8.decode(_output, allowMalformed: true);
   DependencyStatus status(EnvironmentDependency dependency) =>
       _statuses[dependency] ?? DependencyStatus.unknown;
@@ -111,6 +120,8 @@ class EnvironmentDependencies extends ChangeNotifier {
   String? mediaToolVersion(String command) => _mediaVersions[command];
   DependencyStatus mediaCommandStatus(String command) {
     if (command == 'ffmpeg' || command == 'ffprobe') {
+      final detected = optionalMediaStatus(command);
+      if (detected != DependencyStatus.unknown) return detected;
       return _mediaVersions.containsKey(command)
           ? DependencyStatus.installed
           : status(EnvironmentDependency.mediaTools) == DependencyStatus.unknown
@@ -138,27 +149,30 @@ class EnvironmentDependencies extends ChangeNotifier {
     }
   }
 
-  String get probeScript => [
-    for (final dependency in EnvironmentDependency.values)
+  String get probeScript => _buildProbeScript(
+    dependencies: EnvironmentDependency.values.toSet(),
+    mediaCommands: mediaProbeCommands.toSet(),
+    versionCommands: mediaVersionCommands,
+  );
+
+  String _buildProbeScript({
+    required Set<EnvironmentDependency> dependencies,
+    required Set<String> mediaCommands,
+    required Set<String> versionCommands,
+  }) => [
+    for (final dependency in EnvironmentDependency.values.where(dependencies.contains))
       'if ( ${dependency.probe(alpine: alpine)} ) >/dev/null 2>&1; then '
           "echo '__kelivo_dep_${dependency.name}=1'; else "
           "echo '__kelivo_dep_${dependency.name}=0'; fi",
-    for (final command in [
-      'yt-dlp',
-      'mediainfo',
-      'ffmpegthumbnailer',
-      'magick',
-      'convert',
-      'identify',
-    ])
+    for (final command in mediaProbeCommands.where(mediaCommands.contains))
       'if command -v ${_shellQuote(command)} >/dev/null 2>&1; then '
           "echo '__kelivo_media_optional_${command}=1'; else "
           "echo '__kelivo_media_optional_${command}=0'; fi",
-    for (final command in ['ffmpeg', 'ffprobe'])
+    for (final command in ['ffmpeg', 'ffprobe'].where(versionCommands.contains))
       'if command -v ${_shellQuote(command)} >/dev/null 2>&1; then '
           '__kelivo_media_version=\$(${_shellQuote(command)} -version 2>/dev/null | head -n 1 | cut -c1-160); '
           "printf '__kelivo_media_version_${command}=%s\\n' \"${r'$'}__kelivo_media_version\"; fi",
-  ].join('\n');
+  ].join('\\n');
 
   static String _shellQuote(String value) =>
       "'${value.replaceAll("'", "'\\''")}'";
@@ -365,6 +379,7 @@ echo "Browser renderer installed and Chromium smoke test passed."
     }
     busy = true;
     _cancelled = false;
+    _packageTransactionCompleted = false;
     installing = EnvironmentDependency.mediaTools;
     lastAttempt = EnvironmentDependency.mediaTools;
     lastInstalled = null;
@@ -381,9 +396,13 @@ echo "Browser renderer installed and Chromium smoke test passed."
         mediaToolsInstallScript(),
         timeout: const Duration(minutes: 30),
         showOutput: true,
+        marksInstallCommitted: true,
       );
-      if (_cancelled) throw StateError('Cancelled');
-      await _probe();
+      await _probe(
+        dependencies: {EnvironmentDependency.mediaTools},
+        mediaCommands: mediaProbeCommands.toSet(),
+        versionCommands: mediaVersionCommands,
+      );
       final allRequiredPresent =
           _mediaVersions.containsKey('ffmpeg') &&
           _mediaVersions.containsKey('ffprobe') &&
@@ -401,13 +420,16 @@ echo "Browser renderer installed and Chromium smoke test passed."
     } catch (_) {
       failure = _cancelled
           ? DependencyFailure.cancelled
-          : DependencyFailure.install;
-      _statuses[EnvironmentDependency.mediaTools] = DependencyStatus.missing;
+          : _packageTransactionCompleted
+              ? DependencyFailure.check
+              : DependencyFailure.install;
+      _statuses[EnvironmentDependency.mediaTools] = DependencyStatus.unknown;
     } finally {
       _mirrorCancel = null;
       installing = null;
       busy = false;
       await _finishBackgroundOperation(backgroundId);
+      _packageTransactionCompleted = false;
       notifyListeners();
     }
   }
@@ -424,6 +446,7 @@ echo "Browser renderer installed and Chromium smoke test passed."
     }
     busy = true;
     _cancelled = false;
+    _packageTransactionCompleted = false;
     installing = EnvironmentDependency.mediaTools;
     installingMediaCommand = command;
     lastAttempt = EnvironmentDependency.mediaTools;
@@ -441,9 +464,14 @@ echo "Browser renderer installed and Chromium smoke test passed."
         _packageInstallScript(package),
         timeout: const Duration(minutes: 30),
         showOutput: true,
+        marksInstallCommitted: true,
       );
-      if (_cancelled) throw StateError('Cancelled');
-      await _probe();
+      await _probe(
+        mediaCommands: mediaProbeCommands.toSet(),
+        versionCommands: package == 'ffmpeg'
+            ? mediaVersionCommands
+            : const <String>{},
+      );
       if (mediaCommandStatus(command) != DependencyStatus.installed) {
         throw StateError('Media tool failed executable verification: $command');
       }
@@ -453,13 +481,16 @@ echo "Browser renderer installed and Chromium smoke test passed."
     } catch (_) {
       failure = _cancelled
           ? DependencyFailure.cancelled
-          : DependencyFailure.install;
+          : _packageTransactionCompleted
+              ? DependencyFailure.check
+              : DependencyFailure.install;
     } finally {
       _mirrorCancel = null;
       installing = null;
       installingMediaCommand = null;
       busy = false;
       await _finishBackgroundOperation(backgroundId);
+      _packageTransactionCompleted = false;
       notifyListeners();
     }
   }
@@ -473,6 +504,7 @@ echo "Browser renderer installed and Chromium smoke test passed."
     }
     busy = true;
     _cancelled = false;
+    _packageTransactionCompleted = false;
     installing = dependency;
     lastAttempt = dependency;
     lastInstalled = null;
@@ -521,9 +553,17 @@ echo "Browser renderer installed and Chromium smoke test passed."
         installScript(dependency),
         timeout: Duration(minutes: dependency == EnvironmentDependency.browserRenderer ? 60 : 30),
         showOutput: true,
+        marksInstallCommitted: true,
       );
-      if (_cancelled) throw StateError('Cancelled');
-      await _probe();
+      await _probe(
+        dependencies: {dependency},
+        mediaCommands: dependency == EnvironmentDependency.mediaTools
+            ? mediaProbeCommands.toSet()
+            : const <String>{},
+        versionCommands: dependency == EnvironmentDependency.mediaTools
+            ? mediaVersionCommands
+            : const <String>{},
+      );
       if (status(dependency) != DependencyStatus.installed) {
         throw StateError('Installed commands failed verification');
       }
@@ -532,61 +572,90 @@ echo "Browser renderer installed and Chromium smoke test passed."
     } catch (_) {
       failure = _cancelled
           ? DependencyFailure.cancelled
-          : DependencyFailure.install;
+          : _packageTransactionCompleted
+              ? DependencyFailure.check
+              : DependencyFailure.install;
     } finally {
       _mirrorCancel = null;
       installing = null;
       busy = false;
       await _finishBackgroundOperation(backgroundId);
+      _packageTransactionCompleted = false;
       notifyListeners();
     }
   }
 
   Future<void> cancel() async {
-    if (!busy) return;
+    if (!canCancel) return;
     _cancelled = true;
     _mirrorCancel?.cancel();
     final id = _runId;
     if (id != null) await runtime.cancel(id);
   }
 
-  Future<void> _probe() async {
+  Future<void> _probe({
+    Set<EnvironmentDependency>? dependencies,
+    Set<String>? mediaCommands,
+    Set<String>? versionCommands,
+  }) async {
+    final selectedDependencies =
+        dependencies ?? EnvironmentDependency.values.toSet();
+    final selectedMediaCommands =
+        mediaCommands ?? mediaProbeCommands.toSet();
+    final selectedVersionCommands =
+        versionCommands ?? mediaVersionCommands;
+    final script = _buildProbeScript(
+      dependencies: selectedDependencies,
+      mediaCommands: selectedMediaCommands,
+      versionCommands: selectedVersionCommands,
+    );
     final output = await _run(
-      probeScript,
-      timeout: const Duration(seconds: 90),
+      script,
+      timeout: selectedDependencies.contains(
+        EnvironmentDependency.browserRenderer,
+      )
+          ? const Duration(seconds: 90)
+          : const Duration(seconds: 30),
     );
     final lines = const LineSplitter().convert(output).toSet();
-    final statuses = <EnvironmentDependency, DependencyStatus>{};
-    for (final dependency in EnvironmentDependency.values) {
+    final nextStatuses = <EnvironmentDependency, DependencyStatus>{};
+    for (final dependency in selectedDependencies) {
       final prefix = '__kelivo_dep_${dependency.name}=';
       final installed = lines.contains('${prefix}1');
       final missing = lines.contains('${prefix}0');
       if (installed == missing) {
-        throw const FormatException('Incomplete dependency probe');
+        throw FormatException('Incomplete dependency probe: ${dependency.name}');
       }
-      statuses[dependency] = installed
+      nextStatuses[dependency] = installed
           ? DependencyStatus.installed
           : DependencyStatus.missing;
     }
-    _statuses.addAll(statuses);
-    for (final command in optionalMediaTools) {
+    final nextMediaStatuses = <String, DependencyStatus>{};
+    for (final command in selectedMediaCommands) {
       final prefix = '__kelivo_media_optional_${command}=';
       final installed = lines.contains('${prefix}1');
       final missing = lines.contains('${prefix}0');
-      _optionalMediaStatuses[command] = installed == missing
-          ? DependencyStatus.unknown
-          : installed
+      if (installed == missing) {
+        throw FormatException('Incomplete media probe: $command');
+      }
+      nextMediaStatuses[command] = installed
           ? DependencyStatus.installed
           : DependencyStatus.missing;
     }
-    _mediaVersions.clear();
+    _statuses.addAll(nextStatuses);
+    _optionalMediaStatuses.addAll(nextMediaStatuses);
+    for (final command in selectedVersionCommands) {
+      _mediaVersions.remove(command);
+    }
     for (final line in lines) {
       if (!line.startsWith('__kelivo_media_version_')) continue;
       final separator = line.indexOf('=');
       if (separator <= '__kelivo_media_version_'.length) continue;
       final command = line.substring('__kelivo_media_version_'.length, separator);
       final version = line.substring(separator + 1).trim();
-      if ({'ffmpeg', 'ffprobe'}.contains(command) && version.isNotEmpty && version.length <= 160) {
+      if (selectedVersionCommands.contains(command) &&
+          version.isNotEmpty &&
+          version.length <= 160) {
         _mediaVersions[command] = version;
       }
     }
@@ -596,6 +665,7 @@ echo "Browser renderer installed and Chromium smoke test passed."
     String script, {
     required Duration timeout,
     bool showOutput = false,
+    bool marksInstallCommitted = false,
   }) async {
     if (_cancelled) throw StateError('Cancelled');
     final config = await env.loadExecutionConfig();
@@ -629,6 +699,22 @@ echo "Browser renderer installed and Chromium smoke test passed."
         } else if (event is CommandExited) {
           exit = event;
           _cancelled = _cancelled || event.cancelled;
+          if (marksInstallCommitted &&
+              event.exitCode == 0 &&
+              !event.cancelled &&
+              !event.timedOut &&
+              !event.interrupted) {
+            _packageTransactionCompleted = true;
+            notifyListeners();
+            final backgroundId = _backgroundTaskId;
+            if (backgroundId != null) {
+              await MobileBackgroundCoordinator.instance.updateCancellability(
+                backgroundId,
+                cancellable: false,
+                progressLabel: 'Verifying installed packages',
+              );
+            }
+          }
         }
       }
       if (exit == null ||

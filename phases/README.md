@@ -4,15 +4,19 @@
 
 ## أحدث CI وبناء Release معتمد
 
-آخر بناء كامل ناجح: [CI #78](https://github.com/m5ham3ds/KELIVO/actions/runs/45080129832) على commit `64e51a52958b58f3d0ba83099bcc90fb4384855d`. Flutter 3.47.6 · Java 21 · Gradle 8.14 · NDK 28.2.13676358 · CMake 3.22.1.
+آخر بناء كامل ناجح قبل إصلاح Phase 13R: [CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038) على commit 85e4653674916ecc65e3d30daa417e29547245a6. Flutter 3.47.6 · Java 21 · Gradle 8.14 · NDK 28.2.13676358 · CMake 3.22.1.
 
-- Android-only audit وFlutter Analyze واختبارات Phase 13Q.1 والحزم المحلية: نجاح.
-- Android JVM/Robolectric: نجاح. سجل Gradle أكد فعلياً: `GoogleHostedMavenCentralMirror (https://maven-central.storage-download.googleapis.com/maven2/)`، ثم `:app:testDebugUnitTest` و`BUILD SUCCESSFUL in 3m 34s`.
+- Android-only audit وإعداد Flutter وحل الاعتماديات وLinux native dependencies وArabic localization: نجاح.
+- Flutter Analyze: نجاح؛ السجل أكد عدم وجود analyzer errors أو warnings.
+- اختبارات Phase 13Q.1 والحزم المحلية المستقلة: نجاح.
+- Android JVM/Robolectric: نجاح؛ مهمة :app:testDebugUnitTest انتهت برسالة BUILD SUCCESSFUL in 5m 16s.
 - Phase 13P Android Emulator E2E: نجاح.
-- Android ARM64 Release وchecksum ورفع Artifact: نجاح.
-- APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، حجمه 41,825,267 bytes، وداخل ZIP يوجد `lib/arm64-v8a` فقط (18 مكتبة أصلية)، ولا توجد ABI أخرى.
-- SHA-256: `136bdfbdb97a64e92cabdf50c7d94e370d255305dd67412a173338bbf26288f0`.
-- Artifact ID: `14777311841`.
+- Android ARM64 Release والتحقق من ABI وحساب SHA-256 ورفع Artifact: نجاح.
+- APK: Kelivo-Android-arm64-v8a-1.3.4+84-release.apk، حجمه 41,842,583 bytes. فحص APK أكد arm64-v8a فقط.
+- SHA-256: 5791a197b30bb3a160c41739a788a1c1b5053ca77599a9ba007de84acd632654.
+- Artifact ID: 14840756161.
+
+تشغيلات #116–#119 أُلغيت أثناء commits متتالية ولم تصل إلى بوابة البناء النهائية؛ لا تُصنف كإخفاقات اختبارات. CI #120 هو آخر بناء ناجح على main قبل تعديلات Phase 13R. نجاحه لا يثبت إصلاح المشكلات الجديدة.
 
 ## تشخيص الفشل السابق والإصلاح المثبت
 
@@ -26,10 +30,10 @@
 **حدود آخر نجاح:** workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ التحليل الثابت لا يعادل تنفيذ تلك الاختبارات. اجتازت في CI #78 الحزم المستقلة وAndroid JVM/Robolectric واختبارات Android integration الأربعة بما فيها Phase 13P emulator E2E. 13Q.1 فقط اجتازت؛ دورة MCP الفعلية ما زالت مفتوحة.
 
 ## حالة الآن
-- **13P:** اجتازت Android Emulator E2E في CI #78، لكنها ليست اختبار Force Stop على هاتف المستخدم ولا إثبات عزل Kernel.
+- **13P:** اجتازت Android Emulator E2E في CI #120، لكنها ليست اختبار Force Stop على هاتف المستخدم ولا إثبات عزل Kernel.
 - **13B:** ما زالت مفتوحة؛ Skill local-script موجود لكن Skill-owned MCP adapter ودورة tools/list/tools/call غير مكتملة.
 - **13Q:** 13Q.1 اجتازت CI #78. 13Q.2–13Q.5 مفتوحة: ملكية الخادم، الاتصال وtools/list، tools/call بموافقة لكل أداة، والإلغاء عند تغير/حذف/تعطيل Skill.
-- **Android CI repair:** مقبول بناءً على #78: تم تمرير runtime URL/ID إلى Robolectric JVM، والسجل أكد مرآة Google، واجتازت Android JVM/Robolectric.
+- **Android CI repair:** مقبول بناءً على #120: تم تمرير runtime URL/ID إلى Robolectric JVM، والسجل أكد مرآة Google، واجتازت Android JVM/Robolectric.
 - **Reel Studio:** تحليل الفجوات محدث. أضيفت خيارات بيئية لأدوات الوسائط وPlaywright التجريبي في تغييرات المصدر الحالية؛ قبولها البرمجي ينتظر CI #79، وتظل سلسلة Reel الكاملة غير منفذة.
 - **HTTP/API وWorkflow وnative tools:** تحتاج موائمات مستقلة؛ مجرد descriptor لا يجعلها قابلة للتشغيل.
 - **PRoot:** Linux userland داخل Android وليس Kernel sandbox؛ RootFS مشترك والشبكة ليست مقيدة بالكامل.
@@ -42,6 +46,7 @@
 - [تقرير التشغيل التلقائي](BUILD_AUTOMATION_REPORT_AR.md)
 - [الخطة المعمارية Phase 13](PHASE-13-SKILLS-WORKSPACE-ARCHITECTURE-AND-IMPLEMENTATION-PLAN.md)
 - [Phase 13Q — موائم MCP للمهارات](PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md)
+- [Phase 13R — موثوقية دورة تثبيت البيئة](PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md)
 - [تشخيص وإصلاح Robolectric runtime repository](PHASE-13Q-CI-MAVEN-429-FIX-AR.md)
 - [تحليل فجوات Reel Studio وخطة الدمج](REEL-STUDIO-GAP-ANALYSIS-AR.md)
 
@@ -59,6 +64,7 @@
 | 13A–13D | تقارير PHASE-13A/B/C/D-IMPLEMENTATION-REPORT.md | 13B مفتوحة حتى موائم MCP |
 | 13E–13P | مواصفات وتقارير Phases 13E–13P | 13P emulator E2E مقبولة في CI؛ الباقي يخضع لأدلته |
 | 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | 13Q.1 مقبولة فقط؛ 13Q.2–13Q.5 مفتوحة |
+| 13R | PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md | إصلاح دورة تثبيت البيئة قيد تحقق CI؛ اختبار الجهاز مطلوب بعد نجاح البناء |
 | Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | أدوات بيئية إضافية قيد تحقق CI؛ Orchestrator والإنتاج المتزامن غير منفذين |
 
 ## أرشيف CI

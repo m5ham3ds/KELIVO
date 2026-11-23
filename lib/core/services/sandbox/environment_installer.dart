@@ -112,8 +112,12 @@ class EnvironmentInstaller implements EnvironmentManager {
 
   bool _cancelled = false;
   bool _installing = false;
+  bool _installActive = false;
+  bool _installationCommitted = false;
   String? _backgroundTaskId;
   bool get isInstalling => _installing;
+  bool get canCancel =>
+      _installing && _installActive && !_installationCommitted;
   Completer<void>? _abortDownload;
   Completer<void>? _downloadDone;
   StreamSubscription<List<int>>? _downloadSub;
@@ -136,6 +140,8 @@ class EnvironmentInstaller implements EnvironmentManager {
   Future<void> install({void Function(EnvironmentState)? onProgress}) async {
     if (_installing) return;
     _installing = true;
+    _installActive = true;
+    _installationCommitted = false;
     _cancelled = false;
     _abortDownload = Completer<void>();
     _onProgress = onProgress;
@@ -184,13 +190,15 @@ class EnvironmentInstaller implements EnvironmentManager {
         await channel.setEnvironmentBusy(false);
         await channel.keepScreenOn(false);
       } catch (_) {}
-      await _finishBackgroundTask();
       _installing = false;
+      _installActive = false;
+      await _finishBackgroundTask();
     }
   }
 
   @override
   Future<void> cancel() async {
+    if (!canCancel) return;
     _cancelled = true;
     if (_abortDownload?.isCompleted == false) _abortDownload!.complete();
     if (_downloadDone?.isCompleted == false) _downloadDone!.complete();
@@ -530,6 +538,17 @@ class EnvironmentInstaller implements EnvironmentManager {
     } catch (_) {
       if (hadPrevious) await previous.rename(rootfsDir.path);
       rethrow;
+    }
+    // Atomic replacement is the commit point; late cancellation must not
+    // relabel an installed rootfs as cancelled or error.
+    _installationCommitted = true;
+    final backgroundId = _backgroundTaskId;
+    if (backgroundId != null) {
+      await MobileBackgroundCoordinator.instance.updateCancellability(
+        backgroundId,
+        cancellable: false,
+        progressLabel: 'Finalizing system image',
+      );
     }
     await _setPhase(
       EnvironmentState(

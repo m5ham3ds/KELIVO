@@ -12,14 +12,15 @@
 2. Android-only وRelease hardening audit، بما فيها فحص ABI داخل APK النهائي.
 3. Flutter 3.47.6 وحل dependencies وإعداد GTK/GLib على Linux runner.
 4. Arabic ARB key/placeholder parity ثم flutter gen-l10n.
-5. flutter analyze --no-pub lib test integration_test.
-6. اختبارات Phase 13Q للقراءة فقط لإعداد MCP المعلن من Skill، دون تشغيل الخادم.
-7. اختبارات الحزم المحلية: mcp_client وdownsize وflutter_math_fork وmarkstream وterminal_view.
-8. Java 21 وGradle 8.14 وNDK 28.2.13676358 وCMake 3.22.1.
-9. Android JVM/Robolectric عبر :app:testDebugUnitTest.
-10. أربعة Android emulator integration tests على main، ومنها skill_execution_e2e_test.dart.
-11. إعداد plugin registrant لوضع البناء وتعطيل ABI التجريبي.
-12. بناء ARM64 APK والتحقق من ZIP وحساب SHA-256 ورفع artifact.
+5. Flutter Analyze على lib وtest وintegration_test.
+6. اختبارات Flutter المركزة لدورة Environment install lifecycle (Image وPresets وMedia tools وحالة الإشعار) التي أضيفت في Phase 13R.
+7. اختبارات Phase 13Q للقراءة فقط لإعداد MCP المعلن من Skill، دون تشغيل الخادم.
+8. اختبارات الحزم المحلية: mcp_client وdownsize وflutter_math_fork وmarkstream وterminal_view.
+9. Java 21 وGradle 8.14 وNDK 28.2.13676358 وCMake 3.22.1.
+10. Android JVM/Robolectric عبر :app:testDebugUnitTest.
+11. أربعة Android emulator integration tests على main، ومنها skill_execution_e2e_test.dart.
+12. إعداد plugin registrant لوضع البناء وتعطيل ABI التجريبي.
+13. بناء ARM64 APK والتحقق من ZIP وحساب SHA-256 ورفع artifact.
 
 ## ما لا يشغله workflow
 - لا يشغّل كامل Flutter root unit/widget test suite.
@@ -65,3 +66,17 @@ CI #76 على commit `f68e792b771822b31522705720a2ecc82c2d5606` فشل في ال
 - Artifact ID: `14777311841`.
 
 نجاح #78 يثبت إصلاح Robolectric runtime repository، لكنه لا يعني أن workflow شغّل كامل Flutter root test suite أو مجموعات الاختبارات التاريخية 13E–13O.
+
+
+## آخر بناء كامل ناجح قبل إصلاح Phase 13R — CI #120
+
+- التشغيل: https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038
+- commit: 85e4653674916ecc65e3d30daa417e29547245a6
+- Flutter Analyze: نجاح دون أخطاء أو تحذيرات analyzer.
+- Android JVM/Robolectric: نجاح؛ BUILD SUCCESSFUL in 5m 16s.
+- Phase 13P Android Emulator E2E: نجاح.
+- Android ARM64 Release: نجاح، APK bytes 41,842,583.
+- SHA-256: 5791a197b30bb3a160c41739a788a1c1b5053ca77599a9ba007de84acd632654.
+- Artifact ID: 14840756161.
+
+CI #120 لا يحتوي بعد على Regression tests التي أضيفت في Phase 13R. كما أن workflow لا يشغّل كامل Flutter root unit/widget suite أو مجموعات 13E–13O التاريخية.

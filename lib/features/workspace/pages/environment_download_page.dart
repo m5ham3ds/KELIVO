@@ -362,7 +362,9 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
                           Expanded(
                             child: Text(
                               installing
-                                  ? 'Environment installation in progress'
+                                  ? widget.installer.canCancel
+                                      ? 'Environment installation in progress'
+                                      : 'Finalizing system image installation'
                                   : 'Environment: ${state.phase.name}',
                               style: Theme.of(context).textTheme.titleSmall,
                             ),
@@ -401,7 +403,7 @@ class _EnvironmentDownloadPageState extends State<EnvironmentDownloadPage> {
               ],
             ),
           ],
-          if (installing) ...[
+          if (widget.installer.canCancel) ...[
             const SizedBox(height: 10),
             IosTileButton(
               key: const ValueKey('system-image-install-cancel'),

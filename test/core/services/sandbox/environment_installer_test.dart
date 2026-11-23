@@ -222,6 +222,35 @@ void main() {
     expect(workspace.patchArgs!.containsKey('aptMirrorBaseUrl'), isFalse);
   });
 
+  test(
+    'cancel after atomic rootfs replacement cannot roll back a completed install',
+    () async {
+      workspace.freeBytes = 8 * 1024 * 1024 * 1024;
+      workspace.deleteDirectory = (path) async {
+        final directory = Directory(path);
+        if (await directory.exists()) await directory.delete(recursive: true);
+      };
+      final installer = buildInstaller(servingTarball());
+      Future<void>? lateCancel;
+      await installer.install(
+        onProgress: (state) {
+          if (state.phase == EnvironmentPhase.ready) {
+            lateCancel ??= installer.cancel();
+          }
+        },
+      );
+      await lateCancel;
+      expect(env.state.phase, EnvironmentPhase.ready);
+      expect(env.state.errorMessage, isNull);
+      expect(installer.isInstalling, isFalse);
+      expect(installer.canCancel, isFalse);
+      expect(
+        await File(p.join(installer.rootfsDir.path, kKelivoVersionFile)).exists(),
+        isTrue,
+      );
+    },
+  );
+
   test('checksum mismatch deletes part and errors', () async {
     workspace.freeBytes = 8 * 1024 * 1024 * 1024;
     workspace.sha256Override = (_) => '0' * 64;

@@ -231,8 +231,14 @@ class _EnvironmentPaneState extends State<EnvironmentPane> {
 
   Future<void> _install() async {
     final manager = context.read<EnvironmentManager?>();
-    if (manager == null || _busy || _dependenciesBusy) return;
-    setState(() => _busy = true);
+    final reopeningActiveInstall =
+        manager is EnvironmentInstaller && manager.isInstalling;
+    if (manager == null ||
+        (_busy && !reopeningActiveInstall) ||
+        _dependenciesBusy) {
+      return;
+    }
+    if (!reopeningActiveInstall) setState(() => _busy = true);
     try {
       if (manager is EnvironmentInstaller) {
         await Navigator.of(context).push<void>(
@@ -276,7 +282,9 @@ class _EnvironmentPaneState extends State<EnvironmentPane> {
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && !reopeningActiveInstall) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -563,7 +571,10 @@ class _EnvironmentPaneState extends State<EnvironmentPane> {
                 l10n,
                 context.watch<EnvironmentProvider>().downloadSource,
               ),
-              onTap: busy ? null : () => unawaited(_install()),
+              onTap: busy &&
+                      !(manager is EnvironmentInstaller && manager.isInstalling)
+                  ? null
+                  : () => unawaited(_install()),
             ),
             const IosRowDivider(),
             IosNavRow(

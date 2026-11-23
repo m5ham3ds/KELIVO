@@ -225,6 +225,35 @@ void main() {
     },
   );
   test(
+    'does not cancel a committed package while targeted verification is running',
+    () async {
+      await setup();
+      await service.refresh();
+      runtime.probeGate = Completer<void>();
+      runtime.probeStarted = Completer<void>();
+
+      final installation = service.install(EnvironmentDependency.python);
+      await runtime.probeStarted!.future.timeout(const Duration(seconds: 2));
+
+      expect(service.busy, isTrue);
+      expect(service.canCancel, isFalse);
+      await service.cancel();
+      expect(runtime.cancelledId, isNull);
+
+      runtime.probeGate!.complete();
+      await installation;
+      expect(service.busy, isFalse);
+      expect(service.failure, isNull);
+      expect(service.lastInstalled, EnvironmentDependency.python);
+      expect(service.status(EnvironmentDependency.python), DependencyStatus.installed);
+      final verification = runtime.requests.last.command;
+      expect(verification, contains('__kelivo_dep_python='));
+      expect(verification, isNot(contains('playwright')));
+      expect(verification, isNot(contains('__kelivo_dep_browserRenderer=')));
+    },
+  );
+
+  test(
     'reapplies saved official and mirror sources before installing',
     () async {
       await setup();

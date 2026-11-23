@@ -141,6 +141,23 @@ void main() {
   );
 
   test(
+    'cancellation capability is flushed immediately to native task state',
+    () async {
+      await start('installing');
+      await coordinator.updateCancellability(
+        'installing',
+        cancellable: false,
+        progressLabel: 'Verifying installed packages',
+      );
+      final task = (snapshots().last['tasks'] as List).single as Map;
+      expect(task['cancellable'], isFalse);
+      expect(task['progressLabel'], 'Verifying installed packages');
+      expect(coordinator.activeTaskIds, {'installing'});
+      await coordinator.finish('installing', BackgroundTaskOutcome.completed);
+    },
+  );
+
+  test(
     'concurrent conversations end independently; stale updates cannot reopen a run',
     () async {
       await start('a');
