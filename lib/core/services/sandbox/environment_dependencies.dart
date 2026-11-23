@@ -235,7 +235,10 @@ echo "Browser renderer installed and Chromium smoke test passed."
     }
   }
 
-  Future<void> installMediaTools() async {
+  Future<void> installMediaTools({
+    Future<bool> Function()? confirm,
+  }) async {
+    if (confirm != null && !await confirm()) return;
     if (busy || !supportsPackages || env.state.phase != EnvironmentPhase.ready) {
       return;
     }
