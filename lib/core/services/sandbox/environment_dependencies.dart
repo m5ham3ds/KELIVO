@@ -175,6 +175,20 @@ class EnvironmentDependencies extends ChangeNotifier {
         'install -y --no-install-recommends ca-certificates $packages\\n';
   }
 
+  String mediaToolsInstallScript() {
+    const packages = 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick';
+    if (alpine) {
+      return 'set -e\\napk --wait 60 update\\napk --wait 60 add $packages\\n';
+    }
+    return 'set -e\\nexport DEBIAN_FRONTEND=noninteractive\\n'
+        'dpkg --configure -a\\n'
+        'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
+        '-o APT::Update::Error-Mode=any update\\n'
+        'apt-get -o DPkg::Lock::Timeout=60 -f install -y\\n'
+        'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
+        'install -y --no-install-recommends ca-certificates $packages\\n';
+  }
+
   /// Installs a pinned renderer inside the guest rootfs only.
   static const String browserRendererInstallScript = r'''set -euo pipefail
 NODE_VERSION=26.13.1
@@ -232,6 +246,86 @@ echo "Browser renderer installed and Chromium smoke test passed."
           ? DependencyFailure.cancelled
           : DependencyFailure.check;
     } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> installMediaTools() async {
+    if (busy || !supportsPackages || env.state.phase != EnvironmentPhase.ready) {
+      return;
+    }
+    busy = true;
+    _cancelled = false;
+    installing = EnvironmentDependency.mediaTools;
+    lastAttempt = EnvironmentDependency.mediaTools;
+    lastInstalled = null;
+    failure = null;
+    _output.clear();
+    _statuses[EnvironmentDependency.mediaTools] = DependencyStatus.unknown;
+    notifyListeners();
+    try {
+      _mirrorCancel = MirrorCancelToken();
+      final category = alpine ? MirrorCategory.apk : MirrorCategory.apt;
+      final selection = env.mirrors[category];
+      if (selection != null) {
+        final entry = selection.useMirror
+            ? MirrorService.findEntry(
+                category,
+                id: selection.mirrorId,
+                url: selection.selectedBaseUrl,
+                arch: env.state.arch ?? 'arm64',
+                distro: env.state.distro ?? 'ubuntu',
+              )
+            : MirrorService.officialEntry(
+                category,
+                arch: env.state.arch ?? 'arm64',
+                distro: env.state.distro ?? 'ubuntu',
+              );
+        if (entry == null) throw StateError('Unknown package source');
+        await mirrors.applyEntry(
+          category,
+          entry,
+          manual: selection.manual,
+          cancelToken: _mirrorCancel,
+        );
+      }
+      if (_cancelled) throw StateError('Cancelled');
+      await _run(
+        mediaToolsInstallScript(),
+        timeout: const Duration(minutes: 30),
+        showOutput: true,
+      );
+      if (_cancelled) throw StateError('Cancelled');
+      await _probe();
+      const requiredCommands = [
+        'ffmpeg',
+        'ffprobe',
+        'yt-dlp',
+        'mediainfo',
+        'ffmpegthumbnailer',
+      ];
+      final allRequiredPresent = requiredCommands.every(
+        (command) =>
+            command == 'ffmpeg' || command == 'ffprobe'
+                ? _mediaVersions.containsKey(command)
+                : optionalMediaStatus(command) == DependencyStatus.installed,
+      ) && (optionalMediaStatus('magick') == DependencyStatus.installed ||
+          optionalMediaStatus('convert') == DependencyStatus.installed);
+      if (!allRequiredPresent) {
+        throw StateError('Media tools failed executable verification');
+      }
+      _statuses[EnvironmentDependency.mediaTools] = DependencyStatus.installed;
+      lastInstalled = EnvironmentDependency.mediaTools;
+      await env.clearCachedDiskUsage();
+    } catch (_) {
+      failure = _cancelled
+          ? DependencyFailure.cancelled
+          : DependencyFailure.install;
+      _statuses[EnvironmentDependency.mediaTools] = DependencyStatus.missing;
+    } finally {
+      _mirrorCancel = null;
+      installing = null;
       busy = false;
       notifyListeners();
     }
