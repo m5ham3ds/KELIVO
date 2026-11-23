@@ -172,7 +172,7 @@ class EnvironmentDependencies extends ChangeNotifier {
       'if command -v ${_shellQuote(command)} >/dev/null 2>&1; then '
           '__kelivo_media_version=\$(${_shellQuote(command)} -version 2>/dev/null | head -n 1 | cut -c1-160); '
           "printf '__kelivo_media_version_${command}=%s\\n' \"${r'$'}__kelivo_media_version\"; fi",
-  ].join('\\n');
+  ].join('\n');
 
   static String _shellQuote(String value) =>
       "'${value.replaceAll("'", "'\\''")}'";
