@@ -14,6 +14,7 @@ import '../../chat/controllers/quote_editing_controller.dart';
 import '../../chat/widgets/quote_interaction_scope.dart';
 import '../../../core/models/quote_ref.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/notification_service.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -189,6 +190,7 @@ class _HomePageState extends State<HomePage>
   late final Future<void> _chatReady;
   bool _readingIncomingShares = false;
   bool _incomingShareChanged = false;
+  bool _notificationPermissionFlowStarted = false;
 
   // ============================================================================
   // Page Controller (manages all business logic and state)
@@ -294,6 +296,7 @@ class _HomePageState extends State<HomePage>
     _initIncomingShares();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestHomeNotificationPermission();
       if (mounted) {
         _lastViewInsetBottom = View.of(context).viewInsets.bottom;
       }
@@ -301,6 +304,39 @@ class _HomePageState extends State<HomePage>
       if (!mounted) return;
       context.read<WorldBookProvider>().initialize();
     });
+  }
+
+  Future<void> _requestHomeNotificationPermission() async {
+    if (_notificationPermissionFlowStarted || !Platform.isAndroid || kIsWeb) {
+      return;
+    }
+    _notificationPermissionFlowStarted = true;
+    final preferences = await context.read<SettingsProvider>().preferences;
+    const askedKey = 'kelivo.notifications.permission_prompted';
+    if (preferences.getBool(askedKey) == true || !mounted) return;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Allow notifications?'),
+        content: const Text(
+          'KELIVO uses notifications to show background task progress and '
+          'completed assistant work while you are away from the app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    await preferences.setBool(askedKey, true);
+    if (!mounted || accepted != true) return;
+    await NotificationService.ensureAndroidNotificationsPermission();
   }
 
   @override
