@@ -420,7 +420,12 @@ void main() {
       expect(find.byKey(const ValueKey('system-image-install-cancel')), findsOneWidget);
       expect(installer.calls, 0);
 
-      await tester.pageBack();
+      final backButton = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byType(IosIconButton),
+      );
+      expect(backButton, findsOneWidget);
+      await tester.tap(backButton);
       await pumpRouteTransition(tester);
       await tester.ensureVisible(entry);
       await tester.tap(entry);
@@ -457,7 +462,13 @@ void main() {
       await pumpRouteTransition(tester);
 
       expect(find.byType(MediaToolsPage), findsOneWidget);
-      expect(find.text('Media tools'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(MediaToolsPage),
+          matching: find.text('Media tools'),
+        ),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
     variant: TargetPlatformVariant.mobile(),
