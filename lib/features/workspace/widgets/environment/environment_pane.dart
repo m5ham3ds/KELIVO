@@ -571,8 +571,7 @@ class _EnvironmentPaneState extends State<EnvironmentPane> {
                 l10n,
                 context.watch<EnvironmentProvider>().downloadSource,
               ),
-              onTap: busy &&
-                      !(manager is EnvironmentInstaller && manager.isInstalling)
+              onTap: busy && !manager.isInstalling
                   ? null
                   : () => unawaited(_install()),
             ),
