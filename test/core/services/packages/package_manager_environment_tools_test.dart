@@ -17,6 +17,16 @@ void main() {
       expect(result['requested_tools'], ['ffmpeg', 'ffprobe', 'yt-dlp']);
     });
 
+    test('resolves a single canonical media package argument', () {
+      final result = PackageManagerEnvironmentTools.resolve(
+        {'action': 'plan', 'package': 'ffprobe'},
+        distro: 'ubuntu',
+      );
+      expect(result['packages'], ['ffmpeg']);
+      expect(result['requested_tools'], ['ffprobe']);
+      expect(result['ecosystem'], 'system');
+    });
+
     test('uses apk for Alpine', () {
       final result = PackageManagerEnvironmentTools.resolve(
         {'action': 'plan', 'tools': ['ffprobe']},
