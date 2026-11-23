@@ -284,20 +284,14 @@ echo "Browser renderer installed and Chromium smoke test passed."
       );
       if (_cancelled) throw StateError('Cancelled');
       await _probe();
-      const requiredCommands = [
-        'ffmpeg',
-        'ffprobe',
-        'yt-dlp',
-        'mediainfo',
-        'ffmpegthumbnailer',
-      ];
-      final allRequiredPresent = requiredCommands.every(
-        (command) =>
-            command == 'ffmpeg' || command == 'ffprobe'
-                ? _mediaVersions.containsKey(command)
-                : optionalMediaStatus(command) == DependencyStatus.installed,
-      ) && (optionalMediaStatus('magick') == DependencyStatus.installed ||
-          optionalMediaStatus('convert') == DependencyStatus.installed);
+        final allRequiredPresent =
+          _mediaVersions.containsKey('ffmpeg') &&
+          _mediaVersions.containsKey('ffprobe') &&
+          optionalMediaStatus('yt-dlp') == DependencyStatus.installed &&
+          optionalMediaStatus('mediainfo') == DependencyStatus.installed &&
+          optionalMediaStatus('ffmpegthumbnailer') == DependencyStatus.installed &&
+          (optionalMediaStatus('magick') == DependencyStatus.installed ||
+              optionalMediaStatus('convert') == DependencyStatus.installed);
       if (!allRequiredPresent) {
         throw StateError('Media tools failed executable verification');
       }
