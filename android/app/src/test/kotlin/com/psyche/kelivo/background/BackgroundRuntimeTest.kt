@@ -93,9 +93,16 @@ class BackgroundRuntimeTest {
         "id" to id, "conversationId" to "chat-$id", "title" to id,
         "detail" to "Generating", "startedAt" to System.currentTimeMillis(),
         "tokens" to 7, "cancellable" to cancellable)
-    private fun sync(m: Messenger, revision: Int, ids: List<String>, settings: Map<String, Any> = emptyMap(), terminal: Map<String, Any>? = null) {
+    private fun sync(
+        m: Messenger,
+        revision: Int,
+        ids: List<String>,
+        settings: Map<String, Any> = emptyMap(),
+        terminal: Map<String, Any>? = null,
+        cancellable: Boolean = true,
+    ) {
         m.call("sync", mapOf("revision" to revision, "settings" to settings,
-            "tasks" to ids.map(::task), "terminal" to terminal))
+            "tasks" to ids.map { task(it, cancellable) }, "terminal" to terminal))
     }
 
     @Test fun defaultsDoNotStartAServiceAndStaleSnapshotsCannotReplaceTasks() {
@@ -185,7 +192,10 @@ class BackgroundRuntimeTest {
         assertEquals(listOf("cancel-me"), (request.arguments as Map<*, *>)["ids"])
         assertTrue(runtime.shouldRunService())
         assertSame(service, runtime.service)
-        sync(messenger, 2, listOf("keep-verifying"), enabled)
+        // This is the committed verification task that must remain
+        // non-cancellable after the earlier task was stopped.
+        sync(messenger, 2, listOf("keep-verifying"), enabled, cancellable = false)
+        assertEquals(false, runtime.tasks.single().cancellable)
         assertTrue(runtime.shouldRunService())
         assertTrue(runtime.buildNotification().actions.isNullOrEmpty())
         sync(messenger, 3, emptyList(), enabled)

@@ -29,6 +29,10 @@
 
 **حدود آخر نجاح:** workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ التحليل الثابت لا يعادل تنفيذ تلك الاختبارات. اجتازت في CI #78 الحزم المستقلة وAndroid JVM/Robolectric واختبارات Android integration الأربعة بما فيها Phase 13P emulator E2E. 13Q.1 فقط اجتازت؛ دورة MCP الفعلية ما زالت مفتوحة.
 
+## آخر تحقق — CI #130
+
+[CI #130](https://github.com/m5ham3ds/KELIVO/actions/runs/45279768572) على commit `3eabf9c` اجتاز Flutter Analyze واختبارات Environment و13Q.1 والحزم المحلية، لكنه فشل في اختبار Robolectric واحد من أصل 312. السبب كان مساعد اختبار يعيد المهمة committed إلى `cancellable=true` افتراضياً. تم تصحيح fixture ليحافظ على `cancellable=false` وإضافة assertion على هذه الحالة. اختبارات المحاكي وبناء APK لم تنفذ في #130. قبول Phase 13R ينتظر نجاح CI التالي كاملاً وتجربة الهاتف.
+
 ## حالة الآن
 - **13P:** اجتازت Android Emulator E2E في CI #120، لكنها ليست اختبار Force Stop على هاتف المستخدم ولا إثبات عزل Kernel.
 - **13B:** ما زالت مفتوحة؛ Skill local-script موجود لكن Skill-owned MCP adapter ودورة tools/list/tools/call غير مكتملة.
