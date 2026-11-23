@@ -160,6 +160,13 @@ void main() {
     ),
   );
 
+  // Active-install pages contain indeterminate progress animations, so wait
+  // for the route transition instead of pumpAndSettle.
+  Future<void> pumpRouteTransition(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+  }
+
   String logLines(int count) =>
       List.generate(count, (index) => 'Installing package $index').join('\n');
 
@@ -403,10 +410,10 @@ void main() {
       await pump(tester, const Scaffold(body: EnvironmentPane()));
       await tester.pumpAndSettle();
 
-      final entry = find.byKey(const ValueKey('environment-download-source'));
+      final entry = find.byKey(EnvironmentPane.installKey);
       await tester.ensureVisible(entry);
       await tester.tap(entry);
-      await tester.pumpAndSettle();
+      await pumpRouteTransition(tester);
 
       expect(find.byType(EnvironmentDownloadPage), findsOneWidget);
       expect(find.text('Environment installation in progress'), findsOneWidget);
@@ -414,10 +421,10 @@ void main() {
       expect(installer.calls, 0);
 
       await tester.pageBack();
-      await tester.pumpAndSettle();
+      await pumpRouteTransition(tester);
       await tester.ensureVisible(entry);
       await tester.tap(entry);
-      await tester.pumpAndSettle();
+      await pumpRouteTransition(tester);
       expect(find.byType(EnvironmentDownloadPage), findsOneWidget);
       expect(installer.calls, 0);
       expect(tester.takeException(), isNull);
@@ -447,7 +454,7 @@ void main() {
       );
       await tester.ensureVisible(entry);
       await tester.tap(entry);
-      await tester.pumpAndSettle();
+      await pumpRouteTransition(tester);
 
       expect(find.byType(MediaToolsPage), findsOneWidget);
       expect(find.text('Media tools'), findsOneWidget);
