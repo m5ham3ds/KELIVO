@@ -72,6 +72,120 @@ String? _failure(AppLocalizations l10n, DependencyFailure? failure) =>
       null => null,
     };
 
+class MediaToolsPage extends StatelessWidget {
+  const MediaToolsPage({super.key, required this.service});
+  final EnvironmentDependencies service;
+
+  Future<void> _confirmAndInstall(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Install Media tools?'),
+        content: const Text(
+          'This installs FFmpeg (including FFprobe), yt-dlp, MediaInfo, '
+          'FFmpegthumbnailer and ImageMagick in the active environment.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.workspaceEnvInstall),
+          ),
+        ],
+      ),
+    );
+    if (accepted == true) await service.installMediaTools();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: service,
+      builder: (context, _) {
+        final installed = service.status(EnvironmentDependency.mediaTools) ==
+            DependencyStatus.installed;
+        final enabled = !service.busy &&
+            service.env.state.phase == EnvironmentPhase.ready &&
+            service.supportsPackages;
+        final commands = <(String, String)>[
+          ('FFmpeg', 'ffmpeg'),
+          ('FFprobe', 'ffprobe'),
+          ('yt-dlp', 'yt-dlp'),
+          ('MediaInfo', 'mediainfo'),
+          ('FFmpegthumbnailer', 'ffmpegthumbnailer'),
+          ('ImageMagick', 'magick'),
+        ];
+        return Scaffold(
+          appBar: AppBar(
+            leading: IosIconButton(
+              icon: Lucide.directionalBack(context),
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+            title: const Text('Media tools'),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              SectionCard(
+                children: [
+                  for (var i = 0; i < commands.length; i++) ...[
+                    if (i > 0) const EnvironmentRowDivider(),
+                    IosNavRow(
+                      icon: i < 2 ? LucideIcons.film : Lucide.Package,
+                      label: commands[i].$1,
+                      detailText: i < 2
+                          ? service.mediaToolVersion(commands[i].$2) ??
+                              l10n.workspaceEnvMediaVersionNotDetected
+                          : service.optionalMediaStatus(commands[i].$2) ==
+                                  DependencyStatus.installed ||
+                              (i == 5 &&
+                                  service.optionalMediaStatus('convert') ==
+                                      DependencyStatus.installed)
+                          ? l10n.workspaceEnvDependencyInstalled
+                          : l10n.workspaceEnvPhaseNotInstalled,
+                    ),
+                  ],
+                ],
+              ),
+              if (service.busy) ...[
+                const SizedBox(height: 12),
+                const EnvironmentInlineSpinner(radius: 10),
+                IosTileButton(
+                  icon: Lucide.X,
+                  label: l10n.workspaceEnvCancel,
+                  onTap: () => unawaited(service.cancel()),
+                ),
+              ] else
+                IosTileButton(
+                  key: const ValueKey('environment-media-tools-install-all'),
+                  icon: installed ? Lucide.Check : Lucide.Download,
+                  label: installed
+                      ? 'Media tools installed'
+                      : 'Install all Media tools',
+                  enabled: enabled,
+                  backgroundColor: cs.primary,
+                  onTap: () => unawaited(_confirmAndInstall(context)),
+                ),
+              if (service.log.isNotEmpty) ...[
+                IosSectionHeader(text: l10n.workspaceEnvDependencyLog),
+                _InstallationLog(text: service.log),
+              ],
+              if (_failure(l10n, service.failure) case final error?)
+                IosSectionFooter(text: error),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class EnvironmentDependenciesSection extends StatelessWidget {
   const EnvironmentDependenciesSection({
     super.key,
@@ -142,7 +256,7 @@ class EnvironmentDependenciesSection extends StatelessWidget {
                 onTap: enabled && !service.busy
                     ? () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => const MediaToolsPagePlaceholder(),
+                          builder: (_) => MediaToolsPage(service: service),
                         ),
                       )
                     : null,
