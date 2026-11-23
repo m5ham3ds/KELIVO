@@ -92,20 +92,19 @@ void main() {
     expect(runtime.requests.length, requestCount);
   });
 
-  test('optional media utilities are installable independently', () async {
+  test('grouped media installer installs unique packages and verifies six tools', () async {
     await setup();
-    final cases = <EnvironmentDependency, String>{
-      EnvironmentDependency.ytDlp: 'yt-dlp',
-      EnvironmentDependency.mediaInfo: 'mediainfo',
-      EnvironmentDependency.ffmpegThumbnailer: 'ffmpegthumbnailer',
-      EnvironmentDependency.imageMagick: 'imagemagick',
-    };
-    for (final entry in cases.entries) {
-      expect(entry.key.packages(alpine: false), entry.value);
-      await service.install(entry.key);
-      expect(service.failure, isNull);
-      expect(service.status(entry.key), DependencyStatus.installed);
-    }
+    expect(service.mediaToolsInstallScript(), contains('ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick'));
+    expect(service.mediaToolsInstallScript().split('ffmpeg').length - 1, 1);
+    final future = service.installMediaTools();
+    await future;
+    expect(service.failure, isNull);
+    expect(service.status(EnvironmentDependency.mediaTools), DependencyStatus.installed);
+    final command = runtime.requests.singleWhere(
+      (request) => request.command.contains('ffmpegthumbnailer'),
+    );
+    expect(command.command, contains('dpkg --configure -a'));
+    expect(command.command, contains('imagemagick'));
   });
 
   test('media preset installs FFmpeg and verifies both ffmpeg and ffprobe', () async {
