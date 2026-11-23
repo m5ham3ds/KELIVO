@@ -32,7 +32,7 @@ void main() {
           {'action': 'install', 'tools': ['curl']},
           distro: 'ubuntu',
         ),
-        throwsFormatException,
+        throwsA(isA<FormatException>()),
       );
       expect(
         () => PackageManagerEnvironmentTools.resolve(
@@ -45,10 +45,8 @@ void main() {
 
     test('leaves ordinary package manager arguments unchanged', () {
       final args = {'action': 'plan', 'package': 'requests', 'ecosystem': 'python'};
-      expect(
-        PackageManagerEnvironmentTools.resolve(args, distro: 'ubuntu'),
-        same(args),
-      );
+      final result = PackageManagerEnvironmentTools.resolve(args, distro: 'ubuntu');
+      expect(result, args);
     });
   });
 }
