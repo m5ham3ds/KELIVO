@@ -24,6 +24,8 @@ abstract final class PackageManagerEnvironmentTools {
     'mediainfo': 'mediainfo',
     'ffmpegthumbnailer': 'ffmpegthumbnailer',
     'imagemagick': 'imagemagick',
+    'magick': 'imagemagick',
+    'convert': 'imagemagick',
   };
 
   static Map<String, dynamic> resolve(
