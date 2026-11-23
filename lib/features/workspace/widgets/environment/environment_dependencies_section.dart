@@ -113,13 +113,13 @@ class MediaToolsPage extends StatelessWidget {
         final enabled = !service.busy &&
             service.env.state.phase == EnvironmentPhase.ready &&
             service.supportsPackages;
-        final commands = <(String, String)>[
-          ('FFmpeg', 'ffmpeg'),
-          ('FFprobe', 'ffprobe'),
-          ('yt-dlp', 'yt-dlp'),
-          ('MediaInfo', 'mediainfo'),
-          ('FFmpegthumbnailer', 'ffmpegthumbnailer'),
-          ('ImageMagick', 'magick'),
+        final commands = <(String, String, String)>[
+          ('FFmpeg', 'ffmpeg', 'apt:ffmpeg / apk:ffmpeg'),
+          ('FFprobe', 'ffprobe', 'apt:ffmpeg / apk:ffmpeg'),
+          ('yt-dlp', 'yt-dlp', 'apt:yt-dlp / apk:yt-dlp'),
+          ('MediaInfo', 'mediainfo', 'apt:mediainfo / apk:mediainfo'),
+          ('FFmpegthumbnailer', 'ffmpegthumbnailer', 'apt:ffmpegthumbnailer / apk:ffmpegthumbnailer'),
+          ('ImageMagick', 'magick', 'apt:imagemagick / apk:imagemagick'),
         ];
         return Scaffold(
           appBar: AppBar(
