@@ -95,7 +95,7 @@ void main() {
   test('grouped media installer installs unique packages and verifies six tools', () async {
     await setup();
     expect(service.mediaToolsInstallScript(), contains('ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick'));
-    expect(service.mediaToolsInstallScript().split('ffmpeg').length - 1, 1);
+    expect(RegExp(r'\\bffmpeg\\b').allMatches(service.mediaToolsInstallScript()).length, 1);
     final future = service.installMediaTools();
     await future;
     expect(service.failure, isNull);
@@ -157,6 +157,8 @@ void main() {
     expect(EnvironmentDependency.mediaTools.probe(alpine: false), contains('ffmpeg -version'));
     expect(EnvironmentDependency.mediaTools.probe(alpine: false), contains('ffprobe -version'));
     expect(script, contains('ffmpeg'));
+    expect(script, isNot(contains('yt-dlp')));
+    expect(script, isNot(contains('mediainfo')));
     await service.install(EnvironmentDependency.mediaTools);
     expect(service.failure, isNull);
     expect(service.status(EnvironmentDependency.mediaTools), DependencyStatus.installed);

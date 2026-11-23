@@ -181,9 +181,8 @@ class EnvironmentDependencies extends ChangeNotifier {
     if (dependency == EnvironmentDependency.browserRenderer) {
       return browserRendererInstallScript;
     }
-    if (dependency == EnvironmentDependency.mediaTools) {
-      return mediaToolsInstallScript();
-    }
+    // The base Environment Preset provides FFmpeg + FFprobe only.
+    // The dedicated Media tools page owns the separate six-tool transaction.
     final packages = dependency.packages(alpine: alpine);
     if (alpine) {
       return 'set -e\napk --wait 60 update\napk --wait 60 add $packages\n';
