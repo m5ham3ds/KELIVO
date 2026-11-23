@@ -420,14 +420,16 @@ void main() {
       expect(find.byKey(const ValueKey('system-image-install-cancel')), findsOneWidget);
       expect(installer.calls, 0);
 
-      final backButton = find.descendant(
-        of: find.byType(AppBar),
-        matching: find.byType(IosIconButton),
-      );
-      expect(backButton, findsOneWidget);
-      await tester.tap(backButton);
-      await pumpRouteTransition(tester);
+      // Close the active route and wait until the underlying Environment
+      // pane is interactive again before tapping its install entry.
+      Navigator.of(
+        tester.element(find.byType(EnvironmentDownloadPage)),
+      ).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(EnvironmentDownloadPage), findsNothing);
+
       await tester.ensureVisible(entry);
+      expect(entry.hitTestable(), findsOneWidget);
       await tester.tap(entry);
       await pumpRouteTransition(tester);
       expect(find.byType(EnvironmentDownloadPage), findsOneWidget);
