@@ -13,6 +13,7 @@ import 'package:Kelivo/shared/text_input/message_editing_controller.dart';
 import '../../chat/controllers/quote_editing_controller.dart';
 import '../../chat/widgets/quote_interaction_scope.dart';
 import '../../../core/models/quote_ref.dart';
+import '../../../core/database/business_preferences.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/notification_service.dart';
 import 'dart:async';
@@ -311,7 +312,8 @@ class _HomePageState extends State<HomePage>
       return;
     }
     _notificationPermissionFlowStarted = true;
-    final preferences = await context.read<SettingsProvider>().preferences;
+    final preferences = context.read<BusinessPreferences>();
+    await preferences.load();
     const askedKey = 'kelivo.notifications.permission_prompted';
     if (preferences.getBool(askedKey) == true || !mounted) return;
     final accepted = await showDialog<bool>(
