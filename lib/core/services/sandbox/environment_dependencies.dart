@@ -8,7 +8,7 @@ import 'package:Kelivo/core/models/environment_state.dart';
 import 'package:Kelivo/core/providers/environment_provider.dart';
 import 'package:Kelivo/core/services/workspace/workspace_runtime.dart';
 
-enum EnvironmentDependency { python, node, git, ssh, network, archive, mediaTools, ytDlp, mediaInfo, ffmpegThumbnailer, imageMagick, browserRenderer }
+enum EnvironmentDependency { python, node, git, ssh, network, archive, mediaTools, browserRenderer }
 
 enum DependencyStatus { unknown, missing, installed }
 
@@ -27,10 +27,6 @@ extension EnvironmentDependencyCommands on EnvironmentDependency {
     EnvironmentDependency.network => 'curl wget',
     EnvironmentDependency.archive => 'zip unzip',
     EnvironmentDependency.mediaTools => 'ffmpeg',
-    EnvironmentDependency.ytDlp => 'yt-dlp',
-    EnvironmentDependency.mediaInfo => 'mediainfo',
-    EnvironmentDependency.ffmpegThumbnailer => 'ffmpegthumbnailer',
-    EnvironmentDependency.imageMagick => 'imagemagick',
     EnvironmentDependency.browserRenderer => 'playwright@1.65.1',
   };
 
@@ -44,10 +40,6 @@ extension EnvironmentDependencyCommands on EnvironmentDependency {
     EnvironmentDependency.network => 'curl --version && wget --version',
     EnvironmentDependency.archive => 'zip -v && unzip -v',
     EnvironmentDependency.mediaTools => 'ffmpeg -version && ffprobe -version',
-    EnvironmentDependency.ytDlp => 'yt-dlp --version',
-    EnvironmentDependency.mediaInfo => 'mediainfo --Version',
-    EnvironmentDependency.ffmpegThumbnailer => 'ffmpegthumbnailer -v',
-    EnvironmentDependency.imageMagick => 'magick -version || convert -version',
     EnvironmentDependency.browserRenderer => r'test -x "$HOME/.local/share/kelivo/browser-renderer/node/bin/node" && grep -Fxq "node=26.13.1" "$HOME/.local/share/kelivo/browser-renderer/.verified" && grep -Fxq "playwright=1.65.1" "$HOME/.local/share/kelivo/browser-renderer/.verified" && PLAYWRIGHT_BROWSERS_PATH="$HOME/.local/share/kelivo/browser-renderer/browsers" timeout 30s "$HOME/.local/share/kelivo/browser-renderer/node/bin/node" "$HOME/.local/share/kelivo/browser-renderer/smoke.mjs"',
   };
 }
@@ -128,7 +120,14 @@ class EnvironmentDependencies extends ChangeNotifier {
       'if ( ${dependency.probe(alpine: alpine)} ) >/dev/null 2>&1; then '
           "echo '__kelivo_dep_${dependency.name}=1'; else "
           "echo '__kelivo_dep_${dependency.name}=0'; fi",
-    for (final command in optionalMediaTools)
+    for (final command in [
+      'yt-dlp',
+      'mediainfo',
+      'ffmpegthumbnailer',
+      'magick',
+      'convert',
+      'identify',
+    ])
       'if command -v ${_shellQuote(command)} >/dev/null 2>&1; then '
           "echo '__kelivo_media_optional_${command}=1'; else "
           "echo '__kelivo_media_optional_${command}=0'; fi",
@@ -156,6 +155,24 @@ class EnvironmentDependencies extends ChangeNotifier {
         'apt-get -o DPkg::Lock::Timeout=60 -f install -y\n'
         'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
         'install -y --no-install-recommends ca-certificates $packages\n';
+  }
+
+  /// Installs the six media commands as one catalog entry. FFmpeg and
+  /// FFprobe share the same OS package; each executable is verified separately.
+  String mediaToolsInstallScript() {
+    final packages = alpine
+        ? 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick'
+        : 'ffmpeg yt-dlp mediainfo ffmpegthumbnailer imagemagick';
+    if (alpine) {
+      return 'set -e\\napk --wait 60 update\\napk --wait 60 add $packages\\n';
+    }
+    return 'set -e\\nexport DEBIAN_FRONTEND=noninteractive\\n'
+        'dpkg --configure -a\\n'
+        'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
+        '-o APT::Update::Error-Mode=any update\\n'
+        'apt-get -o DPkg::Lock::Timeout=60 -f install -y\\n'
+        'apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=2 '
+        'install -y --no-install-recommends ca-certificates $packages\\n';
   }
 
   /// Installs a pinned renderer inside the guest rootfs only.
