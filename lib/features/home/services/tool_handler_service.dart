@@ -1131,11 +1131,15 @@ class ToolHandlerService {
               runtimeProfiles: profileService,
             );
             final action = (args['action'] ?? 'plan').toString();
+            final resolvedArgs = PackageManagerEnvironmentTools.resolve(
+              args,
+              distro: environment.state.distro,
+            );
             if (PackageManagerToolNames.requiresManualApprovalActions.contains(action)) {
               await permission.authorize(
                 needed: true,
                 requireManualApproval: true,
-                arguments: args,
+                arguments: resolvedArgs,
               );
             } else {
               permission.check();
@@ -1152,7 +1156,7 @@ class ToolHandlerService {
                 throw const RuntimeProfileException('runtime_profile_skill_owner_not_found');
               }
             }
-            return await packageService.handle(args);
+            return await packageService.handle(resolvedArgs);
           }
           if (VideoEngineToolNames.all.contains(name)) {
             final workspace = workspaceContext;
