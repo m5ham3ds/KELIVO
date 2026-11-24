@@ -11,6 +11,9 @@ pluginManagement {
 
     repositories {
         google()
+        // Flutter/AGP/Kotlin plugin artifacts should use the hosted Maven Central
+        // mirror first to avoid transient 429 responses from repo.maven.apache.org.
+        maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
         mavenCentral()
         gradlePluginPortal()
     }
