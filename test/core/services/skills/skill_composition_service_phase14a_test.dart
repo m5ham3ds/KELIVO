@@ -7,9 +7,13 @@ import 'package:path/path.dart' as p;
 
 import 'package:Kelivo/core/database/app_database.dart';
 import 'package:Kelivo/core/database/extension_entity_store.dart';
+import 'package:Kelivo/core/services/extensions/conversational_extension_service.dart';
+import 'package:Kelivo/core/services/extensions/extension_command_tools.dart';
+import 'package:Kelivo/core/services/extensions/extension_operation_repository.dart';
 import 'package:Kelivo/core/services/extensions/extension_registry_repository.dart';
 import 'package:Kelivo/core/services/skills/skill_composition_planner.dart';
 import 'package:Kelivo/core/services/skills/skill_composition_service.dart';
+import 'package:Kelivo/core/services/skills/skills_prompt.dart';
 import 'package:Kelivo/core/services/skills/skills_service.dart';
 
 void main() {
@@ -86,6 +90,122 @@ UNSELECTED BODY MUST NOT BE READ
     final instructions = decoded['selectedSkillInstructions'] as Map<String, dynamic>;
     expect(instructions[selected.record.id], contains('SELECTED FULL INSTRUCTIONS'));
     expect(instructions.values.join('\n'), isNot(contains('UNSELECTED BODY MUST NOT BE READ')));
+  });
+
+  test('extension_search discovers a Skill beyond the prompt cap and applies its result limit', () async {
+    for (var index = 0; index < 20; index++) {
+      await skills.importFromText('''
+---
+name: a-visible-phase14a-$index
+description: searchable phase14a skill number $index.
+---
+Visible instructions for $index.
+''');
+    }
+    final hidden = await skills.importFromText('''
+---
+name: z-hidden-phase14a
+description: searchable phase14a hidden capability.
+---
+Hidden full instructions.
+''');
+
+    final visiblePrompt = buildAvailableSkillsFragment(
+      skills.skills,
+      skillsModelRoot: '/skills',
+    );
+    expect(visiblePrompt, isNot(contains(hidden.record.id)));
+
+    final registry = ExtensionRegistryRepository(store);
+    final extensionService = ConversationalExtensionService(
+      skills: skills,
+      registry: registry,
+      operations: ExtensionOperationRepository(store),
+    );
+    final bounded = jsonDecode(await extensionService.handle(
+      ExtensionCommandToolNames.search,
+      <String, dynamic>{
+        'query': 'searchable phase14a',
+        'scope': 'installed',
+        'limit': 3,
+      },
+    )) as Map<String, dynamic>;
+    expect(bounded['installedSkills'], hasLength(3));
+    expect(bounded['installedSkillsTotal'], 21);
+    expect(bounded['installedSkillsTruncated'], isTrue);
+
+    final discovered = jsonDecode(await extensionService.handle(
+      ExtensionCommandToolNames.search,
+      <String, dynamic>{
+        'query': 'z-hidden-phase14a',
+        'scope': 'installed',
+        'limit': 1,
+      },
+    )) as Map<String, dynamic>;
+    final results = discovered['installedSkills'] as List<dynamic>;
+    expect(results, hasLength(1));
+    final discoveredId = (results.single as Map<String, dynamic>)['id'] as String;
+    expect(discoveredId, hidden.record.id);
+
+    final instructionReads = <String>[];
+    final composition = SkillCompositionService(
+      skills: skills,
+      registry: registry,
+      instructionReader: (id, {required maxCharacters}) async {
+        instructionReads.add(id);
+        return skills.readSkillMarkdown(id, maxCharacters: maxCharacters);
+      },
+    );
+    final decoded = jsonDecode(await composition.compose(
+      task: 'Use the discovered hidden skill',
+      availableSkills: skills.skills,
+      mode: SkillCompositionMode.explicit,
+      requestedSkillIds: [discoveredId],
+    )) as Map<String, dynamic>;
+    expect(decoded['status'], 'ready');
+    expect(decoded['selectedSkillIds'], [hidden.record.id]);
+    expect(instructionReads, [hidden.record.id]);
+  });
+
+  test('composition blocks when full selected instructions exceed the context budget', () async {
+    final selected = await skills.importFromText('''
+---
+name: selected-large-instructions
+description: A Skill with a deliberately large instruction body.
+metadata:
+  kelivo.tags: large context budget regression
+---
+\${List<String>.filled(1200, 'instruction').join(' ')}
+''');
+    final instructionReads = <String>[];
+    final composition = SkillCompositionService(
+      skills: skills,
+      registry: ExtensionRegistryRepository(store),
+      instructionReader: (id, {required maxCharacters}) async {
+        instructionReads.add(id);
+        return skills.readSkillMarkdown(id, maxCharacters: maxCharacters);
+      },
+    );
+
+    final decoded = jsonDecode(await composition.compose(
+      task: 'Use the selected large instruction skill',
+      availableSkills: skills.skills,
+      mode: SkillCompositionMode.explicit,
+      requestedSkillIds: [selected.record.id],
+      contextBudgetTokens: 500,
+    )) as Map<String, dynamic>;
+
+    expect(instructionReads, [selected.record.id]);
+    expect(decoded['status'], 'blocked');
+    final issues = decoded['issues'] as List<dynamic>;
+    expect(
+      issues.map((issue) => (issue as Map<String, dynamic>)['code']),
+      contains('context_budget_exceeded'),
+    );
+    final budget = decoded['contextBudget'] as Map<String, dynamic>;
+    expect(budget['estimatedInstructionTokens'], greaterThan(500));
+    final instructions = decoded['selectedSkillInstructions'] as Map<String, dynamic>;
+    expect(instructions, isEmpty);
   });
 
   test('explicitly selected Skills beyond the prompt listing cap can still be composed', () async {
