@@ -677,15 +677,13 @@ The Skill server is never started during import.
       await connection.loaded;
       String? activeOwner;
       addTearDown(() async {
-        if(activeOwner!=null) {
+        if (activeOwner != null) {
           try {
             final ownerToDisconnect = activeOwner;
-            if (ownerToDisconnect != null) {
-              await connection.disconnect(
-                skillId: skill.record.id,
-                ownerServerId: ownerToDisconnect,
-              );
-            }
+            await connection.disconnect(
+              skillId: skill.record.id,
+              ownerServerId: ownerToDisconnect,
+            );
           } catch (_) {}
         }
         await connection.dispose();
