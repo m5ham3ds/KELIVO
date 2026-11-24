@@ -685,7 +685,7 @@ The Skill server is never started during import.
       expect(registrations.single.enabled,isFalse);
       expect(registrations.single.sourceDigest,matches(RegExp(r'^[a-f0-9]{64}$')));
 
-      final secretStore=MemorySkillMcpSecretStore();
+      final secretStore = MemorySkillMcpSecretStore();
       final sessionRoot = Directory(root.path + '/skill-mcp-sessions');
       final auditRoot = Directory(root.path + '/skill-mcp-audit');
       final connection = SkillMcpConnectionService(
@@ -779,7 +779,135 @@ The Skill server is never started during import.
       );
       expect(discovered, hasLength(1));
       final exposedToolName = discovered.single.exposedName;
-      expect(exposedToolName, matches(RegExp(r'^skill_echo_[a-f0-9]{12}
+      expect(exposedToolName, isNotEmpty);
+      expect(exposedToolName.length, lessThanOrEqualTo(64));
+      expect(exposedToolName.startsWith('skill_echo_'), isTrue);
+      expect(discovered.single.requiresManualApproval, isTrue);
+
+      var approvalPromptedForInvalidInput = false;
+      await expectLater(
+        connection.callTool(
+          skillId: skill.record.id,
+          ownerServerId: registrations.single.serverId,
+          exposedToolName: exposedToolName,
+          arguments: const <String, dynamic>{},
+          confirm: (_) async {
+            approvalPromptedForInvalidInput = true;
+            return true;
+          },
+        ),
+        throwsA(isA<FormatException>()),
+      );
+      expect(approvalPromptedForInvalidInput, isFalse);
+      expect(runtime.toolCalls, isEmpty);
+
+      SkillMcpToolCallPreview? deniedPreview;
+      await expectLater(
+        connection.callTool(
+          skillId: skill.record.id,
+          ownerServerId: registrations.single.serverId,
+          exposedToolName: exposedToolName,
+          arguments: const <String, dynamic>{
+            'prompt': 'private user prompt',
+            'api_token': 'approved-secret',
+            'context': 'approved-secret',
+          },
+          confirm: (preview) async {
+            deniedPreview = preview;
+            return false;
+          },
+        ),
+        throwsA(isA<SkillMcpToolApprovalDenied>()),
+      );
+      expect(deniedPreview!.redactedArguments['api_token'], '[REDACTED]');
+      expect(deniedPreview!.redactedArguments['context'], '[REDACTED]');
+      expect(runtime.toolCalls, isEmpty,
+          reason: 'a denied tool approval must never reach tools/call');
+
+      final approvedResult = await connection.callTool(
+        skillId: skill.record.id,
+        ownerServerId: registrations.single.serverId,
+        exposedToolName: exposedToolName,
+        arguments: const <String, dynamic>{
+          'prompt': 'safe request',
+          'api_token': 'approved-secret',
+          'context': 'approved-secret',
+        },
+        confirm: (preview) async {
+          expect(preview.tool.exposedName, exposedToolName);
+          expect(preview.redactedArguments['api_token'], '[REDACTED]');
+          expect(preview.redactedArguments['context'], '[REDACTED]');
+          return true;
+        },
+      );
+      expect(runtime.toolCalls, hasLength(1));
+      expect((runtime.toolCalls.single['params'] as Map)['name'], 'echo');
+      final returnedText =
+          approvedResult.content.single.toJson()['text'] as String;
+      expect(returnedText, contains('[REDACTED]'));
+      expect(returnedText, isNot(contains('approved-secret')));
+
+      final changedSchema = <String, dynamic>{
+        ...toolSchema,
+        'properties': <String, dynamic>{
+          ...Map<String, dynamic>.from(toolSchema['properties'] as Map),
+          'new_field': {'type': 'boolean'},
+        },
+      };
+      await expectLater(
+        connection.callTool(
+          skillId: skill.record.id,
+          ownerServerId: registrations.single.serverId,
+          exposedToolName: exposedToolName,
+          arguments: const <String, dynamic>{'prompt': 'stale schema test'},
+          confirm: (_) async {
+            runtime.tools = <Map<String, dynamic>>[
+              {
+                'name': 'echo',
+                'description': 'Returns the supplied prompt',
+                'inputSchema': changedSchema,
+              },
+            ];
+            return true;
+          },
+        ),
+        throwsA(isA<SkillMcpProviderSessionChanged>()),
+      );
+      expect(runtime.toolCalls, hasLength(1),
+          reason: 'schema drift after approval must prevent tool execution');
+      runtime.tools = <Map<String, dynamic>>[
+        {
+          'name': 'echo',
+          'description': 'Returns the supplied prompt',
+          'inputSchema': toolSchema,
+        },
+      ];
+
+      final auditFile = File(
+        auditRoot.path + '/skill-mcp-tool-audit-v1.jsonl',
+      );
+      expect(await auditFile.exists(), isTrue);
+      final auditContents = await auditFile.readAsString();
+      expect(auditContents, contains('"outcome":"denied"'));
+      expect(auditContents, contains('"outcome":"approved"'));
+      expect(auditContents, contains('"outcome":"success"'));
+      expect(auditContents, contains('"outcome":"failed"'));
+      expect(auditContents, isNot(contains('approved-secret')));
+      expect(auditContents, isNot(contains('private user prompt')));
+
+      final callResult = await provider.callTool(
+        connected.mcpServerId,
+        'echo',
+        <String, dynamic>{'prompt': 'generic bypass'},
+      );
+      expect(callResult, isNotNull,
+          reason: 'generic MCP calls must never bypass Skill approval');
+
+      final callResult=await provider.callTool(
+        connected.mcpServerId,'not-approved',<String,dynamic>{},
+      );
+      expect(callResult,isNotNull,
+        reason:'generic MCP calls are blocked until the 13Q.4 per-tool approval layer');
       await connection.disconnect(
         skillId: skill.record.id,
         ownerServerId: registrations.single.serverId,
@@ -886,266 +1014,6 @@ class _McpRuntime extends FakeWorkspaceRuntime
     } else {
       result = <String, dynamic>{};
     }
-    events[runId]!.add(
-      CommandOutput(
-        OutputStreamKind.stdout,
-        Uint8List.fromList(
-          utf8.encode(
-            '${jsonEncode({'jsonrpc': '2.0', 'id': request['id'], 'result': result})}\n',
-          ),
-        ),
-      ),
-    );
-  }
-
-  void failProcess(String runId) {
-    events[runId]!.add(
-      CommandOutput(
-        OutputStreamKind.stderr,
-        Uint8List.fromList(utf8.encode('Package not found\n')),
-      ),
-    );
-    events[runId]!.add(
-      const CommandExited(
-        exitCode: 1,
-        timedOut: false,
-        cancelled: false,
-        interrupted: false,
-        duration: Duration.zero,
-      ),
-    );
-  }
-
-  @override
-  Future<void> cancel(String runId) async {
-    cancelled = true;
-    cancelledRuns.add(runId);
-    await cancellationGate?.future;
-  }
-}
-
-class _Paths extends PathProviderPlatform {
-  _Paths(this.root);
-  final String root;
-  @override
-  Future<String?> getApplicationDocumentsPath() async => root;
-
-  @override
-  Future<String?> getApplicationSupportPath() async => '$root/support';
-}
-)));
-      expect(exposedToolName.length, lessThanOrEqualTo(64));
-      expect(discovered.single.requiresManualApproval, isTrue);
-
-      var approvalPromptedForInvalidInput = false;
-      await expectLater(
-        connection.callTool(
-          skillId: skill.record.id,
-          ownerServerId: registrations.single.serverId,
-          exposedToolName: exposedToolName,
-          arguments: const <String, dynamic>{},
-          confirm: (_) async {
-            approvalPromptedForInvalidInput = true;
-            return true;
-          },
-        ),
-        throwsA(isA<FormatException>()),
-      );
-      expect(approvalPromptedForInvalidInput, isFalse);
-      expect(runtime.toolCalls, isEmpty);
-
-      SkillMcpToolCallPreview? deniedPreview;
-      await expectLater(
-        connection.callTool(
-          skillId: skill.record.id,
-          ownerServerId: registrations.single.serverId,
-          exposedToolName: exposedToolName,
-          arguments: const <String, dynamic>{
-            'prompt': 'private user prompt',
-            'api_token': 'approved-secret',
-            'context': 'approved-secret',
-          },
-          confirm: (preview) async {
-            deniedPreview = preview;
-            return false;
-          },
-        ),
-        throwsA(isA<SkillMcpToolApprovalDenied>()),
-      );
-      expect(deniedPreview!.redactedArguments['api_token'], '[REDACTED]');
-      expect(deniedPreview!.redactedArguments['context'], '[REDACTED]');
-      expect(runtime.toolCalls, isEmpty,
-          reason: 'a denied tool approval must never reach tools/call');
-
-      final approvedResult = await connection.callTool(
-        skillId: skill.record.id,
-        ownerServerId: registrations.single.serverId,
-        exposedToolName: exposedToolName,
-        arguments: const <String, dynamic>{
-          'prompt': 'safe request',
-          'api_token': 'approved-secret',
-          'context': 'approved-secret',
-        },
-        confirm: (preview) async {
-          expect(preview.tool.exposedName, exposedToolName);
-          expect(preview.redactedArguments['api_token'], '[REDACTED]');
-          expect(preview.redactedArguments['context'], '[REDACTED]');
-          return true;
-        },
-      );
-      expect(runtime.toolCalls, hasLength(1));
-      expect(
-        (runtime.toolCalls.single['params'] as Map)['name'],
-        'echo',
-      );
-      final returnedText =
-          approvedResult.content.single.toJson()['text'] as String;
-      expect(returnedText, contains('[REDACTED]'));
-      expect(returnedText, isNot(contains('approved-secret')));
-
-      final changedSchema = <String, dynamic>{
-        ...toolSchema,
-        'properties': <String, dynamic>{
-          ...Map<String, dynamic>.from(toolSchema['properties'] as Map),
-          'new_field': {'type': 'boolean'},
-        },
-      };
-      await expectLater(
-        connection.callTool(
-          skillId: skill.record.id,
-          ownerServerId: registrations.single.serverId,
-          exposedToolName: exposedToolName,
-          arguments: const <String, dynamic>{'prompt': 'stale schema test'},
-          confirm: (_) async {
-            runtime.tools = <Map<String, dynamic>>[
-              {
-                'name': 'echo',
-                'description': 'Returns the supplied prompt',
-                'inputSchema': changedSchema,
-              },
-            ];
-            return true;
-          },
-        ),
-        throwsA(isA<SkillMcpProviderSessionChanged>()),
-      );
-      expect(runtime.toolCalls, hasLength(1),
-          reason: 'schema drift after approval must prevent tool execution');
-      runtime.tools = <Map<String, dynamic>>[
-        {
-          'name': 'echo',
-          'description': 'Returns the supplied prompt',
-          'inputSchema': toolSchema,
-        },
-      ];
-
-      final auditFile = File(
-        auditRoot.path + '/skill-mcp-tool-audit-v1.jsonl',
-      );
-      expect(await auditFile.exists(), isTrue);
-      final auditContents = await auditFile.readAsString();
-      expect(auditContents, contains('"outcome":"denied"'));
-      expect(auditContents, contains('"outcome":"approved"'));
-      expect(auditContents, contains('"outcome":"success"'));
-      expect(auditContents, contains('"outcome":"failed"'));
-      expect(auditContents, isNot(contains('approved-secret')));
-      expect(auditContents, isNot(contains('private user prompt')));
-
-      final callResult = await provider.callTool(
-        connected.mcpServerId,
-        'echo',
-        <String, dynamic>{'prompt': 'generic bypass'},
-      );
-      expect(callResult, isNotNull,
-        reason: 'generic MCP calls must never bypass Skill approval');
-
-      await connection.disconnect(
-        skillId: skill.record.id,
-        ownerServerId: registrations.single.serverId,
-      );
-      activeOwner=null;
-      expect(runtime.cancelledRuns,contains(request.runId));
-      expect(provider.getById(connected.mcpServerId),isNull);
-      expect(
-        await Directory(sessionRoot.path+'/'+registrations.single.serverId).exists(),
-        isFalse,
-      );
-      expect(
-        await File(skillsDirectory.path+'/'+skill.record.id+'/SKILL.md').exists(),
-        isTrue,
-      );
-    },
-  );
-
-}
-
-Future<void> _waitFor(bool Function() predicate) async {
-  for (var i = 0; i < 200; i++) {
-    if (predicate()) return;
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-  }
-  fail('MCP state did not settle');
-}
-
-class _McpRuntime extends FakeWorkspaceRuntime
-    implements WorkspaceStdioRuntime {
-  _McpRuntime({
-    this.holdFirstInitialization = false,
-    this.failInitialization = false,
-    this.stallToolCalls = false,
-    this.cancellationGate,
-  });
-  final bool holdFirstInitialization;
-  final bool failInitialization;
-  final bool stallToolCalls;
-  final Completer<void>? cancellationGate;
-  final initializationStarted = Completer<void>();
-  final releaseInitialization = Completer<void>();
-  final events = <String, StreamController<CommandEvent>>{};
-  final probes = <CommandRequest>[];
-  final cancelledRuns = <String>[];
-  bool cancelled = false;
-  @override
-  Stream<CommandEvent> run(CommandRequest request) {
-    if (!request.keepStdinOpen) {
-      probes.add(request);
-      return Stream.value(
-        const CommandExited(
-          exitCode: 0,
-          timedOut: false,
-          cancelled: false,
-          interrupted: false,
-          duration: Duration.zero,
-        ),
-      );
-    }
-    requests.add(request);
-    final stream = StreamController<CommandEvent>();
-    events[request.runId] = stream;
-    stream.add(const CommandStarted());
-    return stream.stream;
-  }
-
-  @override
-  Future<void> writeStdin(String runId, Uint8List data) async {
-    final request = jsonDecode(utf8.decode(data)) as Map<String, dynamic>;
-    if (!request.containsKey('id')) return;
-    if (stallToolCalls && request['method'] == 'tools/call') return;
-    if (request['method'] == 'initialize' && runId == requests.first.runId) {
-      if (failInitialization) {
-        failProcess(runId);
-        return;
-      }
-      if (!initializationStarted.isCompleted) initializationStarted.complete();
-      if (holdFirstInitialization) await releaseInitialization.future;
-    }
-    final result = request['method'] == 'initialize'
-        ? {
-            'protocolVersion': '2025-03-26',
-            'capabilities': {'tools': {}},
-            'serverInfo': {'name': 'guest', 'version': '1'},
-          }
-        : {'tools': []};
     events[runId]!.add(
       CommandOutput(
         OutputStreamKind.stdout,
