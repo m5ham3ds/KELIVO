@@ -1021,7 +1021,10 @@ final class SkillMcpConnectionService {
             }
             final enabled = installedSkill?.record.enabled == true;
             var ownerSnapshotCurrent = false;
-            if (enabled) {
+            // Source trust is independent from the user's enabled switch.
+            // Validate the owner snapshot even when disabled so its secure
+            // credentials can be retained for a later re-enable.
+            if (installedSkill != null) {
               try {
                 final registration = await _findRegistration(
                   session.skillId,
