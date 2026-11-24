@@ -369,7 +369,7 @@ void main() {
   );
 
   testWidgets(
-    'account login is the fourth add tab and offers all four providers',
+    'Hugging Face has a dedicated add tab and Accounts keeps the other four providers',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -395,8 +395,18 @@ void main() {
       await tester.tap(find.text('Add'));
       await tester.pumpAndSettle();
       expect(find.text('OpenAI'), findsWidgets);
+      await tester.tap(find.text('Hugging Face').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Hugging Face OAuth Client ID'), findsOneWidget);
+      expect(find.text('Public OAuth Client ID'), findsOneWidget);
+      expect(find.text('Create Hugging Face OAuth app'), findsOneWidget);
+      expect(find.text('Log in'), findsOneWidget);
+      await snapshot(tester, key, 'oauth-add-huggingface');
+
       await tester.tap(find.text('Accounts'));
       await tester.pumpAndSettle();
+      expect(find.text('Hugging Face OAuth Client ID'), findsNothing);
+      expect(find.text('Hugging Face Inference Providers'), findsNothing);
       expect(find.text('ChatGPT'), findsOneWidget);
       expect(find.text('Grok'), findsOneWidget);
       expect(find.text('Kimi Code'), findsNWidgets(2));

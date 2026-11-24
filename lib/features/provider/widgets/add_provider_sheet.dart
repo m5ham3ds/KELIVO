@@ -39,7 +39,7 @@ class _AddProviderSheet extends StatefulWidget {
 
 class _AddProviderSheetState extends State<_AddProviderSheet>
     with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 4, vsync: this);
+  late final TabController _tab = TabController(length: 5, vsync: this);
 
   @override
   void initState() {
@@ -565,7 +565,7 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _SegTabBar(
                   controller: _tab,
-                  tabs: ['OpenAI', 'Google', 'Claude', l10n.oauthAccountsTab],
+                  tabs: ['OpenAI', 'Google', 'Claude', 'Hugging Face', l10n.oauthAccountsTab],
                 ),
               ),
               const SizedBox(height: 12),
@@ -585,6 +585,12 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
                               if (idx == 1) _googleForm(l10n),
                               if (idx == 2) _claudeForm(l10n),
                               if (idx == 3)
+                                OAuthLoginPanel(
+                                  provider: OAuthProvider.huggingFace,
+                                  onViewDetails: (id) =>
+                                      showOAuthProviderDetails(context, id),
+                                ),
+                              if (idx == 4)
                                 OAuthLoginPanel(
                                   onViewDetails: (id) =>
                                       showOAuthProviderDetails(context, id),

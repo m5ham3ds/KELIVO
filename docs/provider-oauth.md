@@ -1,6 +1,6 @@
 # 供应商账号登录
 
-入口：设置 → 供应商 → 添加 → 账号登录。支持 ChatGPT（Codex）、Grok、Kimi Code、Claude 和 Hugging Face。账号登录后会同步可用模型，也可以在账号详情手动同步。
+入口：设置 → 供应商 → 添加。Hugging Face 在独立标签页中配置；Accounts 标签页保留 ChatGPT（Codex）、Grok、Kimi Code 和 Claude。账号登录后同步可用模型，也可在账号详情重新同步.
 
 ## 登录与请求
 
@@ -9,8 +9,7 @@
 | ChatGPT | 浏览器 PKCE；手机和桌面都可选择设备码 | Codex Responses，固定流式请求 | ChatGPT usage 中的主、副及额外限制窗口、可用状态和已存重置次数 |
 | Grok | xAI 设备码 | xAI Responses | Grok CLI 周额度或统一计费月额度 |
 | Kimi Code | Kimi 设备码 | 根据模型目录声明选择 Messages 或 Chat Completions | Kimi Code 总体用量及各限制窗口 |
-| Claude | 浏览器 PKCE，支持粘贴授权码或完整回调链接 | Anthropic Messages，保留签名思考与工具续轮 | 五小时、周用量、各模型周窗口和额外美元用量 |\n| Hugging Face | Device Code OAuth عبر تطبيق عام وClient ID بلا Client Secret | OpenAI-compatible Chat Completions عبر router.huggingface.co/v1 | لا توجد نقطة استخدام موحدة متاحة في هذا الموصل |
-
+| Claude | 浏览器 PKCE，支持粘贴授权码或完整回调链接 | Anthropic Messages，保留签名思考与工具续轮 | 五小时、周用量、各模型周窗口和额外美元用量 |\n
 ChatGPT 默认使用浏览器授权，保留已注册的 `http://localhost:1455/auth/callback`。手机使用系统授权浏览器和临时本机监听；收到匹配的授权回调后，再通过 Kelivo 原生回调返回应用。授权码只在本机接收，返回应用的 URI 不携带授权码。取消、超时或完成后关闭监听，原生授权会话按标识取消，避免旧请求取消其他授权。
 
 Android 使用带会话的 Custom Tabs，优先使用支持它的默认浏览器；未设置默认浏览器或默认浏览器不支持时，从已安装的 Custom Tabs 浏览器中选择。授权时请求浏览器绑定空的 `OAuthBrowserService`，让本机监听在授权窗口打开期间保持运行；该服务不暴露凭证或应用操作。授权结束时解除客户端连接。首次使用浏览器时须先完成浏览器自身的初始化。
@@ -29,9 +28,9 @@ Android 使用带会话的 Custom Tabs，优先使用支持它的默认浏览器
 
 ### Hugging Face Inference Providers
 
-يتطلب تسجيل Hugging Face إنشاء OAuth app عاماً من إعدادات الحساب، ثم إدخال Client ID في شاشة Accounts. لا تضع Client Secret داخل التطبيق. يستخدم Device Code OAuth عبر `https://huggingface.co/oauth/device` و`https://huggingface.co/oauth/token`، مع النطاق `openid profile email inference-api`. يتم جلب الملف الشخصي من `https://huggingface.co/oauth/userinfo`، والنماذج من `GET https://router.huggingface.co/v1/models`، والمحادثات من `POST https://router.huggingface.co/v1/chat/completions`.
+يتطلب تسجيل Hugging Face إنشاء OAuth app عاماً من إعدادات الحساب، ثم إدخال Client ID في تبويب Hugging Face المستقل داخل Add Provider. لا تضع Client Secret داخل التطبيق. يستخدم Device Code OAuth عبر `https://huggingface.co/oauth/device` و`https://huggingface.co/oauth/token`، مع النطاق `openid profile email inference-api`. يتم جلب الملف الشخصي من `https://huggingface.co/oauth/userinfo`، والنماذج من `GET https://router.huggingface.co/v1/models`، والمحادثات من `POST https://router.huggingface.co/v1/chat/completions`.
 
-واجهة OpenAI-compatible الموثقة تدعم Chat Completions فقط، وليست بديلاً لتوليد الصور أو embeddings أو speech. لا يوفر موصل OAuth الحالي نقطة API موحدة لعرض استهلاك الحساب. إذا لم يصدر الخادم refresh token، فسيطلب التطبيق إعادة Device Code authorization عند انتهاء access token.
+واجهة OpenAI-compatible الموثقة تدعم Chat Completions فقط، وليست بديلاً لتوليد الصور أو embeddings أو speech. لا يوفر موصل OAuth الحالي نقطة API موحدة لعرض استهلاك الحساب؛ راجع صفحة Usage في إعدادات Hugging Face. إذا لم يصدر Hugging Face refresh token، فستنتهي الجلسة عند انتهاء access token ويلزم تسجيل دخول Device Code مجدداً. **الفوترة الحالية:** وفق صفحة الأسعار الرسمية، حسابات Free لا تتضمن رصيداً شهرياً مشمولاً لـ Inference Providers؛ يمكنها شراء Credits أو الترقية إلى PRO، التي تتضمن حالياً 2 دولار شهرياً من رصيد الحوسبة. تسجيل الدخول لا يجعل جميع النماذج مجانية. التفاصيل: https://huggingface.co/docs/inference-providers/pricing.
 
 ## 代码位置
 

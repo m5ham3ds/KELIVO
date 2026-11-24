@@ -93,6 +93,19 @@ class OAuthLoginPanel extends StatefulWidget {
 class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
   ProviderOAuthService get _service =>
       widget.service ?? ProviderOAuthService.instance;
+
+  ProviderConfig? _savedHuggingFaceConfig() {
+    if (widget.provider != OAuthProvider.huggingFace) return null;
+    final settings = context.read<SettingsProvider>();
+    if (widget.providerId != null) {
+      final exact = settings.getProviderConfig(widget.providerId!);
+      if (exact.oauthProvider == OAuthProvider.huggingFace) return exact;
+    }
+    for (final config in settings.providerConfigs.values) {
+      if (config.oauthProvider == OAuthProvider.huggingFace) return config;
+    }
+    return null;
+  }
   OAuthCancellation? _cancellation;
   OAuthProvider? _active;
   OAuthLoginPrompt? _prompt;
@@ -107,14 +120,11 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
   @override
   void initState() {
     super.initState();
-    if (widget.providerId != null) {
+    if (widget.provider == OAuthProvider.huggingFace) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _huggingFaceClientId.text = context
-            .read<SettingsProvider>()
-            .getProviderConfig(widget.providerId!)
-            .oauthCredentials
-            ?.oauthClientId ?? '';
+        _huggingFaceClientId.text =
+            _savedHuggingFaceConfig()?.oauthCredentials?.oauthClientId ?? '';
       });
     }
     if (widget.autoStart && widget.provider != null) {
@@ -134,11 +144,17 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
 
   Future<void> _login(OAuthProvider provider, {bool? deviceCode}) async {
     if (_active != null) return;
-    final clientId = provider == OAuthProvider.huggingFace
-        ? _huggingFaceClientId.text.trim()
+    final savedHuggingFace = provider == OAuthProvider.huggingFace
+        ? _savedHuggingFaceConfig()
         : null;
-    if (provider == OAuthProvider.huggingFace && clientId?.isEmpty == true && widget.providerId == null) {
-      setState(() => _error = 'Enter your Hugging Face OAuth Client ID first.');
+    final enteredClientId = _huggingFaceClientId.text.trim();
+    final clientId = provider == OAuthProvider.huggingFace
+        ? (enteredClientId.isNotEmpty
+            ? enteredClientId
+            : savedHuggingFace?.oauthCredentials?.oauthClientId?.trim())
+        : null;
+    if (provider == OAuthProvider.huggingFace && (clientId?.isNotEmpty != true)) {
+      setState(() => _error = 'Enter the public OAuth Client ID for your Hugging Face app.');
       return;
     }
     final cancellation = OAuthCancellation();
@@ -157,8 +173,8 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
     try {
       final connected = await _service.login(
         provider: provider,
-        providerId: widget.providerId,
-        clientId: clientId?.isNotEmpty == true ? clientId : null,
+        providerId: widget.providerId ?? savedHuggingFace?.id,
+        clientId: clientId,
         cancellation: cancellation,
         deviceCode: useDeviceCode,
         onPrompt: (value) {
@@ -410,41 +426,65 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (widget.provider == null || widget.provider == OAuthProvider.huggingFace)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Hugging Face OAuth Client ID'),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _huggingFaceClientId,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Public OAuth Client ID',
-                    border: OutlineInputBorder(),
-                  ),
+        if (widget.provider == OAuthProvider.huggingFace) ...[
+          SectionCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            children: [
+              Text(
+                'Hugging Face Inference Providers',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: AppFontWeights.semibold,
                 ),
-                const SizedBox(height: 6),
-                IosTileButton(
-                  label: 'Create Hugging Face OAuth app',
-                  icon: LucideIcons.externalLink,
-                  onTap: () => launchUrl(
-                    Uri.parse('https://huggingface.co/settings/applications'),
-                    mode: LaunchMode.externalApplication,
-                  ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Create a public OAuth app without a Client Secret. Its Client ID identifies the Kelivo integration; it is not your Hugging Face account ID or access token.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withValues(alpha: .68),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _huggingFaceClientId,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: const InputDecoration(
+                  labelText: 'Public OAuth Client ID',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              IosTileButton(
+                label: 'Create Hugging Face OAuth app',
+                icon: LucideIcons.externalLink,
+                onTap: () => launchUrl(
+                  Uri.parse('https://huggingface.co/settings/applications'),
+                  mode: LaunchMode.externalApplication,
+                ),
+              ),
+              const SizedBox(height: 8),
+              IosTileButton(
+                label: 'Hugging Face Inference Providers pricing',
+                icon: LucideIcons.externalLink,
+                onTap: () => launchUrl(
+                  Uri.parse('https://huggingface.co/docs/inference-providers/pricing'),
+                  mode: LaunchMode.externalApplication,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+        ]
         SectionCard(
           dividers: true,
           children: [
             for (final provider
                 in widget.provider == null
-                    ? OAuthProvider.values
+                    ? OAuthProvider.values.where(
+                        (provider) => provider != OAuthProvider.huggingFace,
+                      )
                     : [widget.provider!])
               Padding(
                 padding: const EdgeInsets.symmetric(

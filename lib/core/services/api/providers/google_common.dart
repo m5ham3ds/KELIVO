@@ -243,6 +243,58 @@ Map<String, dynamic>? _googleApiPart(Map part) {
   return out;
 }
 
+/// Makes Google Gemini quota failures actionable without hiding ordinary
+/// HTTP error payloads. A free-tier limit of zero is a model availability
+/// restriction, not a temporary rate limit that retrying will fix.
+String googleApiHttpErrorMessage({
+  required int statusCode,
+  required String errorBody,
+  required String modelId,
+}) {
+  if (statusCode == 429) {
+    final lower = errorBody.toLowerCase();
+    final isFreeTier =
+        lower.contains('free_tier') || lower.contains('free tier');
+    final hasZeroLimit = lower.contains('limit: 0');
+    if (isFreeTier && hasZeroLimit) {
+      var resolvedModel = modelId;
+      try {
+        final decoded = jsonDecode(errorBody);
+        if (decoded is Map && decoded['error'] is Map) {
+          final details = (decoded['error'] as Map)['details'];
+          if (details is List) {
+            for (final detail in details.whereType<Map>()) {
+              if (!(detail['@type'] ?? '').toString().contains('QuotaFailure')) {
+                continue;
+              }
+              final violations = detail['violations'];
+              if (violations is! List) continue;
+              for (final violation in violations.whereType<Map>()) {
+                final dimensions = violation['quotaDimensions'];
+                if (dimensions is Map &&
+                    dimensions['model'] is String &&
+                    (dimensions['model'] as String).trim().isNotEmpty) {
+                  resolvedModel = (dimensions['model'] as String).trim();
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {
+        // Fall back to the model selected in Kelivo when the body is partial.
+      }
+      return 'HTTP 429: Gemini model "$resolvedModel" has a zero Free Tier quota for this project. '
+          'Google reports that this model is not available on the current Free tier; '
+          'this response is not evidence that someone else used your API key. '
+          'Choose "gemini-4-hydrogen" for the Free tier, or enable billing on the Google project '
+          'to use this model. Waiting and retrying will not fix a quota of zero. '
+          'Pricing and model availability: https://aistudio.google.com/docs/pricing';
+    }
+  }
+  return 'HTTP $statusCode: $errorBody';
+}
+
 /// Gemini reports prompt-level blocks (safety filters etc.) in-band as
 /// `promptFeedback.blockReason` on a frame without candidates; surface those
 /// as a stream error instead of an empty "normal" completion.
@@ -664,7 +716,13 @@ Stream<StreamChunk> sendGoogleStream(
         final resp = await client.send(req);
         if (resp.statusCode < 200 || resp.statusCode >= 300) {
           final errorBody = await resp.stream.bytesToString();
-          throw HttpException('HTTP ${resp.statusCode}: $errorBody');
+          throw HttpException(
+            googleApiHttpErrorMessage(
+              statusCode: resp.statusCode,
+              errorBody: errorBody,
+              modelId: modelId,
+            ),
+          );
         }
         final txt = await decodeUtf8Stream(resp.stream);
         final obj = jsonDecode(txt) as Map<String, dynamic>;
