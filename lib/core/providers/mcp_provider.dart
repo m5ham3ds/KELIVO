@@ -65,6 +65,19 @@ class _SkillMcpSessionBinding {
   final String workspaceRoot;
 }
 
+final class SkillMcpProviderSessionChanged implements Exception {
+  const SkillMcpProviderSessionChanged(this.code);
+  final String code;
+  @override
+  String toString() => code;
+}
+
+final class SkillMcpProviderApprovalDenied implements Exception {
+  const SkillMcpProviderApprovalDenied();
+  @override
+  String toString() => 'skill_mcp_tool_approval_denied';
+}
+
 class _ServerConnection {
   Workspace? workspace;
   mcp.ClientTransport? initializingTransport;
@@ -3138,17 +3151,196 @@ class McpProvider extends ChangeNotifier {
     await _connect(id);
   }
 
+
   Future<mcp.CallToolResult?> callTool(
     String serverId,
     String toolName,
     Map<String, dynamic> args,
-  ) async {
-    if (_skillMcpSessions.containsKey(serverId)) {
-      return _toolError(
-        'Skill-owned MCP tools are not callable until Phase 13Q.4 approval.',
+  ) => _callToolCore(serverId, toolName, args);
+
+  Future<List<McpToolConfig>> listSkillOwnedTools({
+    required String serverId,
+    required String skillId,
+    required String ownerServerId,
+    required String sourceDigest,
+  }) async {
+    _assertSkillMcpOwner(
+      serverId: serverId,
+      skillId: skillId,
+      ownerServerId: ownerServerId,
+      sourceDigest: sourceDigest,
+    );
+    if (!isConnected(serverId)) {
+      throw const SkillMcpProviderSessionChanged(
+        'skill_mcp_server_not_connected',
       );
     }
-    await ensureConnected(serverId);
+    final refreshed = await refreshTools(serverId).timeout(_requestTimeout);
+    if (!refreshed) {
+      throw StateError(errorFor(serverId) ?? 'skill_mcp_tools_list_failed');
+    }
+    _assertSkillMcpOwner(
+      serverId: serverId,
+      skillId: skillId,
+      ownerServerId: ownerServerId,
+      sourceDigest: sourceDigest,
+    );
+    if (!isConnected(serverId)) {
+      throw const SkillMcpProviderSessionChanged(
+        'skill_mcp_server_disconnected_during_tools_list',
+      );
+    }
+    final server = getById(serverId);
+    if (server == null || !server.enabled) {
+      throw const SkillMcpProviderSessionChanged(
+        'skill_mcp_server_removed_during_tools_list',
+      );
+    }
+    final tools = server.tools.where((tool) => tool.enabled).toList(
+      growable: false,
+    );
+    if (tools.length > 128) {
+      throw const FormatException('skill_mcp_tool_count_limit');
+    }
+    final names = <String>{};
+    for (final tool in tools) {
+      if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$')
+              .hasMatch(tool.name) ||
+          !names.add(tool.name)) {
+        throw const FormatException('invalid_or_duplicate_skill_mcp_tool_name');
+      }
+      final schema = tool.schema;
+      if (schema == null ||
+          utf8.encode(jsonEncode(schema)).length > 64 * 1024 ||
+          (tool.description != null &&
+              utf8.encode(tool.description!).length > 8192)) {
+        throw FormatException(
+          'invalid_or_oversized_skill_mcp_tool_schema:${tool.name}',
+        );
+      }
+    }
+    return List<McpToolConfig>.unmodifiable(tools);
+  }
+
+  Future<mcp.CallToolResult> callSkillOwnedTool({
+    required String serverId,
+    required String skillId,
+    required String ownerServerId,
+    required String sourceDigest,
+    required String toolName,
+    required Map<String, dynamic> args,
+    required String expectedInputSchemaJson,
+    required Future<bool> Function() confirmApproval,
+    required Future<void> Function() revalidateOwner,
+  }) async {
+    final tools = await listSkillOwnedTools(
+      serverId: serverId,
+      skillId: skillId,
+      ownerServerId: ownerServerId,
+      sourceDigest: sourceDigest,
+    );
+    final selected = tools.where((tool) => tool.name == toolName);
+    if (selected.length != 1 ||
+        jsonEncode(selected.single.schema) != expectedInputSchemaJson) {
+      throw const SkillMcpProviderSessionChanged(
+        'skill_mcp_tool_schema_changed',
+      );
+    }
+    if (!await confirmApproval()) {
+      throw const SkillMcpProviderApprovalDenied();
+    }
+    await revalidateOwner();
+    final freshTools = await listSkillOwnedTools(
+      serverId: serverId,
+      skillId: skillId,
+      ownerServerId: ownerServerId,
+      sourceDigest: sourceDigest,
+    );
+    final current = freshTools.where((tool) => tool.name == toolName);
+    if (current.length != 1 ||
+        jsonEncode(current.single.schema) != expectedInputSchemaJson) {
+      throw const SkillMcpProviderSessionChanged(
+        'skill_mcp_tool_schema_changed_after_approval',
+      );
+    }
+    await revalidateOwner();
+    final result = await _callToolCore(
+      serverId,
+      toolName,
+      args,
+      allowSkillOwned: true,
+      skillId: skillId,
+      ownerServerId: ownerServerId,
+      sourceDigest: sourceDigest,
+      expectedInputSchemaJson: expectedInputSchemaJson,
+    );
+    if (result == null) {
+      throw StateError(errorFor(serverId) ?? 'skill_mcp_tool_call_failed');
+    }
+    if (result.content.length > 64 ||
+        utf8.encode(jsonEncode(result.toJson())).length > 256 * 1024) {
+      throw const FormatException('skill_mcp_tool_result_limit');
+    }
+    return result;
+  }
+
+  void _assertSkillMcpOwner({
+    required String serverId,
+    required String skillId,
+    required String ownerServerId,
+    required String sourceDigest,
+  }) {
+    final owner = _skillMcpSessions[serverId];
+    if (owner == null ||
+        owner.skillId != skillId ||
+        owner.ownerServerId != ownerServerId ||
+        owner.sourceDigest != sourceDigest.toLowerCase()) {
+      throw const SkillMcpProviderSessionChanged(
+        'skill_mcp_session_owner_changed',
+      );
+    }
+  }
+
+  Future<mcp.CallToolResult?> _callToolCore(
+    String serverId,
+    String toolName,
+    Map<String, dynamic> args, {
+    bool allowSkillOwned = false,
+    String? skillId,
+    String? ownerServerId,
+    String? sourceDigest,
+    String? expectedInputSchemaJson,
+  }) async {
+
+    final skillSession = _skillMcpSessions[serverId];
+    if (skillSession != null && !allowSkillOwned) {
+      return _toolError(
+        'Skill-owned MCP tools require the Skill approval gateway.',
+      );
+    }
+    if (allowSkillOwned) {
+      if (skillId == null ||
+          ownerServerId == null ||
+          sourceDigest == null ||
+          expectedInputSchemaJson == null) {
+        throw const SkillMcpProviderSessionChanged(
+          'skill_mcp_call_identity_missing',
+        );
+      }
+      _assertSkillMcpOwner(
+        serverId: serverId,
+        skillId: skillId,
+        ownerServerId: ownerServerId,
+        sourceDigest: sourceDigest,
+      );
+      if (!isConnected(serverId)) {
+        throw const SkillMcpProviderSessionChanged(
+          'skill_mcp_server_not_connected',
+        );
+      }
+    } else {
+      await ensureConnected(serverId);
+    }
     final state = _connections[serverId];
     if (state == null) return null;
     final cooldown = _activeCooldown(state);
@@ -3162,13 +3354,56 @@ class McpProvider extends ChangeNotifier {
     if (client == null) return null;
     final scopeOperation = _scopeOperationForTool(toolName);
     final normalized = _normalizeArgsForTool(serverId, toolName, args);
+    final generation = state.generation;
+    Future<void> verifySkillCallCurrent(mcp.Client target) async {
+      if (!allowSkillOwned) return;
+      _assertSkillMcpOwner(
+        serverId: serverId,
+        skillId: skillId!,
+        ownerServerId: ownerServerId!,
+        sourceDigest: sourceDigest!,
+      );
+      if (state.generation != generation ||
+          !identical(state.client, target) ||
+          !isConnected(serverId)) {
+        throw const SkillMcpProviderSessionChanged(
+          'skill_mcp_session_changed_during_tool_call',
+        );
+      }
+      final liveTool = _toolConfig(serverId, toolName);
+      if (liveTool == null ||
+          !liveTool.enabled ||
+          jsonEncode(liveTool.schema) != expectedInputSchemaJson) {
+        throw const SkillMcpProviderSessionChanged(
+          'skill_mcp_tool_schema_changed_during_call',
+        );
+      }
+    }
+
+    Future<mcp.CallToolResult> invokeTool(mcp.Client target) async {
+      await verifySkillCallCurrent(target);
+      final response = await target.callTool(toolName, normalized);
+      await verifySkillCallCurrent(target);
+      if (response.content.length > 64 ||
+          utf8.encode(jsonEncode(response.toJson())).length > 256 * 1024) {
+        throw const FormatException('skill_mcp_tool_result_limit');
+      }
+      return response;
+    }
+
     final startedAt = DateTime.now();
     try {
-      final result = await client.callTool(toolName, normalized);
+      final result = await invokeTool(client);
       _finishScopeUpgrade(state, scopeOperation);
       _clearCooldownAfterSuccess(state, startedAt);
       return result;
     } catch (error) {
+      if (error is SkillMcpProviderSessionChanged) rethrow;
+      if (allowSkillOwned &&
+          error is StateError &&
+          error.toString().contains('skill_mcp_')) {
+        rethrow;
+      }
       if (error is mcp.McpError && error.code == -32602) {
         return _toolError(error.toString());
       }
@@ -3184,7 +3419,7 @@ class McpProvider extends ChangeNotifier {
           if (replacement != null &&
               (error as mcp.McpHttpError).canRetryRequest) {
             try {
-              final result = await replacement.callTool(toolName, normalized);
+              final result = await invokeTool(replacement);
               _finishScopeUpgrade(state, scopeOperation);
               return result;
             } catch (retryError) {
@@ -3238,7 +3473,7 @@ class McpProvider extends ChangeNotifier {
         );
         if (replacement != null) {
           try {
-            final result = await replacement.callTool(toolName, normalized);
+            final result = await invokeTool(replacement);
             _finishScopeUpgrade(state, scopeOperation);
             return result;
           } catch (retryError) {

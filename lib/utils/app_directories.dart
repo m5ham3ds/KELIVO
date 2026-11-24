@@ -78,6 +78,10 @@ class AppDirectories {
   static Future<Directory> getSkillMcpSessionsDirectory() =>
       _ensureSubdir('skill-mcp-sessions');
 
+  /// Bounded local audit records for explicitly approved Skill MCP tool calls.
+  static Future<Directory> getSkillMcpAuditDirectory() =>
+      _ensureSubdir('skill-mcp-audit');
+
   /// Sandbox environment install root: `<appData>/environment`.
   static Future<Directory> getEnvironmentDirectory() =>
       _ensureSubdir('environment');
