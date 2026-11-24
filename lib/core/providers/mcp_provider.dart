@@ -51,6 +51,20 @@ class _DetachedConnection {
   final mcp.ClientTransport? initializingTransport;
 }
 
+class _SkillMcpSessionBinding {
+  const _SkillMcpSessionBinding({
+    required this.skillId,
+    required this.ownerServerId,
+    required this.sourceDigest,
+    required this.workspaceRoot,
+  });
+
+  final String skillId;
+  final String ownerServerId;
+  final String sourceDigest;
+  final String workspaceRoot;
+}
+
 class _ServerConnection {
   Workspace? workspace;
   mcp.ClientTransport? initializingTransport;
@@ -376,6 +390,7 @@ class McpProvider extends ChangeNotifier {
   final McpOAuthService _oauthService;
   final bool _ownsOAuthService;
   final Map<String, _ServerConnection> _connections = {};
+  final Map<String, _SkillMcpSessionBinding> _skillMcpSessions = {};
   List<McpServerConfig> _servers = [];
   Future<void> _serverMutationTail = Future<void>.value();
   Duration _requestTimeout = const Duration(seconds: 30);
@@ -459,14 +474,18 @@ class McpProvider extends ChangeNotifier {
 
   List<McpServerConfig> get servers => List.unmodifiable(
     _servers.where(
-      (s) => s.transport != McpTransportType.stdio || supportsStdio,
+      (s) =>
+          !_skillMcpSessions.containsKey(s.id) &&
+          (s.transport != McpTransportType.stdio || supportsStdio),
     ),
   );
   McpStatus statusFor(String id) => _connections[id]?.status ?? McpStatus.idle;
   String? errorFor(String id) => _connections[id]?.error;
   McpOAuthStage? oauthStageFor(String id) =>
       _connections[id]?.authorizationSession?.stage;
-  bool get hasAnyEnabled => _servers.any((s) => s.enabled);
+  bool get hasAnyEnabled => _servers.any(
+    (s) => !_skillMcpSessions.containsKey(s.id) && s.enabled,
+  );
   bool isConnected(String id) {
     final state = _connections[id];
     return state?.client?.isConnected == true &&
@@ -475,7 +494,11 @@ class McpProvider extends ChangeNotifier {
 
   bool isInCooldown(String id) => _activeCooldown(_connections[id]) != null;
   List<McpServerConfig> get connectedServers => _servers
-      .where((s) => statusFor(s.id) == McpStatus.connected)
+      .where(
+        (s) =>
+            !_skillMcpSessions.containsKey(s.id) &&
+            statusFor(s.id) == McpStatus.connected,
+      )
       .toList(growable: false);
   Duration get requestTimeout => _requestTimeout;
   int get requestTimeoutSeconds => _requestTimeout.inSeconds;
@@ -552,7 +575,12 @@ class McpProvider extends ChangeNotifier {
   Future<void> _persistServers(List<McpServerConfig> servers) async {
     await preferences.setString(
       _prefsKey,
-      jsonEncode(servers.map((e) => e.toJson()).toList()),
+      jsonEncode(
+        servers
+            .where((e) => !_skillMcpSessions.containsKey(e.id))
+            .map((e) => e.toJson())
+            .toList(),
+      ),
     );
   }
 
@@ -588,7 +616,7 @@ class McpProvider extends ChangeNotifier {
   String exportServersAsUiJson() {
     final map = <String, dynamic>{
       'mcpServers': {
-        for (final s in _servers)
+        for (final s in _servers.where((s) => !_skillMcpSessions.containsKey(s.id)))
           s.id: {
             'name': s.name,
             if (s.transport == McpTransportType.http) 'type': 'streamableHttp',
@@ -649,6 +677,11 @@ class McpProvider extends ChangeNotifier {
   /// Replace all MCP servers from a JSON string.
   /// Accepts either the UI JSON (with top-level `mcpServers`) or the internal list format.
   Future<void> replaceAllFromJson(String rawJson) async {
+    if (_skillMcpSessions.isNotEmpty) {
+      throw StateError(
+        'Disconnect active Skill MCP sessions before replacing all servers.',
+      );
+    }
     final existingById = {for (final server in _servers) server.id: server};
     dynamic data;
     try {
@@ -935,6 +968,143 @@ class McpProvider extends ChangeNotifier {
     return null;
   }
 
+
+  /// Starts a process-local Skill MCP session after its caller obtains explicit
+  /// approval. The session is never written into MCP preferences.
+  Future<String> connectSkillOwnedServer({
+    required String skillId,
+    required String ownerServerId,
+    required String sourceDigest,
+    required String name,
+    required String command,
+    required List<String> args,
+    required Map<String, String> env,
+    required String workspaceRoot,
+  }) async {
+    await loaded;
+    if (!supportsStdio || !supportsStdioWorkspaceBinding) {
+      throw StateError('skill_mcp_workspace_environment_not_ready');
+    }
+    if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$').hasMatch(skillId) ||
+        !RegExp(r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$')
+            .hasMatch(ownerServerId)) {
+      throw const FormatException('invalid_skill_mcp_owner_identity');
+    }
+    final digest = sourceDigest.toLowerCase();
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(digest)) {
+      throw const FormatException('invalid_skill_mcp_owner_source_digest');
+    }
+    final serverName = name.trim();
+    final safeCommand = command.trim();
+    if (serverName.isEmpty ||
+        serverName.length > 64 ||
+        safeCommand.isEmpty ||
+        safeCommand.length > 256 ||
+        safeCommand.contains('\u0000') ||
+        safeCommand.contains('\n') ||
+        safeCommand.contains('\r') ||
+        args.length > 64 ||
+        args.any((arg) => arg.length > 4096 || arg.contains('\u0000'))) {
+      throw const FormatException('invalid_skill_mcp_runtime_command');
+    }
+    const reservedEnv = <String>{
+      'PATH', 'HOME', 'TMP', 'TEMP', 'TMPDIR', 'LD_PRELOAD',
+      'LD_LIBRARY_PATH', 'PROOT_TMP_DIR', 'PROOT_LOADER',
+      'PROOT_DONT_LOAD', 'ANDROID_ROOT', 'ANDROID_DATA', 'PREFIX',
+    };
+    for (final entry in env.entries) {
+      final key = entry.key.toUpperCase();
+      if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(entry.key) ||
+          reservedEnv.contains(key) ||
+          entry.value.isEmpty ||
+          entry.value.length > 65536 ||
+          entry.value.contains('\u0000')) {
+        throw const FormatException('invalid_skill_mcp_runtime_environment');
+      }
+    }
+    final root = Directory(workspaceRoot);
+    if (await FileSystemEntity.type(root.path, followLinks: false) !=
+        FileSystemEntityType.directory) {
+      throw StateError('skill_mcp_runtime_workspace_missing');
+    }
+    final canonicalRoot = await root.resolveSymbolicLinks();
+    final serverId = const Uuid().v4();
+    final config = McpServerConfig(
+      id: serverId,
+      enabled: true,
+      name: 'Skill · $serverName',
+      transport: McpTransportType.stdio,
+      command: safeCommand,
+      args: List<String>.unmodifiable(args),
+      env: Map<String, String>.unmodifiable(env),
+      workingDirectory: '/workspace/skill',
+    );
+
+    await _serializeServerMutation(() async {
+      if (_skillMcpSessions.values.any((session) =>
+          session.skillId == skillId && session.ownerServerId == ownerServerId)) {
+        throw StateError('skill_mcp_session_already_active');
+      }
+      _servers = <McpServerConfig>[..._servers, config];
+      _connections[serverId] = _ServerConnection();
+      _skillMcpSessions[serverId] = _SkillMcpSessionBinding(
+        skillId: skillId,
+        ownerServerId: ownerServerId,
+        sourceDigest: digest,
+        workspaceRoot: canonicalRoot,
+      );
+      _notify();
+    });
+
+    try {
+      final connected = await _connect(serverId);
+      if (!connected || !isConnected(serverId)) {
+        throw StateError(errorFor(serverId) ??
+            'skill_mcp_server_connection_failed');
+      }
+      return serverId;
+    } catch (_) {
+      await removeSkillOwnedServer(
+        serverId,
+        skillId: skillId,
+        ownerServerId: ownerServerId,
+        sourceDigest: digest,
+      );
+      rethrow;
+    }
+  }
+
+  /// Removes only the process session matching its exact Skill owner snapshot.
+  Future<void> removeSkillOwnedServer(
+    String serverId, {
+    required String skillId,
+    required String ownerServerId,
+    required String sourceDigest,
+  }) async {
+    _DetachedConnection? detached;
+    await _serializeServerMutation(() async {
+      final owner = _skillMcpSessions[serverId];
+      if (owner == null) return;
+      if (owner.skillId != skillId ||
+          owner.ownerServerId != ownerServerId ||
+          owner.sourceDigest != sourceDigest.toLowerCase()) {
+        throw StateError('skill_mcp_session_owner_mismatch');
+      }
+      detached = _detachConnection(serverId);
+      _servers = _servers.where((server) => server.id != serverId).toList(
+        growable: false,
+      );
+      _connections.remove(serverId);
+      _declaredIcons.remove(serverId);
+      _skillMcpSessions.remove(serverId);
+      _notify();
+    });
+    final connection = detached;
+    if (connection != null) {
+      await _finishDisconnect(connection, terminateSession: true);
+    }
+  }
+
   Future<String> addServer({
     required bool enabled,
     required String name,
@@ -999,6 +1169,9 @@ class McpProvider extends ChangeNotifier {
     required bool preserveLatestTools,
     bool replaceOAuthSettings = false,
   }) async {
+    if (_skillMcpSessions.containsKey(updated.id)) {
+      throw StateError('Use the Skill MCP owner service to manage this session.');
+    }
     _DetachedConnection? detached;
     var reconnect = false;
     await _serializeServerMutation(() async {
@@ -1059,6 +1232,9 @@ class McpProvider extends ChangeNotifier {
   }
 
   Future<void> removeServer(String id) async {
+    if (_skillMcpSessions.containsKey(id)) {
+      throw StateError('Use the Skill MCP owner service to remove this session.');
+    }
     _DetachedConnection? detached;
     await _serializeServerMutation(() async {
       final next = _servers.where((e) => e.id != id).toList(growable: false);
@@ -1328,6 +1504,7 @@ class McpProvider extends ChangeNotifier {
     bool needsApproval,
   ) async {
     await _serializeServerMutation(() async {
+      if (_skillMcpSessions.containsKey(serverId)) return;
       final idx = _servers.indexWhere((e) => e.id == serverId);
       if (idx < 0) return;
       final server = _servers[idx];
@@ -1349,7 +1526,7 @@ class McpProvider extends ChangeNotifier {
   /// Conservative: require approval if any enabled cached tool requires it.
   bool toolNeedsApproval(String toolName) {
     for (final s in _servers) {
-      if (!s.enabled) continue;
+      if (_skillMcpSessions.containsKey(s.id) || !s.enabled) continue;
       for (final t in s.tools) {
         if (t.name == toolName && t.enabled && t.needsApproval) return true;
       }
@@ -1783,6 +1960,9 @@ class McpProvider extends ChangeNotifier {
         final config = await environment!.loadExecutionConfig(
           overrides: server.env,
         );
+        final executionEnvironment = _skillMcpSessions.containsKey(id)
+            ? _skillMcpMinimalEnvironment(config.variables, server.env)
+            : config.variables;
         final mounts = await _stdioWorkspaceMounts(server, state);
         final cwd =
             server.workingDirectory ??
@@ -1792,7 +1972,7 @@ class McpProvider extends ChangeNotifier {
           command: server.command ?? '',
           cwd: cwd,
           mounts: mounts,
-          environment: config.variables,
+          environment: executionEnvironment,
           timeout: _requestTimeout,
           isCancelled: () =>
               _disposed || state.generation != generation || !supportsStdio,
@@ -1803,7 +1983,7 @@ class McpProvider extends ChangeNotifier {
           arguments: server.args,
           cwd: cwd,
           mounts: mounts,
-          environment: config.variables,
+          environment: executionEnvironment,
           startupTimeout: _requestTimeout,
           isCancelled: () => _disposed || state.generation != generation,
         );
@@ -2317,6 +2497,9 @@ class McpProvider extends ChangeNotifier {
   }
 
   Future<void> disconnect(String id, {bool terminateSession = true}) async {
+    if (_skillMcpSessions.containsKey(id)) {
+      throw StateError('Use the Skill MCP owner service to disconnect this session.');
+    }
     final detached = _detachConnection(id);
     await _finishDisconnect(detached, terminateSession: terminateSession);
   }
@@ -2960,6 +3143,11 @@ class McpProvider extends ChangeNotifier {
     String toolName,
     Map<String, dynamic> args,
   ) async {
+    if (_skillMcpSessions.containsKey(serverId)) {
+      return _toolError(
+        'Skill-owned MCP tools are not callable until Phase 13Q.4 approval.',
+      );
+    }
     await ensureConnected(serverId);
     final state = _connections[serverId];
     if (state == null) return null;
@@ -3245,6 +3433,7 @@ class McpProvider extends ChangeNotifier {
       if (session != null) unawaited(session.cancel().catchError((_) {}));
     }
     _connections.clear();
+    _skillMcpSessions.clear();
     if (_ownsOAuthService) _oauthService.dispose();
     super.dispose();
   }
@@ -3253,6 +3442,17 @@ class McpProvider extends ChangeNotifier {
     McpServerConfig server,
     _ServerConnection state,
   ) async {
+    final skillSession = _skillMcpSessions[server.id];
+    if (skillSession != null) {
+      final sessionRoot = Directory(skillSession.workspaceRoot);
+      if (await FileSystemEntity.type(sessionRoot.path, followLinks: false) !=
+          FileSystemEntityType.directory) {
+        throw StateError('skill_mcp_runtime_workspace_missing');
+      }
+      return <Mount>[
+        Mount(host: skillSession.workspaceRoot, guest: '/workspace'),
+      ];
+    }
     final workspaceId = server.workspaceId;
     if (workspaceId == null) return const [];
     final provider = workspaces!;
@@ -3270,6 +3470,26 @@ class McpProvider extends ChangeNotifier {
       throw StateError('Bound workspace folder is unavailable: $root');
     }
     return [Mount(host: root, guest: '/workspace')];
+  }
+
+
+  Map<String, String> _skillMcpMinimalEnvironment(
+    Map<String, String> base,
+    Map<String, String> skillSecrets,
+  ) {
+    const allowed = <String>{'PATH', 'LANG', 'LC_ALL', 'TZ', 'TERM'};
+    final result = <String, String>{};
+    for (final entry in base.entries) {
+      if (allowed.contains(entry.key.toUpperCase()) && entry.value.isNotEmpty) {
+        result[entry.key.toUpperCase()] = entry.value;
+      }
+    }
+    result.addAll(skillSecrets);
+    result['HOME'] = '/workspace/.home';
+    result['TMPDIR'] = '/workspace/.tmp';
+    result['TMP'] = '/workspace/.tmp';
+    result['TEMP'] = '/workspace/.tmp';
+    return Map<String, String>.unmodifiable(result);
   }
 
   bool _isDesktopPlatform() {

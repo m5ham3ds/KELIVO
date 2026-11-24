@@ -73,6 +73,11 @@ class AppDirectories {
   static Future<Directory> getSkillImportMetadataDirectory() =>
       _ensureSubdir('skill-import-metadata');
 
+  /// Private per-session directories for explicitly approved Skill MCP processes.
+  /// These contain verified Skill copies, not the installed Skills tree.
+  static Future<Directory> getSkillMcpSessionsDirectory() =>
+      _ensureSubdir('skill-mcp-sessions');
+
   /// Sandbox environment install root: `<appData>/environment`.
   static Future<Directory> getEnvironmentDirectory() =>
       _ensureSubdir('environment');

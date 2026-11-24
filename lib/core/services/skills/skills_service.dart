@@ -167,6 +167,15 @@ class SkillsService extends ChangeNotifier {
     );
   }
 
+
+  String? _normalizeSkillManifestSha256(Object? rawValue) {
+    if (rawValue is! String) return null;
+    var value = rawValue.trim().toLowerCase();
+    if (value.startsWith('sha256:')) value = value.substring(7);
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(value)) return null;
+    return value;
+  }
+
   /// Reads one declared MCP config from the installed Skill, verifies that
   /// the import manifest still matches the on-disk files, then records
   /// disabled ownership entries. This does not connect, launch, or call MCP.
@@ -180,9 +189,8 @@ class SkillsService extends ChangeNotifier {
     if (report == null) {
       throw StateError('skill_mcp_import_manifest_missing');
     }
-    final rawDigest = report['sourceDigest'];
-    if (rawDigest is! String ||
-        !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(rawDigest)) {
+    final normalizedDigest = _normalizeSkillManifestSha256(report['sourceDigest']);
+    if (normalizedDigest == null) {
       throw StateError('skill_mcp_import_digest_missing');
     }
 
@@ -234,7 +242,7 @@ class SkillsService extends ChangeNotifier {
     final registry = await skillMcpOwnerRegistry;
     return registry.registerMany(
       skillId: skillId,
-      sourceDigest: rawDigest,
+      sourceDigest: normalizedDigest,
       capabilityId: SkillMcpOwnerRegistration.requiredCapabilityId,
       descriptors: descriptors,
     );
@@ -248,37 +256,52 @@ class SkillsService extends ChangeNotifier {
       return null;
     }
     final skillRoot = Directory(p.join(skillsDirectory.path, skillId));
-    if (!await skillRoot.exists()) return null;
+    if (await FileSystemEntity.type(
+          skillRoot.path,
+          followLinks: false,
+        ) !=
+        FileSystemEntityType.directory) {
+      return null;
+    }
     final report = await getImportReport(skillId);
-    final digest = report?['sourceDigest'];
+    final digest = _normalizeSkillManifestSha256(report?['sourceDigest']);
     final rawFiles = report?['files'];
-    if (digest is! String ||
-        !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(digest) ||
+    if (digest == null ||
         rawFiles is! List ||
+        rawFiles.isEmpty ||
         rawFiles.length > SkillImportAnalyzer.maxFiles) {
       return null;
     }
 
-    final expected = <String, String>{};
+    final expectedDigests = <String, String>{};
+    final expectedSizes = <String, int>{};
     for (final rawEntry in rawFiles) {
       if (rawEntry is! Map || rawEntry['scope'] != 'skill') continue;
       final relativePath = rawEntry['path'];
-      final fileDigest = rawEntry['sha256'];
+      final fileDigest = _normalizeSkillManifestSha256(rawEntry['sha256']);
+      final sizeBytes = rawEntry['sizeBytes'];
       if (relativePath is! String ||
-          fileDigest is! String ||
-          !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(fileDigest) ||
+          fileDigest == null ||
+          sizeBytes is! int ||
+          sizeBytes < 0 ||
+          sizeBytes > SkillImportAnalyzer.maxFileBytes ||
           relativePath.isEmpty ||
           relativePath.startsWith('/') ||
           relativePath.contains(r'\') ||
+          relativePath.contains('\u0000') ||
+          p.posix.isAbsolute(relativePath) ||
+          p.posix.normalize(relativePath) != relativePath ||
           relativePath.split('/').any(
             (part) => part.isEmpty || part == '.' || part == '..',
           ) ||
-          expected.containsKey(relativePath)) {
+          RegExp(r'^[A-Za-z]:').hasMatch(relativePath) ||
+          expectedDigests.containsKey(relativePath)) {
         return null;
       }
-      expected[relativePath] = fileDigest.toLowerCase();
+      expectedDigests[relativePath] = fileDigest;
+      expectedSizes[relativePath] = sizeBytes;
     }
-    if (expected.isEmpty) return null;
+    if (expectedDigests.isEmpty) return null;
 
     final found = <String>{};
     await for (final entity in skillRoot.list(
@@ -298,14 +321,158 @@ class SkillsService extends ChangeNotifier {
         entity.path,
         from: skillRoot.path,
       ).replaceAll(r'\', '/');
-      final expectedDigest = expected[relativePath];
+      final expectedDigest = expectedDigests[relativePath];
       if (expectedDigest == null || !found.add(relativePath)) return null;
-      final actualDigest =
-          await sha256.bind(File(entity.path).openRead()).first;
+      final file = File(entity.path);
+      final stat = await file.stat();
+      if (stat.size != expectedSizes[relativePath]) return null;
+      final actualDigest = await sha256.bind(file.openRead()).first;
       if (actualDigest.toString() != expectedDigest) return null;
     }
-    if (found.length != expected.length) return null;
-    return digest.toLowerCase();
+    if (found.length != expectedDigests.length) return null;
+    return digest;
+  }
+
+
+  /// Copies only manifest-owned Skill files into a new session directory.
+  /// The installed Skills directory is never mounted into a PRoot MCP process.
+  Future<Directory> copyVerifiedSkillSnapshot({
+    required String skillId,
+    required String sourceDigest,
+    required Directory destination,
+  }) async {
+    await loaded;
+    return _serializeMutation(() async {
+      final expectedSkillDigest = _normalizeSkillManifestSha256(sourceDigest);
+      if (expectedSkillDigest == null ||
+          await _readVerifiedSkillSourceDigest(skillId) != expectedSkillDigest) {
+        throw StateError('skill_mcp_snapshot_stale_source');
+      }
+      final report = await getImportReport(skillId);
+      final rawFiles = report?['files'];
+      if (rawFiles is! List ||
+          rawFiles.isEmpty ||
+          rawFiles.length > SkillImportAnalyzer.maxFiles) {
+        throw const FormatException('invalid_skill_mcp_snapshot_manifest');
+      }
+
+      final sourceRoot = Directory(p.join(skillsDirectory.path, skillId));
+      if (await FileSystemEntity.type(sourceRoot.path, followLinks: false) !=
+          FileSystemEntityType.directory) {
+        throw StateError('skill_mcp_snapshot_source_missing');
+      }
+      final canonicalSourceRoot = await sourceRoot.resolveSymbolicLinks();
+      final destinationPath = p.normalize(p.absolute(destination.path));
+      if (await FileSystemEntity.type(destinationPath, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        throw StateError('skill_mcp_snapshot_destination_exists');
+      }
+
+      var createdDestination = false;
+      try {
+        await Directory(destinationPath).create(recursive: true);
+        createdDestination = true;
+        final canonicalDestination =
+            await Directory(destinationPath).resolveSymbolicLinks();
+        final seen = <String>{};
+        var totalBytes = 0;
+        var copiedFiles = 0;
+
+        for (final rawEntry in rawFiles) {
+          if (rawEntry is! Map) {
+            throw const FormatException('invalid_skill_mcp_snapshot_manifest_entry');
+          }
+          if (rawEntry['scope'] != 'skill') continue;
+          final relativePath = rawEntry['path'];
+          final expectedFileDigest =
+              _normalizeSkillManifestSha256(rawEntry['sha256']);
+          final expectedSize = rawEntry['sizeBytes'];
+          if (relativePath is! String ||
+              expectedFileDigest == null ||
+              expectedSize is! int ||
+              expectedSize < 0 ||
+              expectedSize > SkillImportAnalyzer.maxFileBytes ||
+              relativePath.isEmpty ||
+              relativePath.length > 2048 ||
+              relativePath.contains(r'\') ||
+              relativePath.contains('\u0000') ||
+              p.posix.isAbsolute(relativePath) ||
+              p.posix.normalize(relativePath) != relativePath ||
+              RegExp(r'^[A-Za-z]:').hasMatch(relativePath) ||
+              relativePath.split('/').any(
+                (part) => part.isEmpty || part == '.' || part == '..',
+              ) ||
+              !seen.add(relativePath)) {
+            throw const FormatException('unsafe_skill_mcp_snapshot_file');
+          }
+
+          final sourcePath = p.normalize(
+            p.joinAll(<String>[
+              canonicalSourceRoot,
+              ...relativePath.split('/'),
+            ]),
+          );
+          if (!p.isWithin(canonicalSourceRoot, sourcePath) ||
+              await FileSystemEntity.type(sourcePath, followLinks: false) !=
+                  FileSystemEntityType.file) {
+            throw const FormatException('unsafe_skill_mcp_snapshot_source');
+          }
+          final sourceFile = File(sourcePath);
+          final sourceStat = await sourceFile.stat();
+          if (sourceStat.size != expectedSize) {
+            throw StateError('skill_mcp_snapshot_source_size_changed');
+          }
+          final sourceDigestBefore =
+              await sha256.bind(sourceFile.openRead()).first;
+          if (sourceDigestBefore.toString() != expectedFileDigest) {
+            throw StateError('skill_mcp_snapshot_source_digest_changed');
+          }
+
+          totalBytes += sourceStat.size;
+          if (totalBytes > SkillImportAnalyzer.maxTotalBytes) {
+            throw const FormatException('skill_mcp_snapshot_too_large');
+          }
+
+          final destinationFilePath = p.normalize(
+            p.joinAll(<String>[
+              canonicalDestination,
+              ...relativePath.split('/'),
+            ]),
+          );
+          if (!p.isWithin(canonicalDestination, destinationFilePath)) {
+            throw const FormatException('unsafe_skill_mcp_snapshot_target');
+          }
+          final destinationFile = File(destinationFilePath);
+          await destinationFile.parent.create(recursive: true);
+          await sourceFile.copy(destinationFile.path);
+          final copiedStat = await destinationFile.stat();
+          final copiedDigest =
+              await sha256.bind(destinationFile.openRead()).first;
+          if (copiedStat.size != expectedSize ||
+              copiedDigest.toString() != expectedFileDigest) {
+            throw StateError('skill_mcp_snapshot_copy_verification_failed');
+          }
+          copiedFiles++;
+        }
+
+        if (copiedFiles == 0) {
+          throw const FormatException('skill_mcp_snapshot_empty');
+        }
+        if (await _readVerifiedSkillSourceDigest(skillId) !=
+            expectedSkillDigest) {
+          throw StateError('skill_mcp_snapshot_source_changed_during_copy');
+        }
+        return Directory(canonicalDestination);
+      } catch (_) {
+        if (createdDestination) {
+          final failedDirectory = Directory(destinationPath);
+          if (await failedDirectory.exists()) {
+            await failedDirectory.delete(recursive: true);
+          }
+        }
+        rethrow;
+      }
+    });
   }
 
   /// Returns an import manifest with a current static requirement inventory.

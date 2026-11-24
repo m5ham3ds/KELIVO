@@ -10,6 +10,10 @@ import 'package:Kelivo/core/providers/environment_provider.dart';
 import 'package:Kelivo/core/providers/mcp_provider.dart';
 import 'package:Kelivo/core/providers/workspace_provider.dart';
 import 'package:Kelivo/core/services/workspace/workspace_runtime.dart';
+import 'package:Kelivo/core/services/skills/skill_mcp_connection_service.dart';
+import 'package:Kelivo/core/services/skills/skill_mcp_config.dart';
+import 'package:Kelivo/core/services/skills/skill_mcp_registry.dart';
+import 'package:Kelivo/core/services/skills/skills_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
@@ -599,6 +603,176 @@ void main() {
       expect(provider.getById('guest')?.command, 'npx');
     },
   );
+
+  test(
+    'Skill MCP launches only after approval in a verified private session and never inherits global secrets',
+    () async {
+      debugDefaultTargetPlatformOverride=TargetPlatform.android;
+      final root=await Directory.systemTemp.createTemp('skill-mcp-e2e-');
+      final oldPaths=PathProviderPlatform.instance;
+      PathProviderPlatform.instance=_Paths(root.path);
+      final harness=await BusinessTestHarness.create();
+      final environment=EnvironmentProvider(preferences:harness.preferences);
+      await environment.loaded;
+      await environment.saveVariable(
+        const EnvironmentVariable(name:'GLOBAL_SECRET',value:'global-secret-value'),
+      );
+      await environment.saveVariable(
+        const EnvironmentVariable(name:'PATH',value:'/usr/bin:/bin'),
+      );
+      await environment.setState(
+        const EnvironmentState(phase:EnvironmentPhase.ready),
+      );
+      final workspaces=WorkspaceProvider(
+        store:ExtensionEntityStore(harness.database),
+      );
+      await workspaces.loaded;
+      final runtime=_McpRuntime();
+      final runtimeProvider=WorkspaceRuntimeProvider()..register(runtime);
+      await runtimeProvider.refresh();
+      final provider=McpProvider(
+        preferences:harness.preferences,
+        workspaceRuntime:runtimeProvider,
+        environment:environment,
+        workspaces:workspaces,
+      );
+      await provider.loaded;
+
+      final skillsDirectory=Directory(root.path+'/skills');
+      final skills=SkillsService(
+        store:ExtensionEntityStore(harness.database),
+        skillsDirectory:skillsDirectory,
+      );
+      await skills.loaded;
+      final source=Directory(root.path+'/source');
+      await source.create(recursive:true);
+      await File(source.path+'/SKILL.md').writeAsString('''
+---
+name: isolated-mcp-skill
+description: Verify Skill-owned MCP connection approval
+---
+The Skill server is never started during import.
+''');
+      await File(source.path+'/mcp.json').writeAsString(
+        r'''{"mcpServers":{"demo":{"command":"python3","args":["server.py"],"env":{"API_TOKEN":"\${API_TOKEN}"}}}}''',
+      );
+      await File(source.path+'/server.py').writeAsString('print("mcp demo")\n');
+
+      final skill=await skills.importFromDirectory(source.path);
+      final registrations=await skills.registerDeclaredSkillMcpConfig(
+        skillId:skill.record.id,
+        configPath:'mcp.json',
+      );
+      expect(registrations,hasLength(1));
+      expect(registrations.single.enabled,isFalse);
+      expect(registrations.single.sourceDigest,matches(RegExp(r'^[a-f0-9]{64}$')));
+
+      final secretStore=MemorySkillMcpSecretStore();
+      final sessionRoot=Directory(root.path+'/skill-mcp-sessions');
+      final connection=SkillMcpConnectionService(
+        skills:skills,
+        mcp:provider,
+        secretStore:secretStore,
+        sessionsDirectory:sessionRoot,
+      );
+      await connection.loaded;
+      String? activeOwner;
+      addTearDown(() async {
+        if(activeOwner!=null) {
+          try {
+            await connection.disconnect(
+              skillId:skill.record.id,ownerServerId:activeOwner!,
+            );
+          } catch (_) {}
+        }
+        await connection.dispose();
+        skills.dispose();
+        provider.dispose();
+        runtimeProvider.dispose();
+        workspaces.dispose();
+        environment.dispose();
+        await harness.close();
+        PathProviderPlatform.instance=oldPaths;
+        debugDefaultTargetPlatformOverride=null;
+        if(await root.exists())await root.delete(recursive:true);
+      });
+
+      await expectLater(
+        connection.connect(
+          skillId:skill.record.id,
+          ownerServerId:registrations.single.serverId,
+          confirm:(preview) async {
+            expect(preview.command,'python3');
+            expect(preview.arguments,['server.py']);
+            expect(preview.environmentVariableNames,['API_TOKEN']);
+            expect(preview.securityWarning,contains('not a kernel sandbox'));
+            return false;
+          },
+        ),
+        throwsA(isA<SkillMcpApprovalDenied>()),
+      );
+      expect(runtime.requests,isEmpty,
+        reason:'a denied approval must not start a process');
+
+      final connected=await connection.connect(
+        skillId:skill.record.id,
+        ownerServerId:registrations.single.serverId,
+        confirm:(preview) async {
+          expect(preview.workspaceScope,contains('verified'));
+          return true;
+        },
+        collectSecrets:(preview,missing) async {
+          expect(missing,['API_TOKEN']);
+          return <String,String>{'API_TOKEN':'approved-secret'};
+        },
+      );
+      activeOwner=registrations.single.serverId;
+      expect(connection.isConnected(skill.record.id,activeOwner!),isTrue);
+      expect(runtime.requests,hasLength(1));
+      final request=runtime.requests.single;
+      expect(request.cwd,'/workspace/skill');
+      expect(request.mounts,hasLength(1));
+      expect(request.mounts.single.guest,'/workspace');
+      expect(request.mounts.single.host,isNot(skillsDirectory.path));
+      expect(File(request.mounts.single.host+'/skill/SKILL.md').existsSync(),isTrue);
+      expect(File(request.mounts.single.host+'/skill/server.py').existsSync(),isTrue);
+      expect(request.env['API_TOKEN'],'approved-secret');
+      expect(request.env.containsKey('GLOBAL_SECRET'),isFalse);
+      expect(request.env['HOME'],'/workspace/.home');
+      expect(request.env['TMPDIR'],'/workspace/.tmp');
+
+      expect(provider.servers.any((entry)=>entry.id==connected.mcpServerId),isFalse);
+      expect(provider.connectedServers.any((entry)=>entry.id==connected.mcpServerId),isFalse);
+      final export=jsonDecode(provider.exportServersAsUiJson()) as Map;
+      expect((export['mcpServers'] as Map).containsKey(connected.mcpServerId),isFalse);
+      final saved=harness.preferences.getString('mcp_servers_v1')??'';
+      expect(saved,isNot(contains(connected.mcpServerId)));
+      expect(saved,isNot(contains('approved-secret')));
+      expect(secretStore.values.values,contains('approved-secret'));
+
+      final callResult=await provider.callTool(
+        connected.mcpServerId,'not-approved',<String,dynamic>{},
+      );
+      expect(callResult,isNotNull,
+        reason:'generic MCP calls are blocked until the 13Q.4 per-tool approval layer');
+      await connection.disconnect(
+        skillId:skill.record.id,
+        ownerServerId:activeOwner!,
+      );
+      activeOwner=null;
+      expect(runtime.cancelledRuns,contains(request.runId));
+      expect(provider.getById(connected.mcpServerId),isNull);
+      expect(
+        await Directory(sessionRoot.path+'/'+registrations.single.serverId).exists(),
+        isFalse,
+      );
+      expect(
+        await File(skillsDirectory.path+'/'+skill.record.id+'/SKILL.md').exists(),
+        isTrue,
+      );
+    },
+  );
+
 }
 
 Future<void> _waitFor(bool Function() predicate) async {

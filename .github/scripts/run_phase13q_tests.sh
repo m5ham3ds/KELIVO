@@ -5,6 +5,7 @@ cd "$ROOT"
 test_files=(
   "test/core/services/skills/skill_mcp_config_test.dart"
   "test/core/services/skills/skill_mcp_registry_test.dart"
+  "test/core/providers/mcp_provider_stdio_test.dart"
 )
 for test_file in "${test_files[@]}"; do
   [[ -s "$test_file" ]] || { echo "Phase 13Q test missing: $test_file" >&2; exit 2; }
