@@ -122,6 +122,7 @@ final class SkillMcpOwnerRegistration {
             descriptor.url != null) {
           throw const FormatException('invalid_skill_mcp_owner_stdio');
         }
+        break;
       case SkillMcpTransport.http:
       case SkillMcpTransport.sse:
         final url = descriptor.url;
@@ -131,6 +132,7 @@ final class SkillMcpOwnerRegistration {
             descriptor.command != null || descriptor.arguments.isNotEmpty) {
           throw const FormatException('invalid_skill_mcp_owner_remote_endpoint');
         }
+        break;
     }
   }
 
