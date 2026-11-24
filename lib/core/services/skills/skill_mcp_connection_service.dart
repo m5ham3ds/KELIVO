@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:mcp_client/mcp_client.dart' as mcp;
+import 'package:mcp_client/mcp_client.dart' as mcp_client;
 import 'package:path/path.dart' as p;
 
 import '../../../utils/app_directories.dart';
@@ -399,7 +399,7 @@ final class SkillMcpConnectionService {
       'durationMs': durationMs.clamp(0, 24 * 60 * 60 * 1000),
       if (errorType != null) 'errorType': errorType,
     };
-    final line = '\${jsonEncode(entry)}\n';
+    final line = '${jsonEncode(entry)}\n';
     final lineBytes = utf8.encode(line).length;
     if (lineBytes > 4096) {
       throw const FormatException('skill_mcp_audit_entry_too_large');
@@ -407,7 +407,7 @@ final class SkillMcpConnectionService {
     if (await file.exists()) {
       final length = await file.length();
       if (length + lineBytes > maxAuditBytes) {
-        final rotated = File('\${file.path}.1');
+        final rotated = File('${file.path}.1');
         final rotatedType = await FileSystemEntity.type(
           rotated.path,
           followLinks: false,
@@ -450,7 +450,7 @@ final class SkillMcpConnectionService {
     ]);
   });
 
-  Future<mcp.CallToolResult> callTool({
+  Future<mcp_client.CallToolResult> callTool({
     required String skillId,
     required String ownerServerId,
     required String exposedToolName,
@@ -820,18 +820,18 @@ final class SkillMcpConnectionService {
             _validateSchemaValue(
               entry.value,
               Map<String, dynamic>.from(propertySchema),
-              '$path.\${entry.key}',
+              '$path.${entry.key}',
               depth: depth + 1,
             );
           } else if (schema['additionalProperties'] == false) {
             throw FormatException(
-              'skill_mcp_tool_argument_additional:$path.\${entry.key}',
+              'skill_mcp_tool_argument_additional:$path.${entry.key}',
             );
           } else if (schema['additionalProperties'] is Map) {
             _validateSchemaValue(
               entry.value,
               Map<String, dynamic>.from(schema['additionalProperties'] as Map),
-              '$path.\${entry.key}',
+              '$path.${entry.key}',
               depth: depth + 1,
             );
           }
@@ -948,28 +948,28 @@ final class SkillMcpConnectionService {
     return value;
   }
 
-  mcp.CallToolResult _redactToolResult(
-    mcp.CallToolResult result,
+  mcp_client.CallToolResult _redactToolResult(
+    mcp_client.CallToolResult result,
     List<String> secrets,
   ) {
     if (result.content.length > maxToolResultItems) {
       throw const FormatException('skill_mcp_tool_result_item_limit');
     }
-    final sanitizedContent = <mcp.Content>[];
+    final sanitizedContent = <mcp_client.Content>[];
     for (final item in result.content) {
       final raw = _redactJson(item.toJson(), secrets);
       if (raw is! Map) {
         throw const FormatException('invalid_skill_mcp_tool_result_content');
       }
       sanitizedContent.add(
-        mcp.Content.fromJson(Map<String, dynamic>.from(raw)),
+        mcp_client.Content.fromJson(Map<String, dynamic>.from(raw)),
       );
     }
     final structured = result.structuredContent == null
         ? null
         : _redactJson(result.structuredContent, secrets) as Map<String, dynamic>;
-    final sanitized = mcp.CallToolResult(
-      List<mcp.Content>.unmodifiable(sanitizedContent),
+    final sanitized = mcp_client.CallToolResult(
+      List<mcp_client.Content>.unmodifiable(sanitizedContent),
       structuredContent: structured,
       isError: result.isError,
     );
