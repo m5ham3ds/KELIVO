@@ -254,8 +254,9 @@ final class ConversationalExtensionService {
     }
     final result = <String, Object?>{'query': query};
     if (scope == 'all' || scope == 'installed') {
+      final installedMatches = skills.searchInstalled(query);
       result['installedSkills'] = [
-        for (final skill in skills.searchInstalled(query))
+        for (final skill in installedMatches.take(limit))
           {
             'id': skill.record.id,
             'name': skill.name,
@@ -264,6 +265,8 @@ final class ConversationalExtensionService {
             'source': skill.record.source.name,
           },
       ];
+      result['installedSkillsTotal'] = installedMatches.length;
+      result['installedSkillsTruncated'] = installedMatches.length > limit;
     }
     if (scope == 'all' || scope == 'github') {
       try {
