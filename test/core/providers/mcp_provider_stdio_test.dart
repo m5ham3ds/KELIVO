@@ -653,7 +653,7 @@ description: Verify Skill-owned MCP connection approval
 The Skill server is never started during import.
 ''');
       await File(source.path+'/mcp.json').writeAsString(
-        r'''{"mcpServers":{"demo":{"command":"python3","args":["server.py"],"env":{"API_TOKEN":"\${API_TOKEN}"}}}}''',
+        r'''{"mcpServers":{"demo":{"command":"python3","args":["server.py"],"env":{"API_TOKEN":"${API_TOKEN}"}}}}''',
       );
       await File(source.path+'/server.py').writeAsString('print("mcp demo")\n');
 
