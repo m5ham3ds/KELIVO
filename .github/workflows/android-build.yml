@@ -94,6 +94,17 @@ jobs:
           ACTION_OUTCOME: ${{ steps.setup_flutter.outcome }}
         run: bash .github/scripts/record_ci_action.sh setup_flutter "Set up Flutter ${FLUTTER_VERSION}" "$ACTION_OUTCOME"
 
+      # Cache sqlite3 hook downloads across CI runs. The package verifies each
+      # precompiled binary against its published SHA-256 before use; retain the
+      # package-managed cache layout and key it to the resolved package version.
+      - name: Cache sqlite3 native hook binaries
+        id: sqlite3_native_cache
+        if: success()
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/hooks_runner/shared/sqlite3/build/download-*
+          key: kelivo-sqlite3-native-3.5.2-linux-x64-v1
+
       - name: Record toolchain versions
         id: toolchain_versions
         if: success()
