@@ -643,7 +643,7 @@ void main() {
         skillsDirectory:skillsDirectory,
       );
       await skills.loaded;
-      final source=Directory(root.path+'/source');
+      final source=Directory(root.path+'/isolated-mcp-skill');
       await source.create(recursive:true);
       await File(source.path+'/SKILL.md').writeAsString('''
 ---
