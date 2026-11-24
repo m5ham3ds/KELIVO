@@ -6,16 +6,38 @@ import 'skill_capability_registry.dart';
 import 'skill_readiness.dart';
 import 'skills_service.dart';
 
+typedef SkillCompositionFrontmatterReader = Future<String> Function(
+  String skillId,
+);
+typedef SkillCompositionInstructionReader = Future<String> Function(
+  String skillId, {
+  required int maxCharacters,
+});
+
 /// Loads the metadata required for planning and only returns full instructions
 /// for Skills that survive selection, dependency and context-budget checks.
 final class SkillCompositionService {
   SkillCompositionService({
     required this.skills,
     required this.registry,
+    this.frontmatterReader,
+    this.instructionReader,
   });
 
   final SkillsService skills;
   final ExtensionRegistryRepository registry;
+  final SkillCompositionFrontmatterReader? frontmatterReader;
+  final SkillCompositionInstructionReader? instructionReader;
+
+  Future<String> _readFrontmatter(String id) =>
+      frontmatterReader?.call(id) ?? skills.readSkillFrontmatterMarkdown(id);
+
+  Future<String> _readInstructions(
+    String id, {
+    required int maxCharacters,
+  }) =>
+      instructionReader?.call(id, maxCharacters: maxCharacters) ??
+      skills.readSkillMarkdown(id, maxCharacters: maxCharacters);
 
   Future<String> compose({
     required String task,
@@ -47,10 +69,7 @@ final class SkillCompositionService {
 
     final candidates = <SkillCompositionCandidate>[];
     for (final skill in availableSkills) {
-      final markdown = await skills.readSkillMarkdown(
-        skill.record.id,
-        maxCharacters: 64000,
-      );
+      final markdown = await _readFrontmatter(skill.record.id);
       final extension = await registry.get('skill', skill.record.id);
       Map<String, Object?>? importReport;
       try {
@@ -85,7 +104,7 @@ final class SkillCompositionService {
       );
     }
 
-    final plan = SkillCompositionPlanner.plan(
+    var plan = SkillCompositionPlanner.plan(
       task: SkillCompositionPlanner.compactTaskBrief(task),
       candidates: candidates,
       mode: mode,
@@ -99,6 +118,50 @@ final class SkillCompositionService {
       pinnedDigests: pinnedDigests,
       platform: platform,
     );
+    // Only selected Skills (including auto-added dependencies) need full
+    // instructions. Re-plan over the same candidate set so all existing
+    // selection, DAG, conflict, digest and context-budget checks still apply.
+    if (!plan.isBlocked && plan.selectedIds.isNotEmpty) {
+      final selectedIds = plan.selectedIds.toSet();
+      final resolvedCandidates = <SkillCompositionCandidate>[];
+      for (final candidate in candidates) {
+        if (!selectedIds.contains(candidate.id)) {
+          resolvedCandidates.add(candidate);
+          continue;
+        }
+        final markdown = await _readInstructions(
+          candidate.id,
+          maxCharacters: 64000,
+        );
+        resolvedCandidates.add(
+          SkillCompositionCandidate(
+            skill: candidate.skill,
+            markdown: markdown,
+            digest: candidate.digest,
+            instructionsTruncated: markdown.contains(
+              '[Skill instructions truncated by Kelivo inspection limit.]',
+            ),
+            completeness: candidate.completeness,
+            completenessNotes: candidate.completenessNotes,
+          ),
+        );
+      }
+      plan = SkillCompositionPlanner.plan(
+        task: SkillCompositionPlanner.compactTaskBrief(task),
+        candidates: resolvedCandidates,
+        mode: mode,
+        requestedSkillIds: requestedSkillIds,
+        excludedSkillIds: excludedSkillIds,
+        assistantDefaultSkillIds: assistantDefaultSkillIds,
+        projectDefaultSkillIds: projectDefaultSkillIds,
+        conversationSkillIds: conversationSkillIds,
+        contextBudgetTokens: contextBudgetTokens,
+        allowParallel: allowParallel,
+        pinnedDigests: pinnedDigests,
+        platform: platform,
+      );
+    }
+
     final result = Map<String, Object?>.from(plan.toJson());
     final selectedRequirements = <String, Object?>{};
     final selectedReadiness = <String, Object?>{};

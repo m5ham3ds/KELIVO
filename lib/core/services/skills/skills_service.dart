@@ -1957,6 +1957,19 @@ class SkillsService extends ChangeNotifier {
         '[Skill instructions truncated by Kelivo inspection limit.]';
   }
 
+  /// Reads only the leading YAML frontmatter for metadata-first Skill planning.
+  Future<String> readSkillFrontmatterMarkdown(
+    String id, {
+    int maxBytes = 64 * 1024,
+  }) async {
+    await loaded;
+    final skill = _require(id);
+    return SkillFrontmatter.readHeader(
+      File(skill.skillMdPath),
+      maxBytes: maxBytes,
+    );
+  }
+
   List<Skill> searchInstalled(String query) {
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) return List.unmodifiable(_skills);

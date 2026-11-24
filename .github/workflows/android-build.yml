@@ -161,6 +161,18 @@ jobs:
           bash .github/scripts/capture_step.sh environment_install_lifecycle_tests "Environment installation lifecycle regressions" -- \
             bash .github/scripts/run_environment_install_lifecycle_tests.sh
 
+      - name: Run Phase 14A progressive Skill discovery tests
+        id: phase14a_progressive_skill_tests
+        if: success()
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh phase14a_progressive_skill_tests "Phase 14A metadata-first Skill composition and lazy instruction loading" -- \
+            flutter test --no-pub --concurrency=2 \
+              test/core/services/skills/skill_composition_service_phase14a_test.dart \
+              test/core/services/skills/skill_composition_planner_test.dart \
+              test/core/services/skills/skill_frontmatter_test.dart
+
       - name: Run Gemini schema and provider OAuth regression tests
         id: provider_oauth_and_gemini_schema_tests
         if: success()

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:Kelivo/core/services/skills/skill_frontmatter.dart';
@@ -165,6 +167,51 @@ body
     expect(parsed.extras['claude'], isA<Map>());
     expect(parsed.unknownFields, contains('claude'));
     expect(parsed.compatibilityWarnings().single, contains('claude'));
+  });
+
+  test('readHeader stops at the YAML closing fence and omits a large body', () async {
+    final temporary = await Directory.systemTemp.createTemp('kelivo_skill_header_');
+    try {
+      final file = File(temporary.path + '/SKILL.md');
+      const header = '''
+---
+name: large-body
+description: Read only metadata before selecting this Skill.
+metadata:
+  kelivo.tags: metadata lazy loading
+---
+''';
+      await file.writeAsString(header + List<String>.filled(20000, 'large body content').join(' '));
+      final bounded = await SkillFrontmatter.readHeader(file, maxBytes: 8192);
+      final parsed = SkillFrontmatter.parse(bounded);
+      expect(bounded, contains('name: large-body'));
+      expect(bounded, isNot(contains('large body content')));
+      expect(bounded.length, lessThan(512));
+      expect(parsed.name, 'large-body');
+      expect(parsed.metadata['kelivo.tags'], 'metadata lazy loading');
+      expect(parsed.body, isEmpty);
+      expect(parsed.validate(), isEmpty);
+    } finally {
+      await temporary.delete(recursive: true);
+    }
+  });
+
+  test('readHeader does not repair an oversized or unterminated frontmatter block', () async {
+    final temporary = await Directory.systemTemp.createTemp('kelivo_skill_header_invalid_');
+    try {
+      final file = File(temporary.path + '/SKILL.md');
+      final oversized = '---\nname: oversized-header\ndescription: ' +
+          List<String>.filled(9000, 'x').join() +
+          '\n---\nbody\n';
+      await file.writeAsString(oversized);
+      final bounded = await SkillFrontmatter.readHeader(file, maxBytes: 4096);
+      final parsed = SkillFrontmatter.parse(bounded);
+      expect(bounded.length, lessThanOrEqualTo(4097));
+      expect(parsed.parseError, isNotNull);
+      expect(parsed.validate(), contains(startsWith('invalid YAML:')));
+    } finally {
+      await temporary.delete(recursive: true);
+    }
   });
 
   group('slugify', () {

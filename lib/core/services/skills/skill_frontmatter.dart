@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:yaml/yaml.dart';
 
 /// Parsed Agent Skills `SKILL.md` frontmatter and Markdown instructions.
@@ -33,6 +36,38 @@ class SkillFrontmatter {
   final bool metadataIsValid;
   final String? allowedTools;
   final Set<String> unknownFields;
+
+  /// Reads only the bounded leading YAML metadata block from a Skill file.
+  /// It stops at the closing fence rather than loading the Markdown body.
+  /// Truncated/unterminated headers stay invalid and are rejected by parse().
+  static Future<String> readHeader(
+    File file, {
+    int maxBytes = 64 * 1024,
+  }) async {
+    if (maxBytes < 1) {
+      throw ArgumentError.value(maxBytes, 'maxBytes', 'must be positive');
+    }
+    final buffer = StringBuffer();
+    var firstLine = true;
+    await for (final line in file
+        .openRead(0, maxBytes)
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .transform(const LineSplitter())) {
+      buffer
+        ..write(line)
+        ..write('\n');
+      if (firstLine) {
+        firstLine = false;
+        final normalized = line.startsWith('\uFEFF')
+            ? line.substring(1)
+            : line;
+        if (!_isFence(normalized)) return buffer.toString();
+      } else if (_isFence(line)) {
+        return buffer.toString();
+      }
+    }
+    return buffer.toString();
+  }
 
   /// Parse standard YAML frontmatter. Malformed YAML is retained as a parse
   /// error so callers can show a useful validation result without guessing.
