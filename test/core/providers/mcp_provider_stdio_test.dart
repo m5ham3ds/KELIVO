@@ -11,7 +11,6 @@ import 'package:Kelivo/core/providers/mcp_provider.dart';
 import 'package:Kelivo/core/providers/workspace_provider.dart';
 import 'package:Kelivo/core/services/workspace/workspace_runtime.dart';
 import 'package:Kelivo/core/services/skills/skill_mcp_connection_service.dart';
-import 'package:Kelivo/core/services/skills/skill_mcp_config.dart';
 import 'package:Kelivo/core/services/skills/skill_mcp_registry.dart';
 import 'package:Kelivo/core/services/skills/skills_service.dart';
 import 'package:flutter/foundation.dart';
@@ -680,9 +679,13 @@ The Skill server is never started during import.
       addTearDown(() async {
         if(activeOwner!=null) {
           try {
-            await connection.disconnect(
-              skillId:skill.record.id,ownerServerId:activeOwner!,
-            );
+            final ownerToDisconnect = activeOwner;
+            if (ownerToDisconnect != null) {
+              await connection.disconnect(
+                skillId: skill.record.id,
+                ownerServerId: ownerToDisconnect,
+              );
+            }
           } catch (_) {}
         }
         await connection.dispose();
@@ -727,7 +730,7 @@ The Skill server is never started during import.
         },
       );
       activeOwner=registrations.single.serverId;
-      expect(connection.isConnected(skill.record.id,activeOwner!),isTrue);
+      expect(connection.isConnected(skill.record.id,registrations.single.serverId),isTrue);
       expect(runtime.requests,hasLength(1));
       final request=runtime.requests.single;
       expect(request.cwd,'/workspace/skill');
@@ -756,8 +759,8 @@ The Skill server is never started during import.
       expect(callResult,isNotNull,
         reason:'generic MCP calls are blocked until the 13Q.4 per-tool approval layer');
       await connection.disconnect(
-        skillId:skill.record.id,
-        ownerServerId:activeOwner!,
+        skillId: skill.record.id,
+        ownerServerId: registrations.single.serverId,
       );
       activeOwner=null;
       expect(runtime.cancelledRuns,contains(request.runId));
