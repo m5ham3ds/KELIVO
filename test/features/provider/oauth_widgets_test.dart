@@ -48,6 +48,7 @@ class _LoginChoiceService extends ProviderOAuthService {
     required OAuthCancellation cancellation,
     required void Function(OAuthLoginPrompt) onPrompt,
     String? providerId,
+    String? clientId,
     bool deviceCode = true,
     Future<bool> Function(Uri)? launcher,
   }) async {
@@ -120,6 +121,7 @@ class _ClaudeLoginService extends _DetailService {
     required OAuthCancellation cancellation,
     required void Function(OAuthLoginPrompt) onPrompt,
     String? providerId,
+    String? clientId,
     bool deviceCode = true,
     Future<bool> Function(Uri)? launcher,
   }) async {
