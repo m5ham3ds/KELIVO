@@ -476,7 +476,7 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
             ],
           ),
           const SizedBox(height: 12),
-        ]
+        ],
         SectionCard(
           dividers: true,
           children: [

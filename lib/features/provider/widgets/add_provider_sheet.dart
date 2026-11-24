@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/models/provider_oauth.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'package:Kelivo/shared/utils/file_picker_compat.dart';
 import '../../../l10n/app_localizations.dart';
