@@ -13,7 +13,6 @@ import 'package:Kelivo/core/services/extensions/extension_operation_repository.d
 import 'package:Kelivo/core/services/extensions/extension_registry_repository.dart';
 import 'package:Kelivo/core/services/skills/skill_composition_planner.dart';
 import 'package:Kelivo/core/services/skills/skill_composition_service.dart';
-import 'package:Kelivo/core/services/skills/skills_prompt.dart';
 import 'package:Kelivo/core/services/skills/skills_service.dart';
 
 void main() {
@@ -204,8 +203,8 @@ ${List<String>.filled(1200, 'instruction').join(' ')}
     );
     final budget = decoded['contextBudget'] as Map<String, dynamic>;
     expect(budget['estimatedInstructionTokens'], greaterThan(500));
-    final instructions = decoded['selectedSkillInstructions'] as Map<String, dynamic>;
-    expect(instructions, isEmpty);
+    // Blocked plans deliberately omit selectedSkillInstructions entirely.
+    expect(decoded.containsKey('selectedSkillInstructions'), isFalse);
   });
 
   test('explicitly selected Skills beyond the prompt listing cap can still be composed', () async {
