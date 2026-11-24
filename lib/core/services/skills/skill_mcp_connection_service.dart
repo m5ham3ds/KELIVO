@@ -137,7 +137,9 @@ final class SkillMcpConnectionService {
     Directory? auditDirectory,
   }) : _secretStore = secretStore ?? SecureSkillMcpSecretStore(),
        _sessionsDirectory = sessionsDirectory,
-       _auditDirectory = auditDirectory;
+       _auditDirectory = auditDirectory {
+    skills.addListener(_onSkillsChanged);
+  }
 
   static const String securityWarning =
       'PRoot is not a kernel sandbox. Skill MCP processes share the '
@@ -180,6 +182,9 @@ final class SkillMcpConnectionService {
       <String, _ActiveSkillMcpSession>{};
   final Set<String> _connecting = <String>{};
   Future<void> _mutationTail = Future<void>.value();
+  bool _disposed = false;
+  bool _reconcileScheduled = false;
+  bool _reconcilePending = false;
   late final Future<void> _loaded = _initialize();
 
   Future<void> get loaded => _loaded;
@@ -231,6 +236,9 @@ final class SkillMcpConnectionService {
     SkillMcpSecretPromptCallback? collectSecrets,
   }) => _serialize(() async {
     await _loaded;
+    if (_disposed) {
+      throw StateError('skill_mcp_connection_service_disposed');
+    }
     if (_connecting.contains(ownerServerId) ||
         _activeSessions.containsKey(ownerServerId)) {
       throw StateError('skill_mcp_session_already_active_or_connecting');
@@ -979,6 +987,89 @@ final class SkillMcpConnectionService {
     return sanitized;
   }
 
+  void _onSkillsChanged() {
+    if (_disposed) return;
+    _reconcilePending = true;
+    if (_reconcileScheduled) return;
+    _reconcileScheduled = true;
+    unawaited(_runLifecycleReconciliation());
+  }
+
+  Future<void> _runLifecycleReconciliation() async {
+    try {
+      do {
+        _reconcilePending = false;
+        await _serialize(() async {
+          await _loaded;
+          if (_disposed) return;
+          final sessions = _activeSessions.values.toList(growable: false);
+          for (final session in sessions) {
+            if (_disposed ||
+                !identical(
+                  _activeSessions[session.ownerServerId],
+                  session,
+                )) {
+              continue;
+            }
+            Skill? installedSkill;
+            for (final skill in skills.skills) {
+              if (skill.record.id == session.skillId) {
+                installedSkill = skill;
+                break;
+              }
+            }
+            final enabled = installedSkill?.record.enabled == true;
+            var ownerSnapshotCurrent = false;
+            if (enabled) {
+              try {
+                final registration = await _findRegistration(
+                  session.skillId,
+                  session.ownerServerId,
+                );
+                _requireSameSnapshot(session.registration, registration);
+                ownerSnapshotCurrent = true;
+              } catch (_) {
+                ownerSnapshotCurrent = false;
+              }
+            }
+            if (!enabled || !ownerSnapshotCurrent) {
+              // Keep credentials when the user only disables the Skill.
+              // A deletion or source/manifest change revokes the old trust
+              // binding and therefore removes credentials bound to its digest.
+              await _removeActiveSession(
+                session,
+                clearCredentials: !ownerSnapshotCurrent,
+              );
+            }
+          }
+        });
+      } while (_reconcilePending && !_disposed);
+    } finally {
+      _reconcileScheduled = false;
+      if (_reconcilePending && !_disposed) _onSkillsChanged();
+    }
+  }
+
+  Future<void> _removeActiveSession(
+    _ActiveSkillMcpSession session, {
+    required bool clearCredentials,
+  }) async {
+    if (!identical(_activeSessions[session.ownerServerId], session)) return;
+    await mcp.removeSkillOwnedServer(
+      session.mcpServerId,
+      skillId: session.skillId,
+      ownerServerId: session.ownerServerId,
+      sourceDigest: session.sourceDigest,
+    );
+    _activeSessions.remove(session.ownerServerId);
+    if (await session.directory.exists()) {
+      await session.directory.delete(recursive: true);
+    }
+    if (clearCredentials) {
+      await _secretStore.clearServer(session.registration);
+    }
+  }
+
   Future<void> disconnect({
     required String skillId,
     required String ownerServerId,
@@ -990,19 +1081,10 @@ final class SkillMcpConnectionService {
     if (session.skillId != skillId) {
       throw StateError('skill_mcp_session_owner_mismatch');
     }
-    await mcp.removeSkillOwnedServer(
-      session.mcpServerId,
-      skillId: session.skillId,
-      ownerServerId: session.ownerServerId,
-      sourceDigest: session.sourceDigest,
+    await _removeActiveSession(
+      session,
+      clearCredentials: clearCredentials,
     );
-    _activeSessions.remove(ownerServerId);
-    if (await session.directory.exists()) {
-      await session.directory.delete(recursive: true);
-    }
-    if (clearCredentials) {
-      await _secretStore.clearServer(session.registration);
-    }
   });
 
   Future<void> disconnectSkill(
@@ -1014,37 +1096,24 @@ final class SkillMcpConnectionService {
         .where((session) => session.skillId == skillId)
         .toList(growable: false);
     for (final session in sessions) {
-      await mcp.removeSkillOwnedServer(
-        session.mcpServerId,
-        skillId: session.skillId,
-        ownerServerId: session.ownerServerId,
-        sourceDigest: session.sourceDigest,
+      await _removeActiveSession(
+        session,
+        clearCredentials: clearCredentials,
       );
-      _activeSessions.remove(session.ownerServerId);
-      if (await session.directory.exists()) {
-        await session.directory.delete(recursive: true);
-      }
-      if (clearCredentials) {
-        await _secretStore.clearServer(session.registration);
-      }
     }
   });
 
   Future<void> dispose() async {
-    await _loaded;
-    final sessions = _activeSessions.values.toList(growable: false);
-    for (final session in sessions) {
-      await mcp.removeSkillOwnedServer(
-        session.mcpServerId,
-        skillId: session.skillId,
-        ownerServerId: session.ownerServerId,
-        sourceDigest: session.sourceDigest,
-      );
-      _activeSessions.remove(session.ownerServerId);
-      if (await session.directory.exists()) {
-        await session.directory.delete(recursive: true);
+    if (_disposed) return;
+    _disposed = true;
+    skills.removeListener(_onSkillsChanged);
+    await _serialize(() async {
+      await _loaded;
+      final sessions = _activeSessions.values.toList(growable: false);
+      for (final session in sessions) {
+        await _removeActiveSession(session, clearCredentials: false);
       }
-    }
+    });
   }
 
   bool isConnected(String skillId, String ownerServerId) {

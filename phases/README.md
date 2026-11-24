@@ -2,7 +2,7 @@
 
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
-## أحدث بناء ناجح — CI #150
+## أحدث بناء ناجح — CI #154
 
 [GitHub Actions #150](https://github.com/m5ham3ds/KELIVO/actions/runs/45446237776) اكتمل بنجاح في 24 نوفمبر 2026 على commit \`b4dcb3430743eeee6e6022a797bcc5e6a899bf5b\`. اجتازت بوابات التحليل والاختبارات والبناء كاملة.
 
@@ -12,7 +12,7 @@
 - Environment installation lifecycle regression tests: نجاح.
 - Phase 14A progressive Skill discovery tests: نجاح.
 - Gemini schema وGoogle/Hugging Face OAuth tests: نجاح.
-- Phase 13Q Skill MCP discovery + owner/stdio connection integration tests: نجاح.
+- Phase 13Q Skill MCP discovery/ownership/stdio connection/tools list/tools call/approval integration tests: نجاح.
 - vendored local package test suites: نجاح.
 - Android JVM/Robolectric: نجاح.
 - Phase 13P Android Emulator Skill lifecycle E2E: نجاح.
@@ -21,24 +21,24 @@
 
 **APK**
 - الاسم: \`Kelivo-Android-arm64-v8a-1.3.4+84-release.apk\`.
-- الحجم: 40,656,449 bytes (artifact upload).
+- الحجم: 40,654,079 bytes (artifact upload).
 - ABI المتحقق: \`arm64-v8a\` فقط.
 - SHA-256 للـAPK: \`920d06177a307f2bdcda48d8c3f845231ce6b9903c4dcbad1459d2b993b548d1\`.
 - Artifact ID: \`14948111971\`.
-- [تنزيل APK artifact من GitHub Actions](https://github.com/m5ham3ds/KELIVO/actions/runs/45446237776/artifacts/14948111971).
-- [تقرير البناء Markdown — Artifact 14947152560](https://github.com/m5ham3ds/KELIVO/actions/runs/45446237776/artifacts/14947152560).
+- [تنزيل APK artifact من GitHub Actions](https://github.com/m5ham3ds/KELIVO/actions/runs/45459799636/artifacts/14954456167).
+- [تقرير البناء Markdown — Artifact 14953991360](https://github.com/m5ham3ds/KELIVO/actions/runs/45459799636/artifacts/14953991360).
 - SHA-256 لحزمة Artifact ZIP: \`b8e5da79c65eba84a35b75aba171777b2b0c7a2ffdbe2fb3c1f354764f0d872d\`.
 
 **قيد التوقيع:** غياب \`android/key.properties\` يجعل CI يستخدم debug key. هذا APK قابل للتثبيت والاختبار، وليس ادعاء توقيع نشر عام لمتجر التطبيقات.
 
-## حالة Phase 13 بعد CI #150
+## حالة Phase 13 بعد CI #154
 
 - **13A–13D:** توجد checkpoints مصدرية واختبارات تاريخية؛ لا تحول نجاح البناء الحالي وحده إلى قبول رجعي لكل هذه المراحل.
 - **13B:** ما زالت غير مكتملة حتى إغلاق تكامل MCP المملوك للمهارة وبوابات 13Q ذات الصلة.
 - **13P:** Android Emulator E2E اجتازت في CI #150. هذا ليس اختبار Force Stop على هاتف المستخدم ولا إثبات عزل kernel.
-- **13Q.1–13Q.3:** اجتازت اختبارات CI #150؛ شمل ذلك تسجيل الملكية، والتحقق من digest، والموافقة على اتصال stdio، ونسخ Skill إلى مجلد جلسة خاص، واكتشاف الأدوات بعد الاتصال.
-- **13Q.4:** أضيفت واجهات Skill-owned tools/list وtools/call، namespace، موافقة منفصلة لكل استدعاء، فحص المخطط، حدود البيانات، تنقيح الأسرار وسجل التدقيق. قبولها ينتظر CI الخاص بالتغيير الحالي.
-- **13Q.5:** إلغاء الاتصال تلقائياً عند تعطيل Skill أو حذفها أو تغير بصمتها ما زال مفتوحاً.
+- **13Q.1–13Q.3:** اجتازت CI #150؛ شملت الملكية والتحقق من digest والموافقة على اتصال stdio ونسخ Skill إلى مجلد جلسة خاص واكتشاف الأدوات.
+- **13Q.4:** اجتازت CI #154؛ شملت tools/list وtools/call، namespace، موافقة منفصلة، فحص schema وحدود البيانات وتنقيح الأسرار وسجل التدقيق. لا يدعي اختبار الخدمة اكتمال نافذة الموافقة المرئية في واجهة المحادثة.
+- **13Q.5:** أضيف مستمع دورة الحياة لقطع الاتصال وحذف نسخة الجلسة عند التعطيل أو الحذف أو تغير المصدر؛ ينتظر CI #155 أو التشغيل التالي.
 - **13R:** بوابات Environment وRobolectric وPhase13P Emulator اجتازت؛ اختبار الهاتف الفعلي عند مغادرة الصفحة وإزالة التطبيق من Recents وStop بعد commit point ما زال مطلوباً.
 - **PRoot:** Linux userland فقط، RootFS نشط مشترك وقابل للكتابة، والشبكة غير مقيدة بالكامل. لا تصفه كـkernel sandbox.
 - **HTTP/SSE:** ما زال مرفوضاً لخوادم Skills حتى اكتمال DNS pinning وحماية SSRF وموافقة المضيف.

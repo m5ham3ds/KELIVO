@@ -903,19 +903,78 @@ The Skill server is never started during import.
       expect(callResult, isNotNull,
           reason: 'generic MCP calls must never bypass Skill approval');
 
-      await connection.disconnect(
-        skillId: skill.record.id,
-        ownerServerId: registrations.single.serverId,
-      );
-      activeOwner=null;
-      expect(runtime.cancelledRuns,contains(request.runId));
-      expect(provider.getById(connected.mcpServerId),isNull);
+      // Disabling a Skill revokes its live process immediately but deliberately
+      // retains credentials so the user can re-enable the same trusted source.
+      await skills.setEnabled(skill.record.id, false);
+      await _waitFor(() => provider.getById(connected.mcpServerId) == null);
+      activeOwner = null;
+      expect(connection.isConnected(skill.record.id, registrations.single.serverId), isFalse);
+      expect(runtime.cancelledRuns, contains(request.runId));
       expect(
-        await Directory(sessionRoot.path+'/'+registrations.single.serverId).exists(),
+        await Directory(sessionRoot.path + '/' + registrations.single.serverId).exists(),
         isFalse,
       );
+      expect(secretStore.values.values, contains('approved-secret'));
+
+      // Re-enable and connect again using the already-secured Skill credential.
+      await skills.setEnabled(skill.record.id, true);
+      final reconnected = await connection.connect(
+        skillId: skill.record.id,
+        ownerServerId: registrations.single.serverId,
+        confirm: (_) async => true,
+      );
+      activeOwner = registrations.single.serverId;
+      final updatedSourceRun = runtime.requests.last.runId;
+
+      // Editing SKILL.md invalidates the manifest digest. The change listener
+      // must disconnect the old process and erase credentials bound to that
+      // now-untrusted source digest.
+      await skills.updateBody(
+        skill.record.id,
+        '''
+---
+name: isolated-mcp-skill
+description: Updated source invalidates MCP ownership
+---
+The source changed after the MCP process was approved.
+''',
+      );
+      await _waitFor(() => provider.getById(reconnected.mcpServerId) == null);
+      activeOwner = null;
+      expect(runtime.cancelledRuns, contains(updatedSourceRun));
       expect(
-        await File(skillsDirectory.path+'/'+skill.record.id+'/SKILL.md').exists(),
+        await Directory(sessionRoot.path + '/' + registrations.single.serverId).exists(),
+        isFalse,
+      );
+      expect(secretStore.values.values, isEmpty);
+
+      // Deletion is a separate lifecycle event and must also revoke a live
+      // session, remove its private copy, and clear its digest-bound secrets.
+      final deleteSkill = await skills.importFromDirectory(source.path);
+      final deleteRegistrations = await skills.registerDeclaredSkillMcpConfig(
+        skillId: deleteSkill.record.id,
+        configPath: 'mcp.json',
+      );
+      final deleteConnection = await connection.connect(
+        skillId: deleteSkill.record.id,
+        ownerServerId: deleteRegistrations.single.serverId,
+        confirm: (_) async => true,
+        collectSecrets: (_, __) async =>
+            <String, String>{'API_TOKEN': 'delete-secret'},
+      );
+      activeOwner = deleteRegistrations.single.serverId;
+      final deleteRun = runtime.requests.last.runId;
+      await skills.delete(deleteSkill.record.id);
+      await _waitFor(() => provider.getById(deleteConnection.mcpServerId) == null);
+      activeOwner = null;
+      expect(runtime.cancelledRuns, contains(deleteRun));
+      expect(
+        await Directory(sessionRoot.path + '/' + deleteRegistrations.single.serverId).exists(),
+        isFalse,
+      );
+      expect(secretStore.values.values, isEmpty);
+      expect(
+        await File(skillsDirectory.path + '/' + skill.record.id + '/SKILL.md').exists(),
         isTrue,
       );
     },
