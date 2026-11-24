@@ -521,10 +521,12 @@ String? _inferScalarType(List<dynamic> values) {
 
 dynamic _cleanSchemaNode(dynamic node, bool stringEnumOnly) {
   if (node is! Map) return node;
-  // Native Schema rejects this JSON Schema keyword. Only remove it from
-  // schema nodes; a property name or a key inside default/example is data.
+  // Gemini's Schema rejects JSON Schema-only keywords such as
+  // additionalProperties and uniqueItems. Remove them only from schema nodes;
+  // a property name or a key inside default/example is ordinary data.
   final result = Map<String, dynamic>.from(node)
-    ..remove('additionalProperties');
+    ..remove('additionalProperties')
+    ..remove('uniqueItems');
 
   final declaredType = (result['type'] ?? '').toString();
 

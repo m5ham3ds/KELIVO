@@ -10,28 +10,56 @@ import 'package:Kelivo/core/services/api/providers/google_gemini.dart';
 import 'package:Kelivo/core/services/workspace/workspace_tools_service.dart';
 import 'package:Kelivo/features/home/services/local_tools_service.dart';
 
+void _expectNoUnsupportedGeminiSchemaKeywords(Object? schema) {
+  if (schema is! Map) return;
+  expect(schema.containsKey('additionalProperties'), isFalse);
+  expect(schema.containsKey('uniqueItems'), isFalse);
+  final properties = schema['properties'];
+  if (properties is Map) {
+    for (final child in properties.values) {
+      _expectNoUnsupportedGeminiSchemaKeywords(child);
+    }
+  }
+  final items = schema['items'];
+  if (items is Map) _expectNoUnsupportedGeminiSchemaKeywords(items);
+  final variants = schema['anyOf'];
+  if (variants is List) {
+    for (final child in variants) {
+      _expectNoUnsupportedGeminiSchemaKeywords(child);
+    }
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('removes additionalProperties only from Gemini schema nodes', () {
+  test('removes unsupported JSON Schema keywords only from Gemini schema nodes', () {
     final schema = <String, dynamic>{
       'type': 'object',
       'additionalProperties': false,
+      'uniqueItems': true,
       'properties': {
         'additionalProperties': {'type': 'string'},
+        'uniqueItems': {'type': 'string'},
         'config': {
           'type': 'object',
           'additionalProperties': true,
+          'uniqueItems': true,
           'properties': {
             'value': {'type': 'string'},
           },
-          'default': {'additionalProperties': 'keep this data'},
+          'default': {
+            'additionalProperties': 'keep this data',
+            'uniqueItems': 'keep this data too',
+          },
         },
         'rows': {
           'type': 'array',
+          'uniqueItems': true,
           'items': {
             'type': 'object',
             'additionalProperties': {'type': 'string'},
+            'uniqueItems': true,
             'properties': {
               'value': {'type': 'string'},
             },
@@ -42,6 +70,7 @@ void main() {
             {
               'type': 'object',
               'additionalProperties': false,
+              'uniqueItems': true,
               'properties': {
                 'value': {'type': 'string'},
               },
@@ -54,9 +83,14 @@ void main() {
     final original = jsonEncode(schema);
     final expected = jsonDecode(original) as Map<String, dynamic>;
     expected.remove('additionalProperties');
+    expected.remove('uniqueItems');
     expected['properties']['config'].remove('additionalProperties');
+    expected['properties']['config'].remove('uniqueItems');
+    expected['properties']['rows'].remove('uniqueItems');
     expected['properties']['rows']['items'].remove('additionalProperties');
+    expected['properties']['rows']['items'].remove('uniqueItems');
     expected['properties']['choice']['anyOf'][0].remove('additionalProperties');
+    expected['properties']['choice']['anyOf'][0].remove('uniqueItems');
 
     expect(cleanSchemaForGemini(schema, stringEnumOnly: true), expected);
     expect(jsonEncode(schema), original);
@@ -149,6 +183,7 @@ void main() {
             // Keep supported constraints such as shell timeout defaults/bounds
             // and phone-control text length/gesture duration limits intact.
             expect(declaration['parameters'], expected);
+            _expectNoUnsupportedGeminiSchemaKeywords(declaration['parameters']);
           }
         }
         expect(jsonEncode(tools), original);
