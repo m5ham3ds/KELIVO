@@ -175,7 +175,7 @@ description: A Skill with a deliberately large instruction body.
 metadata:
   kelivo.tags: large context budget regression
 ---
-\${List<String>.filled(1200, 'instruction').join(' ')}
+${List<String>.filled(1200, 'instruction').join(' ')}
 ''');
     final instructionReads = <String>[];
     final composition = SkillCompositionService(
