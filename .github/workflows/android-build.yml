@@ -196,6 +196,36 @@ jobs:
           ACTION_OUTCOME: ${{ steps.setup_java.outcome }}
         run: bash .github/scripts/record_ci_action.sh setup_java "Set up Java ${JAVA_VERSION}" "$ACTION_OUTCOME"
 
+      - name: Set up Gradle dependency repositories and retry policy
+        id: gradle_repository_policy
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Maven Central may rate-limit fresh hosted runners with HTTP 429.
+          # Keep the repository changes narrowly scoped to plugin resolution and
+          # use Gradle's bounded HTTP retry policy instead of disabling failures.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/settings.gradle.kts")
+          text = path.read_text()
+          text = text.replace(
+              "    repositories {\n        google()\n        mavenCentral()\n        gradlePluginPortal()\n    }",
+              """    repositories {
+                  google()
+                  maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+                  mavenCentral()
+                  gradlePluginPortal()
+              }"""
+          )
+          if "maven-central.storage-download.googleapis.com" not in text:
+              raise SystemExit("Plugin mirror insertion failed; refusing to continue.")
+          path.write_text(text)
+          PY
+          printf '\n# Bounded retries for transient Maven Central/Plugin Portal throttling.\nsystemProp.org.gradle.internal.repository.max.retries=5\nsystemProp.org.gradle.internal.repository.max.backoff=10000\n' >> android/gradle.properties
+          git diff --check -- android/settings.gradle.kts android/gradle.properties
+          echo "Plugin-management mirror and bounded Gradle retry policy configured."
+
       - name: Set up Gradle for focused Android runtime tests
         id: setup_gradle
         if: success()
