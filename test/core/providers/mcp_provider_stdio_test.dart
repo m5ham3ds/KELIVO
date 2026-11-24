@@ -781,7 +781,7 @@ The Skill server is never started during import.
       final exposedToolName = discovered.single.exposedName;
       expect(exposedToolName, isNotEmpty);
       expect(exposedToolName.length, lessThanOrEqualTo(64));
-      expect(exposedToolName.startsWith('skill_echo_'), isTrue);
+      expect(exposedToolName, matches(RegExp(r'^skill_echo_[a-f0-9]{12}$')));
       expect(discovered.single.requiresManualApproval, isTrue);
 
       var approvalPromptedForInvalidInput = false;
@@ -903,11 +903,6 @@ The Skill server is never started during import.
       expect(callResult, isNotNull,
           reason: 'generic MCP calls must never bypass Skill approval');
 
-      final callResult=await provider.callTool(
-        connected.mcpServerId,'not-approved',<String,dynamic>{},
-      );
-      expect(callResult,isNotNull,
-        reason:'generic MCP calls are blocked until the 13Q.4 per-tool approval layer');
       await connection.disconnect(
         skillId: skill.record.id,
         ownerServerId: registrations.single.serverId,
