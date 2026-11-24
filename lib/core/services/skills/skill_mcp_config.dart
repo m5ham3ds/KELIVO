@@ -43,7 +43,7 @@ abstract final class SkillMcpConfigParser {
     if (utf8.encode(source).length > maxConfigBytes) {
       throw const FormatException('skill_mcp_config_too_large');
     }
-    _validateConfigPath(configPath);
+    validateConfigPath(configPath);
     final decoded = _decodeJson(source);
     if (decoded is! Map) throw const FormatException('invalid_skill_mcp_config_root');
     final rawServers = decoded['mcpServers'];
@@ -182,7 +182,7 @@ abstract final class SkillMcpConfigParser {
     );
   }
 
-  static void _validateConfigPath(String path) {
+  static void validateConfigPath(String path) {
     if (path.isEmpty || path.length > 240 || path.startsWith('/') ||
         path.contains(r'\') ||
         path.split('/').any((part) => part.isEmpty || part == '.' || part == '..')) {

@@ -1,6 +1,6 @@
 # PHASE 13Q — موائم MCP المملوك للمهارات
 
-**الحالة:** 13Q.1 محلل قراءة فقط مضاف واجتاز CI #73 و#78؛ المرحلة غير مقبولة حتى تكتمل دورة lifecycle.
+**الحالة:** 13Q.1 مقبولة سابقاً؛ أضيف تنفيذ 13Q.2 (ملكية metadata، تعطيل افتراضي، وتحقق digest ومخزن أسرار منفصل) على main، وينتظر بوابة CI الجديدة. 13Q.3–13Q.5 ما زالت مفتوحة.
 
 ## سبب المرحلة
 يكتشف مستورد Skills ملفات MCP ويحفظ metadata، لكن Capability Registry يصنف agent_skill.mcp_server بأنه manual_adapter_required. البنية العامة لـMCP (McpProvider وMcpToolService) لا تربط وحدها خادم Skill بملكية Skill أو بصمة المصدر أو موافقات تشغيله. نجاح 13P لا يختبر MCP؛ بل يغطي دورة Skill script.
@@ -15,6 +15,20 @@
 
 ## الأعمال التالية
 ### 13Q.2 — ملكية الخادم
+
+أضيف checkpoint تنفيذي أولي للبند 13Q.2:
+
+- SkillMcpOwnerRegistry يحفظ سجلات مستقلة في skill-import-metadata/skill-mcp-owners-v1.json، ويربط كل سجل بـSkill ID وsource digest وagent_skill.mcp_server وServer ID.
+- التسجيل لا يقبل Skill بلا manifest صالح أو digest حالي مطابق. يتحقق SkillsService من SHA-256 لكل ملف Skill مقابل manifest قبل قبول digest؛ الملفات المضافة/المعدلة/المفقودة أو الروابط الرمزية تجعل البصمة غير صالحة.
+- لا تتكرر أسماء خوادم Skill داخل المالك نفسه، وتُسجل مجموعة descriptors كوحدة واحدة حتى لا يبقى جزء منها عند اكتشاف تكرار.
+- جميع التسجيلات enabled=false وrequiresManualApproval=true. هذا السجل لا يستدعي McpProvider ولا ينشئ اتصالاً أو عملية.
+- SecureSkillMcpSecretStore يستخدم flutter_secure_storage لحفظ قيم المتغيرات تحت مفاتيح مشتقة من هوية Skill/digest/server/variable. لا تقبل إلا أسماء المتغيرات المعلنة؛ registry لا يحفظ إلا الأسماء وليس القيم.
+- registrationsForSkill وallCurrentRegistrations يزيلان السجلات ذات source digest القديم قبل إرجاعها. الإلغاء التشغيلي للاتصال ما زال ضمن 13Q.5.
+
+واجهة التسجيل الحالية: SkillsService.registerDeclaredSkillMcpConfig(skillId, configPath)؛ تقرأ الملف من Skill المثبت فقط، وتطلب وجود capability معلنة في manifest، وتتحقق من المسار ونوع الملف قبل parsing. لا يوجد تشغيل تلقائي.
+
+حدود هذا checkpoint: لم تُربط التسجيلات بعد بدورة MCP connect/tools/list/tools/call، ولم تضف هذه الخطوة واجهة موافقة أو إدخال أسرار. الكتابة إلى مخزن الأسرار تتطلب استدعاءً منفصلاً من واجهة موافق عليها لاحقاً. لا تعتبر 13Q.2 مقبولة نهائياً قبل CI واختبارات التكامل.
+
 ربط server بـSkill ID وsource digest وcapability ID؛ إنشاء الخادم disabled افتراضيًا؛ رفض التكرار والبصمات القديمة؛ ربط الأسرار بمخزن آمن ولا تُستورد القيم الحرفية.
 
 ### 13Q.3 — اتصال واكتشاف

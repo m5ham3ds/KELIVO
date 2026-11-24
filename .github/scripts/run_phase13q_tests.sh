@@ -2,6 +2,11 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-test_file="test/core/services/skills/skill_mcp_config_test.dart"
-[[ -s "$test_file" ]] || { echo "Phase 13Q MCP config test missing: $test_file" >&2; exit 2; }
-flutter test --no-pub --reporter expanded "$test_file"
+test_files=(
+  "test/core/services/skills/skill_mcp_config_test.dart"
+  "test/core/services/skills/skill_mcp_registry_test.dart"
+)
+for test_file in "${test_files[@]}"; do
+  [[ -s "$test_file" ]] || { echo "Phase 13Q test missing: $test_file" >&2; exit 2; }
+done
+flutter test --no-pub --reporter expanded "${test_files[@]}"
