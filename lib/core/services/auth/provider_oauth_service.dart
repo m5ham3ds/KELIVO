@@ -97,6 +97,7 @@ class ProviderOAuthService extends ChangeNotifier {
     required OAuthCancellation cancellation,
     required void Function(OAuthLoginPrompt) onPrompt,
     String? providerId,
+    String? clientId,
     bool deviceCode = true,
     Future<bool> Function(Uri)? launcher,
   }) async {
@@ -126,7 +127,7 @@ class ProviderOAuthService extends ChangeNotifier {
           claudePromptCachingTtl: provider == OAuthProvider.claude
               ? ProviderConfig.claudePromptCachingTtl1h
               : ProviderConfig.claudePromptCachingTtl5m,
-          avatarType: 'icon',
+          avatarType: provider == OAuthProvider.huggingFace ? 'emoji' : 'icon',
           avatarValue: provider.icon,
         );
     _login = cancellation;
@@ -145,7 +146,10 @@ class ProviderOAuthService extends ChangeNotifier {
         (Uri uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
     try {
       final credentials = await Future.any<ProviderOAuthCredentials>([
-        ProviderOAuthAdapter.forProvider(provider).login(
+        ProviderOAuthAdapter.forProvider(
+          provider,
+          clientId: clientId ?? previous?.oauthCredentials?.oauthClientId,
+        ).login(
           OAuthWire(client),
           cancellation,
           (prompt) async {
@@ -261,6 +265,7 @@ class ProviderOAuthService extends ChangeNotifier {
     try {
       final refreshed = await ProviderOAuthAdapter.forProvider(
         original.oauthProvider!,
+        clientId: original.oauthCredentials?.oauthClientId,
       ).refresh(OAuthWire(client), original.oauthCredentials!);
       final current = _current(original.id);
       if (!identical(settings, _settings) ||
@@ -350,6 +355,7 @@ class ProviderOAuthService extends ChangeNotifier {
       _authenticated(original, (wire, config) async {
         final rows = await ProviderOAuthAdapter.forProvider(
           config.oauthProvider!,
+          clientId: config.oauthCredentials?.oauthClientId,
         ).models(wire, config.oauthCredentials!);
         final ids = <String>{};
         return [
@@ -490,6 +496,7 @@ class ProviderOAuthService extends ChangeNotifier {
       original,
       (wire, config) => ProviderOAuthAdapter.forProvider(
         config.oauthProvider!,
+        clientId: config.oauthCredentials?.oauthClientId,
       ).usage(wire, config.oauthCredentials!),
     );
     _usageRequests[key] = request;
@@ -592,6 +599,8 @@ ReasoningSpecOverride? oauthDiscoveredReasoning(
         'dialect': ReasoningDialect.anthropicBudget.name,
         'canDisable': !required,
       });
+    case OAuthProvider.huggingFace:
+      return null;
   }
 }
 
@@ -793,6 +802,7 @@ class _ProviderOAuthHttpClient extends http.BaseClient {
             ..bodyBytes = body;
       final authHeaders = ProviderOAuthAdapter.forProvider(
         config.oauthProvider!,
+        clientId: config.oauthCredentials?.oauthClientId,
       ).headers(config.oauthCredentials!);
       final existingBeta = result.headers['anthropic-beta'];
       final existingContentType = result.headers['content-type'];

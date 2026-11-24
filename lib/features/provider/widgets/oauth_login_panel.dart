@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/providers/settings_provider.dart';
@@ -17,6 +18,7 @@ import 'provider_avatar.dart';
 
 String oauthErrorText(BuildContext context, Object error) {
   final l = AppLocalizations.of(context)!;
+  if (error is String) return error;
   if (error is! ProviderOAuthException) return l.oauthNetworkError;
   final transportSummary = switch (error.transportFailure) {
     ProviderOAuthTransportFailure.dns => l.oauthDnsError,
@@ -99,11 +101,22 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
   bool _browserLogin = false;
   bool _switchingToDeviceCode = false;
   final _authorizationCode = TextEditingController();
+  final _huggingFaceClientId = TextEditingController();
   bool _invalidAuthorizationCode = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.providerId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _huggingFaceClientId.text = context
+            .read<SettingsProvider>()
+            .getProviderConfig(widget.providerId!)
+            .oauthCredentials
+            ?.oauthClientId ?? '';
+      });
+    }
     if (widget.autoStart && widget.provider != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_login(widget.provider!));
@@ -115,11 +128,19 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
   void dispose() {
     _cancellation?.cancel();
     _authorizationCode.dispose();
+    _huggingFaceClientId.dispose();
     super.dispose();
   }
 
   Future<void> _login(OAuthProvider provider, {bool? deviceCode}) async {
     if (_active != null) return;
+    final clientId = provider == OAuthProvider.huggingFace
+        ? _huggingFaceClientId.text.trim()
+        : null;
+    if (provider == OAuthProvider.huggingFace && clientId?.isEmpty == true && widget.providerId == null) {
+      setState(() => _error = 'Enter your Hugging Face OAuth Client ID first.');
+      return;
+    }
     final cancellation = OAuthCancellation();
     final useDeviceCode =
         deviceCode ??
@@ -137,6 +158,7 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
       final connected = await _service.login(
         provider: provider,
         providerId: widget.providerId,
+        clientId: clientId?.isNotEmpty == true ? clientId : null,
         cancellation: cancellation,
         deviceCode: useDeviceCode,
         onPrompt: (value) {
@@ -388,6 +410,35 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (widget.provider == null || widget.provider == OAuthProvider.huggingFace)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Hugging Face OAuth Client ID'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _huggingFaceClientId,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Public OAuth Client ID',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                IosTileButton(
+                  label: 'Create Hugging Face OAuth app',
+                  icon: LucideIcons.externalLink,
+                  onTap: () => launchUrl(
+                    Uri.parse('https://huggingface.co/settings/applications'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+              ],
+            ),
+          ),
         SectionCard(
           dividers: true,
           children: [
@@ -426,6 +477,7 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
                               OAuthProvider.grok => 'xAI',
                               OAuthProvider.kimi => 'Kimi Code',
                               OAuthProvider.claude => 'Pro / Max',
+                              OAuthProvider.huggingFace => 'Inference Providers',
                             },
                             style: TextStyle(
                               fontSize: 12,

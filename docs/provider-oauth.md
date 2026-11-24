@@ -1,6 +1,6 @@
 # 供应商账号登录
 
-入口：设置 → 供应商 → 添加 → 账号登录。支持 ChatGPT（Codex）、Grok、Kimi Code、Claude。账号登录后会同步可用模型，也可以在账号详情手动同步、刷新用量。
+入口：设置 → 供应商 → 添加 → 账号登录。支持 ChatGPT（Codex）、Grok、Kimi Code、Claude 和 Hugging Face。账号登录后会同步可用模型，也可以在账号详情手动同步。
 
 ## 登录与请求
 
@@ -9,7 +9,7 @@
 | ChatGPT | 浏览器 PKCE；手机和桌面都可选择设备码 | Codex Responses，固定流式请求 | ChatGPT usage 中的主、副及额外限制窗口、可用状态和已存重置次数 |
 | Grok | xAI 设备码 | xAI Responses | Grok CLI 周额度或统一计费月额度 |
 | Kimi Code | Kimi 设备码 | 根据模型目录声明选择 Messages 或 Chat Completions | Kimi Code 总体用量及各限制窗口 |
-| Claude | 浏览器 PKCE，支持粘贴授权码或完整回调链接 | Anthropic Messages，保留签名思考与工具续轮 | 五小时、周用量、各模型周窗口和额外美元用量 |
+| Claude | 浏览器 PKCE，支持粘贴授权码或完整回调链接 | Anthropic Messages，保留签名思考与工具续轮 | 五小时、周用量、各模型周窗口和额外美元用量 |\n| Hugging Face | Device Code OAuth عبر تطبيق عام وClient ID بلا Client Secret | OpenAI-compatible Chat Completions عبر router.huggingface.co/v1 | لا توجد نقطة استخدام موحدة متاحة في هذا الموصل |
 
 ChatGPT 默认使用浏览器授权，保留已注册的 `http://localhost:1455/auth/callback`。手机使用系统授权浏览器和临时本机监听；收到匹配的授权回调后，再通过 Kelivo 原生回调返回应用。授权码只在本机接收，返回应用的 URI 不携带授权码。取消、超时或完成后关闭监听，原生授权会话按标识取消，避免旧请求取消其他授权。
 
@@ -26,6 +26,12 @@ Android 使用带会话的 Custom Tabs，优先使用支持它的默认浏览器
 思考内容回传由模型规格的 `reasoning.replay` / `replayField` 决定，Kimi 模型遵循 [Kimi 上下文回传要求](https://platform.kimi.ai/docs/guide/use-thinking-models)。流式、非流式的工具续轮和历史 assistant 消息都保留返回的思考内容。
 
 手机和桌面保存模型设置时，保留目录同步写入的协议（`oauthProtocol`）与 `reasoning` 覆盖；以保存时的最新目录信息为准。旧版本保存设置已丢失这些字段的账号，可在账号详情点“同步”恢复。
+
+### Hugging Face Inference Providers
+
+يتطلب تسجيل Hugging Face إنشاء OAuth app عاماً من إعدادات الحساب، ثم إدخال Client ID في شاشة Accounts. لا تضع Client Secret داخل التطبيق. يستخدم Device Code OAuth عبر `https://huggingface.co/oauth/device` و`https://huggingface.co/oauth/token`، مع النطاق `openid profile email inference-api`. يتم جلب الملف الشخصي من `https://huggingface.co/oauth/userinfo`، والنماذج من `GET https://router.huggingface.co/v1/models`، والمحادثات من `POST https://router.huggingface.co/v1/chat/completions`.
+
+واجهة OpenAI-compatible الموثقة تدعم Chat Completions فقط، وليست بديلاً لتوليد الصور أو embeddings أو speech. لا يوفر موصل OAuth الحالي نقطة API موحدة لعرض استهلاك الحساب. إذا لم يصدر الخادم refresh token، فسيطلب التطبيق إعادة Device Code authorization عند انتهاء access token.
 
 ## 代码位置
 

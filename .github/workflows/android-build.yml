@@ -161,6 +161,17 @@ jobs:
           bash .github/scripts/capture_step.sh environment_install_lifecycle_tests "Environment installation lifecycle regressions" -- \
             bash .github/scripts/run_environment_install_lifecycle_tests.sh
 
+      - name: Run Gemini schema and provider OAuth regression tests
+        id: provider_oauth_and_gemini_schema_tests
+        if: success()
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          bash .github/scripts/capture_step.sh provider_oauth_and_gemini_schema_tests "Gemini tool schema and provider OAuth regression tests" -- \
+            flutter test --no-pub --concurrency=2 \
+              test/core/services/api/gemini_tool_schema_request_test.dart \
+              test/core/services/auth/provider_oauth_adapter_test.dart
+
       - name: Run Phase 13Q Skill MCP configuration discovery tests
         id: phase13q_mcp_config_tests
         if: success()

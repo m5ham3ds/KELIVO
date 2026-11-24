@@ -454,6 +454,62 @@ void main() {
     },
   );
 
+  test('Hugging Face device OAuth uses public client ID and inference scope', () {
+    fakeAsync((async) {
+      const clientId = 'kelivo-public-client-id';
+      ProviderOAuthCredentials? result;
+      final requests = <http.Request>[];
+      final wire = OAuthWire(
+        MockClient((request) async {
+          requests.add(request);
+          if (request.url.path == '/oauth/device') {
+            expect(request.bodyFields['client_id'], clientId);
+            expect(request.bodyFields['scope'], 'openid profile email inference-api');
+            return response({
+              'device_code': 'device-code',
+              'user_code': 'HF-CODE',
+              'verification_uri': 'https://huggingface.co/device',
+              'expires_in': 60,
+              'interval': 1,
+            });
+          }
+          if (request.url.path == '/oauth/token') {
+            expect(request.bodyFields['client_id'], clientId);
+            expect(request.bodyFields['device_code'], 'device-code');
+            return response({'access_token': 'hf-access-token', 'expires_in': 3600});
+          }
+          if (request.url.path == '/oauth/userinfo') {
+            expect(request.headers['authorization'], 'Bearer hf-access-token');
+            return response({'sub': 'hf-user-123', 'email': 'user@example.com'});
+          }
+          if (request.url.path == '/v1/models') {
+            expect(request.headers['authorization'], 'Bearer hf-access-token');
+            return response({'data': [{'id': 'meta-llama/Llama-3.1-8B-Instruct:fastest'}]});
+          }
+          return response({'error': 'not found'}, 404);
+        }),
+      );
+      final adapter = HuggingFaceOAuthAdapter(clientId: clientId);
+      adapter.login(wire, OAuthCancellation(), (_) async {}).then((value) => result = value);
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 1));
+      async.flushMicrotasks();
+      expect(result, isNotNull);
+      expect(result!.oauthClientId, clientId);
+      expect(result!.accountId, 'hf-user-123');
+      expect(result!.email, 'user@example.com');
+      final saved = ProviderOAuthCredentials.fromJson(result!.toJson());
+      expect(saved.oauthClientId, clientId);
+      List<Map<String, dynamic>>? models;
+      adapter.models(wire, saved).then((value) => models = value);
+      async.flushMicrotasks();
+      expect(models!.single['id'], 'meta-llama/Llama-3.1-8B-Instruct:fastest');
+      expect(requests.map((r) => r.url.path), [
+        '/oauth/device', '/oauth/token', '/oauth/userinfo', '/v1/models',
+      ]);
+    });
+  });
+
   test(
     'Grok unified billing queries the monthly endpoint even with weekly data',
     () async {

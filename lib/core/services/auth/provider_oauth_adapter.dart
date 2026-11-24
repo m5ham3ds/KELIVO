@@ -186,12 +186,15 @@ abstract class ProviderOAuthAdapter {
   OAuthProvider get provider;
   Duration get tokenRequestTimeout => const Duration(seconds: 30);
 
-  static ProviderOAuthAdapter forProvider(OAuthProvider provider) =>
-      switch (provider) {
+  static ProviderOAuthAdapter forProvider(
+    OAuthProvider provider, {
+    String? clientId,
+  }) => switch (provider) {
         OAuthProvider.chatgpt => ChatGptOAuthAdapter(),
         OAuthProvider.grok => GrokOAuthAdapter(),
         OAuthProvider.kimi => KimiOAuthAdapter(),
         OAuthProvider.claude => ClaudeOAuthAdapter(),
+        OAuthProvider.huggingFace => HuggingFaceOAuthAdapter(clientId: clientId ?? ''),
       };
 
   Map<String, String> headers(ProviderOAuthCredentials credentials) => {
@@ -316,13 +319,18 @@ abstract class ProviderOAuthAdapter {
     OAuthPromptHandler onPrompt,
     String deviceUrl, {
     String? deviceId,
+    String? clientId,
   }) => oauthAtStage(ProviderOAuthStage.requestDeviceCode, () async {
+    final resolvedClientId = (clientId ?? provider.clientId).trim();
+    if (resolvedClientId.isEmpty) {
+      throw const ProviderOAuthException(ProviderOAuthFailure.invalidResponse);
+    }
     final tokenUrl = await tokenEndpoint(wire);
     cancellation.check();
     final init = await wire.request(
       deviceUrl,
       form: {
-        'client_id': provider.clientId,
+        'client_id': resolvedClientId,
         if (provider.scope.isNotEmpty) 'scope': provider.scope,
       },
       headers: tokenHeaders(deviceId),
@@ -362,7 +370,7 @@ abstract class ProviderOAuthAdapter {
           tokenUrl,
           form: {
             'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
-            'client_id': provider.clientId,
+            'client_id': resolvedClientId,
             'device_code': device,
           },
           headers: tokenHeaders(deviceId),
@@ -828,6 +836,108 @@ class GrokOAuthAdapter extends ProviderOAuthAdapter {
     );
     return parseGrokUsage(data, monthlyData: monthlyData);
   }
+}
+
+class HuggingFaceOAuthAdapter extends ProviderOAuthAdapter {
+  HuggingFaceOAuthAdapter({required this.clientId});
+  final String clientId;
+
+  @override
+  OAuthProvider get provider => OAuthProvider.huggingFace;
+
+  @override
+  Future<ProviderOAuthCredentials> login(
+    OAuthWire wire,
+    OAuthCancellation cancellation,
+    OAuthPromptHandler onPrompt, {
+    bool deviceCode = true,
+    OAuthUrlLauncher? launcher,
+  }) async {
+    if (!deviceCode || clientId.trim().isEmpty) {
+      throw const ProviderOAuthException(ProviderOAuthFailure.invalidResponse);
+    }
+    var value = await deviceLogin(
+      wire, cancellation, onPrompt,
+      'https://huggingface.co/oauth/device',
+      clientId: clientId,
+    );
+    try {
+      final profile = await get(wire, 'https://huggingface.co/oauth/userinfo', value);
+      value = value.copyWith(
+        accountId: oauthString(profile['sub']),
+        email: oauthString(profile['email']),
+      );
+    } on ProviderOAuthException {
+      // Keep a valid inference grant even if the optional profile call fails.
+    }
+    return value;
+  }
+
+  @override
+  ProviderOAuthCredentials credentials(
+    Map<String, dynamic> data, {
+    ProviderOAuthCredentials? stored,
+    String? deviceId,
+  }) {
+    final access = oauthString(data['access_token']);
+    final expires = oauthNumber(data['expires_in']);
+    final claims = oauthTokenClaims(oauthString(data['id_token']) ?? '');
+    final jwtExpiry = oauthNumber(claims['exp']);
+    if (access == null || (expires == null && jwtExpiry == null)) {
+      throw const ProviderOAuthException(ProviderOAuthFailure.invalidResponse);
+    }
+    return ProviderOAuthCredentials(
+      accessToken: access,
+      refreshToken: oauthString(data['refresh_token']) ?? stored?.refreshToken ?? '',
+      expiresAt: expires != null
+          ? DateTime.now().add(Duration(seconds: expires.toInt()))
+          : DateTime.fromMillisecondsSinceEpoch((jwtExpiry! * 1000).toInt()),
+      sessionId: stored?.sessionId ?? const Uuid().v4(),
+      accountId: oauthString(claims['sub']) ?? stored?.accountId,
+      email: oauthString(claims['email']) ?? stored?.email,
+      deviceId: deviceId ?? stored?.deviceId,
+      oauthClientId: clientId,
+    );
+  }
+
+  @override
+  Future<ProviderOAuthCredentials> refresh(
+    OAuthWire wire,
+    ProviderOAuthCredentials stored,
+  ) async {
+    if (stored.refreshToken.isEmpty || stored.oauthClientId?.isNotEmpty != true) {
+      throw ProviderOAuthException(
+        ProviderOAuthFailure.loginRequired,
+        message: 'Hugging Face requires device authorization again after token expiry.',
+      );
+    }
+    final response = await wire.request(
+      provider.tokenEndpoint,
+      form: {
+        'grant_type': 'refresh_token',
+        'client_id': stored.oauthClientId!,
+        'refresh_token': stored.refreshToken,
+      },
+    );
+    if (!response.ok) {
+      final failure = _requestFailure(response, stored);
+      throw ProviderOAuthException(
+        response.status == 401 ? ProviderOAuthFailure.loginRequired : failure.kind,
+        statusCode: response.status,
+        code: failure.code,
+        message: failure.message,
+      );
+    }
+    return credentials(response.data, stored: stored);
+  }
+
+  @override
+  Future<ProviderUsageSnapshot> usage(
+    OAuthWire wire,
+    ProviderOAuthCredentials credentials,
+  ) async => throw const ProviderOAuthException(
+    ProviderOAuthFailure.usageUnavailable,
+  );
 }
 
 class KimiOAuthAdapter extends ProviderOAuthAdapter {
