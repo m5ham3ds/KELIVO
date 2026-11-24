@@ -13,6 +13,10 @@
 - تحليل Reel Studio محدث في REEL-STUDIO-GAP-ANALYSIS-AR.md: TTS/ASR موجودان أساساً، لكن التوقيت الدقيق للكلمات وربط المراحل والمحرر المتزامن غير مكتمل. لا يدّعي ذلك جاهزية Reel end-to-end أو دعماً رسمياً لـAndroid PRoot.
 
 **سجل الحالة التاريخي للمراحل:**
+
+> **التحديث المرجعي الحالي — 24 نوفمبر 2026:** الحالة القديمة أدناه تسجل تاريخ الخطة عند 23 نوفمبر. آخر بناء على main هو [CI #139](https://github.com/m5ham3ds/KELIVO/actions/runs/45324592200) على commit 9abb9dcc40881b005902265fdbd86d93248cb906، وقد اجتاز Android-only audit وFlutter Analyze واختبارات Environment وGemini/OAuth وPhase 13Q.1 والحزم المورّدة وAndroid JVM/Robolectric وPhase 13P Emulator E2E وبناء ARM64 ورفع Artifact. APK #139 حجمه 40,654,046 bytes، SHA-256: 87c7af532a481441523ca9e83f1b57807ec606706ae1ef327ee1a98e2e8cb51c، Artifact ID: 14890431605. غياب android/key.properties يعني أن artifact CI بني بمفتاح debug. Phase 13Q.2–13Q.5 ما زالت مفتوحة، واختبار الهاتف الفعلي لـ13R مطلوب. راجع phases/README.md للحالة الحالية وسجل Phase 14 أدناه.
+
+
 ## حالة التنفيذ الحالية
 
 - **Phase 0:** خط الأساس محفوظ.
@@ -1336,3 +1340,24 @@ KELIVO يجب أن يكون **نواة محادثة ووكلاء وإدارة إ
 ## Phase 13Q — Skill-owned MCP Adapter
 
 بدأت 13Q.1 بمحلل read-only لإعداد MCP المعلن داخل Skill. لا تعتبر هذه القطعة موائم تشغيل. يتطلب الإكمال ربط الملكية والموافقة ثم tools/list وtools/call، مع إيقاف الاتصال عند تغير بصمة المصدر. راجع PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md.
+
+
+## Phase 14 — Universal Skills, Plugins, Tools & Agent Orchestration
+
+تم تدقيق المستودع على commit 9abb9dcc40881b005902265fdbd86d93248cb906، وفهرسة 4,237 ملفاً و634 مجلداً في manifest كامل، ومراجعة بنية Skills/Extensions/MCP/Runtime/Workspace/Browser/CI ومقارنة مشاريع OpenCode وCodex وClaude Plugins وAgent Skills وMCP وVercel وPydanticAI وsmolagents.
+
+**القرارات:**
+- تطوير الأنظمة الحالية وعدم بناء مستورد/منفذ موازٍ.
+- البدء بـ14A Progressive Skill Discovery & Lazy Instruction Loading؛ metadata أولاً ثم SKILL.md للمهارات المختارة فقط، مع حماية context budget.
+- دعم Plugin manifests ومكوناتها read-only قبل إتاحة تنفيذ commands/hooks/agents.
+- ترقية MCP عبر مصفوفة إصدارات واختبارات توافق قبل Skills over MCP؛ لا يُفترض أن عميل 2025 يدعم 2026-07-28.
+- إكمال Skill-owned MCP lifecycle وربط كل خادم وبصمة وموافقة بالمهارة المالكة.
+- إضافة Tool Registry/Toolsets/deferred exposure تدريجياً فوق catalog/handlers الحالية.
+- تنفيذ hooks/agents/connectors/workflows بعد permission and runtime contracts؛ لا تشغيل تلقائي.
+
+راجع:
+- phases/PHASE-14-REPOSITORY-AUDIT-AND-OSS-REUSE-MATRIX-AR.md
+- phases/PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md
+- phases/PHASE-14-REPOSITORY-TREE-MANIFEST-2026-11-24.json
+
+**قيود Phase 14:** Flutter/Dart-first؛ لا Docker/PC requirement؛ لا PRoot sandbox claims؛ لا script/server/hook execution on import/inspect/compose؛ لا credentials in prompts/logs؛ license review لكل code/vendor؛ لا حذف/استبدال Skills أو Skill Packs الحالية؛ واختبارات CI مركزة مع Android ARM64 وحالات Android الواقعية حيث يلزم.

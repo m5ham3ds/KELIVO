@@ -2,47 +2,74 @@
 
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
-## أحدث CI وبناء Release معتمد
+## أحدث بناء ناجح — CI #139
 
-آخر بناء كامل ناجح قبل إصلاح Phase 13R: [CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038) على commit 85e4653674916ecc65e3d30daa417e29547245a6. Flutter 3.47.6 · Java 21 · Gradle 8.14 · NDK 28.2.13676358 · CMake 3.22.1.
+[GitHub Actions #139](https://github.com/m5ham3ds/KELIVO/actions/runs/45324592200) على commit 9abb9dcc40881b005902265fdbd86d93248cb906 اكتمل بالنتيجة success في 24 نوفمبر 2026.
 
-- Android-only audit وإعداد Flutter وحل الاعتماديات وLinux native dependencies وArabic localization: نجاح.
-- Flutter Analyze: نجاح؛ السجل أكد عدم وجود analyzer errors أو warnings.
-- اختبارات Phase 13Q.1 والحزم المحلية المستقلة: نجاح.
-- Android JVM/Robolectric: نجاح؛ مهمة :app:testDebugUnitTest انتهت برسالة BUILD SUCCESSFUL in 5m 16s.
-- Phase 13P Android Emulator E2E: نجاح.
-- Android ARM64 Release والتحقق من ABI وحساب SHA-256 ورفع Artifact: نجاح.
-- APK: Kelivo-Android-arm64-v8a-1.3.4+84-release.apk، حجمه 41,842,583 bytes. فحص APK أكد arm64-v8a فقط.
-- SHA-256: 5791a197b30bb3a160c41739a788a1c1b5053ca77599a9ba007de84acd632654.
-- Artifact ID: 14840756161.
+- Android-only source audit وFlutter 3.47.6 وJava 21 وGradle 8.14 وNDK 28.2.13676358 وCMake 3.22.1: نجاح.
+- Resolve Flutter dependencies وLinux GTK/GLib native test dependencies وArabic localization parity وflutter gen-l10n: نجاح.
+- Flutter Analyze: نجاح، بلا analyzer errors/warnings.
+- Environment installation lifecycle regression tests: نجاح.
+- Gemini schema + Google/Hugging Face OAuth regression tests: نجاح.
+- Phase 13Q read-only MCP configuration discovery tests: نجاح.
+- vendored local package test suites: نجاح.
+- Android JVM/Robolectric: نجاح.
+- Phase 13P Android Emulator Skill lifecycle E2E: نجاح.
+- Android ARM64 Release APK وABI verification وSHA-256 ورفع Artifact: نجاح.
+- تقرير CI الخام والتقرير Markdown: رفع ناجح.
 
-تشغيلات #116–#119 أُلغيت أثناء commits متتالية ولم تصل إلى بوابة البناء النهائية؛ لا تُصنف كإخفاقات اختبارات. CI #120 هو آخر بناء ناجح على main قبل تعديلات Phase 13R. نجاحه لا يثبت إصلاح المشكلات الجديدة.
+**APK**
+- الاسم: Kelivo-Android-arm64-v8a-1.3.4+84-release.apk
+- الحجم: 40,654,046 bytes.
+- ABI: arm64-v8a فقط.
+- SHA-256: 87c7af532a481441523ca9e83f1b57807ec606706ae1ef327ee1a98e2e8cb51c.
+- Artifact ID: 14890431605.
+- [تنزيل artifact من GitHub Actions](https://github.com/m5ham3ds/KELIVO/actions/runs/45324592200/artifacts/14890431605).
 
-## تشخيص الفشل السابق والإصلاح المثبت
+**قيد التوقيع:** سجل CI يذكر أن غياب android/key.properties يجعل عملية البناء تستخدم debug key. هذا APK قابل للتثبيت والاختبار، وليس ادعاء توقيع نشر عام لمتجر التطبيقات.
 
-- CI #76 أثبت HTTP 429 من `repo.maven.apache.org` عند تنزيل `org.robolectric:nativeruntime-dist-compat:1.0.18` خلال Gradle dependency resolution.
-- CI #77 اجتاز حل اعتماديات Gradle لكنه فشل في 9 اختبارات عند `MavenArtifactFetcher.java:129` مع `IOException`؛ السجل لم يثبت رمز HTTP محدداً لهذه المحاولة.
-- السبب كان اختلاف مساري تنزيل Robolectric: مستودعات Gradle لا تضبط تنزيل Android runtime jars الذي ينفذه `MavenArtifactFetcher`.
-- CI #78 أثبت الإصلاح: ظهر عنوان مرآة Google في سجل Gradle، واجتازت `:app:testDebugUnitTest` وPhase 13P وRelease ARM64. لا توجد في #78 أخطاء `MavenArtifactFetcher` أو 429.
+## حالة Phase 13 بعد CI #139
 
-راجع `PHASE-13Q-CI-MAVEN-429-FIX-AR.md` لتاريخ التشخيص والإصلاح، و`ANDROID_BUILD_AR.md` لملخص البناء التفصيلي.
+- **13A–13D:** توجد checkpoints مصدرية واختبارات تاريخية؛ لا تحول نجاح البناء الحالي وحده إلى قبول رجعي لكل هذه المراحل. راجع تقاريرها وبوابات القبول الأصلية.
+- **13B:** لم تكتمل بعد؛ Skill-owned MCP adapter ودورة tools/list/tools/call والاختبار الفعلي ما زالت مفتوحة.
+- **13P:** Android Emulator E2E اجتازت في CI #139. هذا ليس اختبار Force Stop على هاتف المستخدم ولا إثبات عزل kernel.
+- **13Q:** 13Q.1 parser/read-only اجتازت؛ 13Q.2–13Q.5 ownership/connect/tools-list/tools-call/cancellation ما زالت مفتوحة.
+- **13R:** بوابات CI الحالية المتعلقة بدورة Environment اجتازت في #139. اختبار الهاتف الفعلي عند مغادرة الصفحة وإزالة التطبيق من Recents وStop بعد commit point ما زال مطلوباً قبل إعلان القبول التشغيلي الكامل.
+- **PRoot:** Linux userland فقط، RootFS نشط مشترك وقابل للكتابة، والشبكة غير مقيدة بالكامل. لا تصفه كـkernel sandbox.
+- **HTTP/API وgeneric workflow adapters:** اكتشاف descriptor لا يعني وجود adapter تشغيلي عام.
 
-**حدود آخر نجاح:** workflow لا يشغّل كامل Flutter root unit/widget suite ولا مجموعات Phase 13E–13O التاريخية؛ التحليل الثابت لا يعادل تنفيذ تلك الاختبارات. اجتازت في CI #78 الحزم المستقلة وAndroid JVM/Robolectric واختبارات Android integration الأربعة بما فيها Phase 13P emulator E2E. 13Q.1 فقط اجتازت؛ دورة MCP الفعلية ما زالت مفتوحة.
+## التدقيق والخطة الجديدة — Phase 14
 
-## آخر تحقق — CI #130
+تم تثبيت خط الأساس على commit 9abb9dcc40881b005902265fdbd86d93248cb906. Git tree snapshot غير مبتور ويحتوي 4,237 ملفاً و634 مجلداً (4,871 عنصراً) و60,883,091 بايت من blobs.
 
-[CI #130](https://github.com/m5ham3ds/KELIVO/actions/runs/45279768572) على commit `3eabf9c` اجتاز Flutter Analyze واختبارات Environment و13Q.1 والحزم المحلية، لكنه فشل في اختبار Robolectric واحد من أصل 312. السبب كان مساعد اختبار يعيد المهمة committed إلى `cancellable=true` افتراضياً. تم تصحيح fixture ليحافظ على `cancellable=false` وإضافة assertion على هذه الحالة. اختبارات المحاكي وبناء APK لم تنفذ في #130. قبول Phase 13R ينتظر نجاح CI التالي كاملاً وتجربة الهاتف.
+- [Phase 14 — تقرير تدقيق المستودع ومصفوفة الاستفادة من OSS](PHASE-14-REPOSITORY-AUDIT-AND-OSS-REUSE-MATRIX-AR.md)
+- [Phase 14 — الخطة المعمارية والتنفيذية والقيود](PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md)
+- [Phase 14 — فهرس كل مسارات Git عند baseline](PHASE-14-REPOSITORY-TREE-MANIFEST-2026-11-24.json)
 
-## حالة الآن
-- **13P:** اجتازت Android Emulator E2E في CI #120، لكنها ليست اختبار Force Stop على هاتف المستخدم ولا إثبات عزل Kernel.
-- **13B:** ما زالت مفتوحة؛ Skill local-script موجود لكن Skill-owned MCP adapter ودورة tools/list/tools/call غير مكتملة.
-- **13Q:** 13Q.1 اجتازت CI #78. 13Q.2–13Q.5 مفتوحة: ملكية الخادم، الاتصال وtools/list، tools/call بموافقة لكل أداة، والإلغاء عند تغير/حذف/تعطيل Skill.
-- **Android CI repair:** مقبول بناءً على #120: تم تمرير runtime URL/ID إلى Robolectric JVM، والسجل أكد مرآة Google، واجتازت Android JVM/Robolectric.
-- **Reel Studio:** تحليل الفجوات محدث. أضيفت خيارات بيئية لأدوات الوسائط وPlaywright التجريبي في تغييرات المصدر الحالية؛ قبولها البرمجي ينتظر CI #79، وتظل سلسلة Reel الكاملة غير منفذة.
-- **HTTP/API وWorkflow وnative tools:** تحتاج موائمات مستقلة؛ مجرد descriptor لا يجعلها قابلة للتشغيل.
-- **PRoot:** Linux userland داخل Android وليس Kernel sandbox؛ RootFS مشترك والشبكة ليست مقيدة بالكامل.
+**المرحلة التنفيذية الأولى المقترحة:** 14A Progressive Skill Discovery & Lazy Instruction Loading. سبب الاختيار أن skills_prompt.dart يعرض أول 20 Skill افتراضياً، وskill_composition_service.dart يقرأ أجسام كل المرشحين حتى 64 قبل تحديد المختار، مع أن planner scoring يعتمد على metadata. المطلوب تحسين الموجود دون إنشاء مستورد أو منفذ مهارات آخر.
+
+## تشخيص فشل CI السابق
+
+- CI #137 فشل في Flutter Analyze بسبب import مفقود وsyntax comma؛ عولجا في commit 80c95c66e2786f579af0fbcc25a0ff18ed295059.
+- CI #138 كشف خطأ استمرار سطر Bash في .github/workflows/android-build.yml نتج عنه مسار اختبار وهمي \؛ أصلح في commit 9abb9dcc40881b005902265fdbd86d93248cb906.
+- CI #139 هو التحقق الناجح على commit الإصلاح، وليس مجرد retry على الكود القديم.
+
+## تاريخ بناء سابق
+
+[CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038) كان آخر بناء ناجح قبل تغييرات دورة Environment 13R. APK #120: 41,842,583 bytes، SHA-256 5791a197b30bb3a160c41739a788a1c1b5053ca77599a9ba007de84acd632654، Artifact ID 14840756161. هذه بيانات تاريخية استبدلها CI #139 في أحدث baseline.
+
+تشغيلات #116–#119 أُلغيت أثناء commits متتالية ولم تصل إلى اختبارات فاشلة؛ لا تصنفها كفشل اختبار.
+
+## تشخيص Robolectric التاريخي
+
+- CI #76 أثبت HTTP 429 من Maven Central عند تنزيل org.robolectric:nativeruntime-dist-compat:1.0.18.
+- CI #77 اجتاز حل الاعتماديات لكنه فشل في بعض اختبارات Robolectric عند MavenArtifactFetcher.java:129 مع IOException؛ السجل لم يثبت رمز HTTP لهذه المحاولة.
+- أضيفت مرآة Google Hosted Maven Central لمسار Robolectric، ثم تأكد الإصلاح في تشغيل لاحق. لا تعاد فتح المشكلة دون ظهور دليل جديد.
+
+راجع PHASE-13Q-CI-MAVEN-429-FIX-AR.md وANDROID_BUILD_AR.md.
 
 ## وثائق المرجع
+
 - [الخطة الهندسية الرئيسية](MASTER-DEVELOPMENT-PLAN-AR.md)
 - [وصف المنتج](../PRODUCT.md)
 - [دليل بناء Android](ANDROID_BUILD_AR.md)
@@ -51,25 +78,27 @@
 - [الخطة المعمارية Phase 13](PHASE-13-SKILLS-WORKSPACE-ARCHITECTURE-AND-IMPLEMENTATION-PLAN.md)
 - [Phase 13Q — موائم MCP للمهارات](PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md)
 - [Phase 13R — موثوقية دورة تثبيت البيئة](PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md)
-- [تشخيص وإصلاح Robolectric runtime repository](PHASE-13Q-CI-MAVEN-429-FIX-AR.md)
-- [تحليل فجوات Reel Studio وخطة الدمج](REEL-STUDIO-GAP-ANALYSIS-AR.md)
+- [تدقيق Phase 14](PHASE-14-REPOSITORY-AUDIT-AND-OSS-REUSE-MATRIX-AR.md)
+- [خطة Phase 14](PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md)
 
 ## المراحل الأساسية
+
 | المرحلة | ملفاتها المرجعية | الحالة |
 |---|---|---|
-| 00 | PHASE-00-BASELINE-AND-SOURCE-CONTRACT.md | خط الأساس |
-| 01 | PHASE-01-MODULAR-CORE-EXTENSION-REGISTRY.md · PHASE-01-IMPLEMENTATION-REPORT.md | تنفيذ موثق |
-| 02 | PHASE-02-CONVERSATIONAL-EXTENSION-COMMANDS.md · PHASE-02-COMPLETION-AND-ACCEPTANCE.md | قبول CI سابق موثق |
+| 00–02 | مواصفات وتقارير Phases 00–02 | خط أساس/تنفيذ موثق |
 | 03 | PHASE-03-IMPLEMENTATION-REPORT.md | مراجعة قبول مطلوبة |
-| 04 | PHASE-04-MULTI-SKILL-COMPOSITION-ENGINE.md · PHASE-04-IMPLEMENTATION-REPORT.md | تنفيذ مرحلي |
-| 05 | PHASE-05-UNIVERSAL-DEPENDENCY-PACKAGE-MANAGER.md · PHASE-05-IMPLEMENTATION-REPORT.md | قبول شامل معلّق |
-| 06 | PHASE-06-RUNTIME-PROFILES-AND-EXECUTION-ISOLATION.md · PHASE-06-IMPLEMENTATION-REPORT.md | قبول الجهاز معلّق |
-| 07–12 | مواصفات وتقارير Phase 07–12 في هذا المجلد | تحتاج اختبارات محرك/مزود فيديو، QA، قياسات جهاز ومراجعة أمن |
-| 13A–13D | تقارير PHASE-13A/B/C/D-IMPLEMENTATION-REPORT.md | 13B مفتوحة حتى موائم MCP |
-| 13E–13P | مواصفات وتقارير Phases 13E–13P | 13P emulator E2E مقبولة في CI؛ الباقي يخضع لأدلته |
-| 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | 13Q.1 مقبولة فقط؛ 13Q.2–13Q.5 مفتوحة |
-| 13R | PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md | إصلاح دورة تثبيت البيئة قيد تحقق CI؛ اختبار الجهاز مطلوب بعد نجاح البناء |
-| Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | أدوات بيئية إضافية قيد تحقق CI؛ Orchestrator والإنتاج المتزامن غير منفذين |
+| 04 | PHASE-04-MULTI-SKILL-COMPOSITION-ENGINE.md | التخطيط موجود؛ تنفيذ المهارات له Phase 13B |
+| 05 | PHASE-05-UNIVERSAL-DEPENDENCY-PACKAGE-MANAGER.md | manager موجود؛ القبول الشامل وفق تقرير المرحلة |
+| 06 | PHASE-06-RUNTIME-PROFILES-AND-EXECUTION-ISOLATION.md | Runtime Profiles موجودة؛ PRoot ليس sandbox |
+| 07–12 | مواصفات وتقارير Phases 07–12 | تخضع لأدلة اختبارات المحرك/المزود والجودة والهاتف |
+| 13A–13D | تقارير PHASE-13A/B/C/D-IMPLEMENTATION-REPORT.md | checkpoints موجودة؛ بوابات القبول بحسب تقاريرها، و13B مفتوحة حتى MCP |
+| 13E–13O | مواصفات وتقارير Phases 13E–13O | لا تعمم قبول CI على runners التاريخية غير المشغلة |
+| 13P | PHASE-13P-END-TO-END-SKILL-TESTING-AR.md | Emulator E2E اجتازت CI #139؛ الهاتف الحقيقي غير مفحوص هنا |
+| 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | 13Q.1 فقط مقبولة؛ 13Q.2–13Q.5 مفتوحة |
+| 13R | PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md | CI #139 نجح؛ اختبار الهاتف مطلوب |
+| 14 | PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md | خطة موثقة؛ يبدأ التنفيذ بـ14A بعد هذا التوثيق |
+| Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | Orchestrator والإنتاج المتزامن العام غير منفذين |
 
 ## أرشيف CI
-أبقِ تقارير الفشل والإصلاح التاريخية للمراحل 02 و13E و13K.1–13K.5. هي سجل تشخيصي وليست الحالة الراهنة. تقارير البناء الخام موجودة في ../build-report/.
+
+احتفظ بتقارير الفشل والإصلاح التاريخية. تقارير البناء الخام توجد في ../build-report/ عند توفرها.
