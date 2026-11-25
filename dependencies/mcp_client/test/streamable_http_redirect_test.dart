@@ -17,7 +17,7 @@ void main() {
       await for (final request in server) {
         methods.add(request.method);
         final body = jsonDecode(
-          await request.transform(utf8.decoder).join(),
+          await request.cast<List<int>>().transform(utf8.decoder).join(),
         ) as Map<String, dynamic>;
         observations.add({
           'body': body,
@@ -120,7 +120,7 @@ void main() {
       await for (final request in server) {
         methods.add(request.method);
         final body = jsonDecode(
-          await request.transform(utf8.decoder).join(),
+          await request.cast<List<int>>().transform(utf8.decoder).join(),
         ) as Map<String, dynamic>;
         final result = <String, dynamic>{
           'resultType': 'complete',
