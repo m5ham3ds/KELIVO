@@ -164,7 +164,16 @@ class StreamableHttpClientTransport implements ClientTransport {
   }
 
   String _encodeHeaderValue(String value) {
-    final headerSafe = RegExp(r'^[\\x20-\\x7E\\t]+
+    // RFC 2047-style encoding keeps control/non-ASCII bytes out of headers.
+    final isAsciiSafe = value.isNotEmpty &&
+        value == value.trim() &&
+        value.codeUnits.every(
+          (unit) => (unit >= 0x20 && unit <= 0x7e) || unit == 0x09,
+        ) &&
+        !value.contains('=?base64?');
+    if (isAsciiSafe) return value;
+    return '=?base64?${base64Encode(utf8.encode(value))}?=';
+  }
 
   @override
   TransportSendOperation send(dynamic message) {
