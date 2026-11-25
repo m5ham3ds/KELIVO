@@ -392,7 +392,8 @@ final class McpSkillsExtension {
     var nextRequestCursor = cursor;
     String? nextCursor;
     var pagesFetched = 0;
-    var ttlMs = 0x7fffffffffffffff;
+    var ttlMs = 0;
+    var hasPage = false;
     var cacheScope = 'public';
     var paginationTruncated = false;
 
@@ -411,7 +412,8 @@ final class McpSkillsExtension {
       _requireCompleteResult(result);
       final pageTtl = _readTtl(result);
       final pageScope = _readCacheScope(result);
-      if (pageTtl < ttlMs) ttlMs = pageTtl;
+      if (!hasPage || pageTtl < ttlMs) ttlMs = pageTtl;
+      hasPage = true;
       if (pageScope == 'private') cacheScope = 'private';
 
       final rawSkills = result['skills'];
@@ -518,8 +520,37 @@ final class McpSkillsExtension {
 }
 
 Uri _parseAbsoluteUri(String value, String errorCode) {
+  if (value.trim() != value) {
+    throw FormatException(errorCode);
+  }
+  final schemeSeparator = value.indexOf(':');
+  if (schemeSeparator < 1) throw FormatException(errorCode);
+  var rawPath = value.substring(schemeSeparator + 1);
+  if (rawPath.startsWith('//')) {
+    final authorityEnd = rawPath.indexOf('/', 2);
+    rawPath = authorityEnd < 0 ? '' : rawPath.substring(authorityEnd);
+  }
+  final queryIndex = rawPath.indexOf('?');
+  if (queryIndex >= 0) rawPath = rawPath.substring(0, queryIndex);
+  final fragmentIndex = rawPath.indexOf('#');
+  if (fragmentIndex >= 0) rawPath = rawPath.substring(0, fragmentIndex);
+
+  final traversalPattern = RegExp(
+    r'(?:^|/)(?:\\.|%2e){1,2}(?:/|$)',
+    caseSensitive: false,
+  );
+  final encodedSeparatorPattern = RegExp(
+    r'%(?:2f|5c)',
+    caseSensitive: false,
+  );
+  if (traversalPattern.hasMatch(rawPath) ||
+      encodedSeparatorPattern.hasMatch(rawPath) ||
+      rawPath.contains(String.fromCharCode(92))) {
+    throw FormatException(errorCode);
+  }
+
   final uri = Uri.tryParse(value);
-  if (uri == null || !uri.hasScheme || value.trim() != value) {
+  if (uri == null || !uri.hasScheme) {
     throw FormatException(errorCode);
   }
   return uri;

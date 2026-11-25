@@ -11,6 +11,18 @@ Map<String, dynamic> _manifest({
   List<Map<String, dynamic>>? resources,
   Object? resourceValue,
 }) {
+  final parsedUri = Uri.parse(uri);
+  final rootSegments = parsedUri.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .take(parsedUri.pathSegments.length - 1)
+      .toList();
+  final referenceUri = parsedUri
+      .replace(pathSegments: <String>[
+        ...rootSegments,
+        'references',
+        'BRANCHES.md',
+      ])
+      .toString();
   return <String, dynamic>{
     'uri': uri,
     'frontmatter': <String, dynamic>{
@@ -29,7 +41,7 @@ Map<String, dynamic> _manifest({
             'size': 42,
           },
           <String, dynamic>{
-            'uri': 'skill://git-workflow/references/BRANCHES.md',
+            'uri': referenceUri,
             'digest':
                 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
             'size': 100,
