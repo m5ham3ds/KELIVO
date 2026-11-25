@@ -81,4 +81,4 @@
 
 **14A:** مقبولة بعد CI #162، بما يشمل اختبارات Progressive Skill Discovery وFlutter Analyze وRobolectric ومحاكي Android وبناء ARM64.
 
-**14B: مقبولة.** CI #164 اكتمل دون فشل. APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، الحجم 41,889,227 bytes، ABI `arm64-v8a` فقط، SHA-256 `ab8dd504fe45699dd64f80dea2962e7e87aaeb6f076d153ef992c7dd20ec4292`، Artifact ID `14978959033`. اجتازت اختبارات manifest/component registry وrollback/إزالة Plugin، ولم تشغّل المكونات أثناء الفحص والاستيراد بحسب نطاق الاختبارات.
+**14B: مقبولة — CI #164.** CI #164 اكتمل دون فشل. APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، الحجم 41,889,227 bytes، ABI `arm64-v8a` فقط، SHA-256 `ab8dd504fe45699dd64f80dea2962e7e87aaeb6f076d153ef992c7dd20ec4292`، Artifact ID `14978959033`. اجتازت اختبارات manifest/component registry وrollback/إزالة Plugin، ولم تشغّل المكونات أثناء الفحص والاستيراد بحسب نطاق الاختبارات.
