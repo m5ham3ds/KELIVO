@@ -332,7 +332,11 @@ class Client {
     if (!isConnected) throw McpError('Client is not connected to a transport');
 
     final response = await _sendRequest(McpProtocol.methodServerDiscover, {});
-    final supported = response['supportedVersions'];
+    if (response is! Map) {
+      throw McpError('server/discover returned an invalid result');
+    }
+    final discovery = Map<String, dynamic>.from(response);
+    final supported = discovery['supportedVersions'];
     if (supported is! List || !supported.every((value) => value is String)) {
       throw McpError('server/discover returned invalid supportedVersions');
     }
@@ -343,14 +347,14 @@ class Client {
     if (selected == null) {
       throw McpError('Server does not support a protocol version compatible with this client');
     }
-    final serverCaps = response['capabilities'];
+    final serverCaps = discovery['capabilities'];
     if (serverCaps is! Map) throw McpError('server/discover returned invalid capabilities');
 
     _negotiatedProtocolVersion = selected;
     _serverCapabilities = ServerCapabilities.fromJson(
       Map<String, dynamic>.from(serverCaps),
     );
-    final responseMeta = response['_meta'];
+    final responseMeta = discovery['_meta'];
     final info = responseMeta is Map
         ? responseMeta[McpProtocol.metaServerInfo]
         : null;
