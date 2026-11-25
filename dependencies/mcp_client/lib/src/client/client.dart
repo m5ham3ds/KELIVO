@@ -74,6 +74,10 @@ class Client {
 
   /// Server information received during initialization
   Map<String, dynamic>? _serverInfo;
+  String? _serverInstructions;
+
+  /// Optional natural-language guidance returned by server/discover.
+  String? get serverInstructions => _serverInstructions;
 
   /// Whether the client is currently connected
   bool get isConnected => _transport != null;
@@ -114,11 +118,15 @@ class Client {
                ? McpProtocol.v2026_07_28
                : null,
        _requestMetadata = Map<String, dynamic>.unmodifiable(
-         requestMetadata ??
-             <String, dynamic>{
-               McpProtocol.metaClientInfo: {'name': name, 'version': version},
-               McpProtocol.metaClientCapabilities: capabilities.toJson(),
-             },
+         <String, dynamic>{
+           if (requestMetadata != null) ...requestMetadata,
+           McpProtocol.metaClientInfo:
+               requestMetadata?[McpProtocol.metaClientInfo] ??
+               <String, dynamic>{'name': name, 'version': version},
+           McpProtocol.metaClientCapabilities:
+               requestMetadata?[McpProtocol.metaClientCapabilities] ??
+               capabilities.toJson(),
+         },
        ),
        _requestTimeout = requestTimeout {
     // Default `roots/list` handler returns the locally registered roots.
@@ -189,7 +197,11 @@ class Client {
     _attachTransport(transport);
     for (var attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        await initialize();
+        if (_statelessProtocolVersion != null) {
+          await discoverStatelessServer();
+        } else {
+          await initialize();
+        }
         _connecting = false;
         _emitConnected();
         return;
@@ -325,48 +337,76 @@ class Client {
   /// Discover a server using MCP 2026-07-28 stateless semantics.
   /// This path intentionally omits initialize/initialized and is opt-in.
   Future<void> discoverStatelessServer() async {
-    if (_statelessProtocolVersion == null) {
+    final requestedVersion = _statelessProtocolVersion;
+    if (requestedVersion == null) {
       throw McpError('Stateless discovery requires protocol 2026-07-28');
     }
     if (_initialized) throw McpError('Client is already initialized');
     if (!isConnected) throw McpError('Client is not connected to a transport');
+
+    // The first modern HTTP request is stateless too. Set routing and version
+    // headers before sending server/discover, not after its response.
+    final transport = _transport;
+    if (transport is StreamableHttpClientTransport) {
+      transport.setProtocolVersion(requestedVersion);
+      transport.setStatelessMode(true);
+    }
 
     final response = await _sendRequest(McpProtocol.methodServerDiscover, {});
     if (response is! Map) {
       throw McpError('server/discover returned an invalid result');
     }
     final discovery = Map<String, dynamic>.from(response);
+    if (discovery['resultType'] != 'complete') {
+      throw McpError('server/discover must return resultType=complete');
+    }
+    final ttlMs = discovery['ttlMs'];
+    if (ttlMs is! int || ttlMs < 0) {
+      throw McpError('server/discover returned invalid ttlMs');
+    }
+    final cacheScope = discovery['cacheScope'];
+    if (cacheScope != 'public' && cacheScope != 'private') {
+      throw McpError('server/discover returned invalid cacheScope');
+    }
+
     final supported = discovery['supportedVersions'];
-    if (supported is! List || !supported.every((value) => value is String)) {
+    if (supported is! List ||
+        supported.isEmpty ||
+        !supported.every((value) => value is String)) {
       throw McpError('server/discover returned invalid supportedVersions');
     }
     final selected = McpProtocol.negotiateVersion(
-      <String>[_statelessProtocolVersion!],
+      <String>[requestedVersion],
       supported.cast<String>(),
-      additionalVersions: <String>[_statelessProtocolVersion!],
+      additionalVersions: <String>[requestedVersion],
     );
     if (selected == null) {
-      throw McpError('Server does not support a protocol version compatible with this client');
+      throw McpError(
+        'Server does not support a protocol version compatible with this client',
+      );
     }
-    final serverCaps = discovery['capabilities'];
-    if (serverCaps is! Map) throw McpError('server/discover returned invalid capabilities');
 
+    final serverCaps = discovery['capabilities'];
+    if (serverCaps is! Map) {
+      throw McpError('server/discover returned invalid capabilities');
+    }
     _negotiatedProtocolVersion = selected;
     _serverCapabilities = ServerCapabilities.fromJson(
       Map<String, dynamic>.from(serverCaps),
     );
+
     final responseMeta = discovery['_meta'];
-    final info = responseMeta is Map
+    final serverInfo = responseMeta is Map
         ? responseMeta[McpProtocol.metaServerInfo]
         : null;
-    _serverInfo = info is Map
-        ? Map<String, dynamic>.from(info)
+    _serverInfo = serverInfo is Map
+        ? Map<String, dynamic>.from(serverInfo)
         : <String, dynamic>{'name': 'Unknown', 'version': 'Unknown'};
-    final tx = _transport;
-    if (tx is StreamableHttpClientTransport) {
-      tx.setProtocolVersion(selected);
-      tx.setStatelessMode(true);
+    final instructions = discovery['instructions'];
+    if (instructions != null && instructions is! String) {
+      throw McpError('server/discover returned invalid instructions');
     }
+    _serverInstructions = instructions as String?;
     _initialized = true;
   }
 
@@ -1110,9 +1150,10 @@ class Client {
       final existing = safeParams['_meta'];
       safeParams['_meta'] = <String, dynamic>{
         if (existing is Map) ...Map<String, dynamic>.from(existing),
+        ..._requestMetadata,
+        // Protocol version is reserved and cannot be overridden.
         McpProtocol.metaProtocolVersion:
             _negotiatedProtocolVersion ?? _statelessProtocolVersion,
-        ..._requestMetadata,
       };
     }
 
@@ -1184,9 +1225,10 @@ class Client {
       final existing = safeParams['_meta'];
       safeParams['_meta'] = <String, dynamic>{
         if (existing is Map) ...Map<String, dynamic>.from(existing),
+        ..._requestMetadata,
+        // Protocol version is reserved and cannot be overridden.
         McpProtocol.metaProtocolVersion:
             _negotiatedProtocolVersion ?? _statelessProtocolVersion,
-        ..._requestMetadata,
       };
     }
     final notification = {

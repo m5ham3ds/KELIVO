@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:meta/meta.dart';
 
 /// Base content type enum for MCP
@@ -1468,28 +1470,30 @@ class ServerCapabilities {
   /// Tool support
   final bool tools;
 
-  /// Whether tools list changes are sent as notifications
+  /// Whether tools list changes are sent as notifications.
   final bool toolsListChanged;
 
-  /// Resource support
+  /// Resource support.
   final bool resources;
 
-  /// Whether resources list changes are sent as notifications
+  /// Whether resources list changes are sent as notifications.
   final bool resourcesListChanged;
 
-  /// Prompt support
+  /// Prompt support.
   final bool prompts;
 
-  /// Whether prompts list changes are sent as notifications
+  /// Whether prompts list changes are sent as notifications.
   final bool promptsListChanged;
 
-  /// Logging support
+  /// Logging support.
   final bool logging;
 
-  /// Sampling support
+  /// Sampling support.
   final bool sampling;
 
-  /// Create a capabilities object with specified settings
+  /// Raw extension declarations, keyed by extension identifier.
+  final Map<String, dynamic> extensions;
+
   const ServerCapabilities({
     this.tools = false,
     this.toolsListChanged = false,
@@ -1499,30 +1503,36 @@ class ServerCapabilities {
     this.promptsListChanged = false,
     this.logging = false,
     this.sampling = false,
+    this.extensions = const <String, dynamic>{},
   });
 
-  /// Create capabilities from JSON
   factory ServerCapabilities.fromJson(Map<String, dynamic> json) {
-    final toolsConfig =
-        json['tools'] != null
-            ? Map<String, dynamic>.from(json['tools'] as Map)
-            : null;
-    final resourcesConfig =
-        json['resources'] != null
-            ? Map<String, dynamic>.from(json['resources'] as Map)
-            : null;
-    final promptsConfig =
-        json['prompts'] != null
-            ? Map<String, dynamic>.from(json['prompts'] as Map)
-            : null;
-    final loggingConfig =
-        json['logging'] != null
-            ? Map<String, dynamic>.from(json['logging'] as Map)
-            : null;
-    final samplingConfig =
-        json['sampling'] != null
-            ? Map<String, dynamic>.from(json['sampling'] as Map)
-            : null;
+    final toolsConfig = json['tools'] == null
+        ? null
+        : Map<String, dynamic>.from(json['tools'] as Map);
+    final resourcesConfig = json['resources'] == null
+        ? null
+        : Map<String, dynamic>.from(json['resources'] as Map);
+    final promptsConfig = json['prompts'] == null
+        ? null
+        : Map<String, dynamic>.from(json['prompts'] as Map);
+    final loggingConfig = json['logging'] == null
+        ? null
+        : Map<String, dynamic>.from(json['logging'] as Map);
+    final samplingConfig = json['sampling'] == null
+        ? null
+        : Map<String, dynamic>.from(json['sampling'] as Map);
+    final rawExtensions = json['extensions'];
+    if (rawExtensions != null && rawExtensions is! Map) {
+      throw const FormatException(
+        'Server extensions capability must be an object',
+      );
+    }
+    final extensions = rawExtensions is Map
+        ? Map<String, dynamic>.unmodifiable(
+            Map<String, dynamic>.from(rawExtensions),
+          )
+        : const <String, dynamic>{};
 
     return ServerCapabilities(
       tools: toolsConfig != null,
@@ -1533,32 +1543,22 @@ class ServerCapabilities {
       promptsListChanged: promptsConfig?['listChanged'] as bool? ?? false,
       logging: loggingConfig != null,
       sampling: samplingConfig != null,
+      extensions: extensions,
     );
   }
 
   Map<String, dynamic> toJson() {
     final result = <String, dynamic>{};
-
-    if (tools) {
-      result['tools'] = {'listChanged': toolsListChanged};
-    }
-
+    if (tools) result['tools'] = {'listChanged': toolsListChanged};
     if (resources) {
       result['resources'] = {'listChanged': resourcesListChanged};
     }
-
-    if (prompts) {
-      result['prompts'] = {'listChanged': promptsListChanged};
+    if (prompts) result['prompts'] = {'listChanged': promptsListChanged};
+    if (logging) result['logging'] = {};
+    if (sampling) result['sampling'] = {};
+    if (extensions.isNotEmpty) {
+      result['extensions'] = Map<String, dynamic>.from(extensions);
     }
-
-    if (logging) {
-      result['logging'] = {};
-    }
-
-    if (sampling) {
-      result['sampling'] = {};
-    }
-
     return result;
   }
 
@@ -1573,7 +1573,8 @@ class ServerCapabilities {
           prompts == other.prompts &&
           promptsListChanged == other.promptsListChanged &&
           logging == other.logging &&
-          sampling == other.sampling;
+          sampling == other.sampling &&
+          jsonEncode(extensions) == jsonEncode(other.extensions);
 
   @override
   int get hashCode => Object.hash(
@@ -1585,6 +1586,7 @@ class ServerCapabilities {
     promptsListChanged,
     logging,
     sampling,
+    jsonEncode(extensions),
   );
 
   @override
@@ -1597,7 +1599,8 @@ class ServerCapabilities {
       'prompts: $prompts, '
       'promptsListChanged: $promptsListChanged, '
       'logging: $logging, '
-      'sampling: $sampling)';
+      'sampling: $sampling, '
+      'extensions: $extensions)';
 }
 
 /// Initialize request

@@ -1,8 +1,8 @@
 # PHASE 14C — MCP Base Protocol Compatibility & Skills over MCP
 
-**الحالة:** Phase 14C.1 runtime slice مضاف؛ لا تُعلن الميزة جاهزة ولا يتم تفعيل remote Skills قبل إغلاق بوابات التوافق والأمان والاختبارات.
+**الحالة:** 14C.1 initial slice passed CI #175; post-CI protocol hardening is in progress. Remote Skills stay disabled until the Skills adapter, integrity checks, approval binding, and security gates pass.
 **تاريخ البدء:** 25 نوفمبر 2026.
-**الفرع:** `main` — نقطة البدء `0ef719649ff00f621a2fac62e801b15d41cc2239`.
+**الفرع:** `main` — first runtime slice `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`; hardening follow-up is recorded below.
 **المرحلة السابقة:** Phase 14B مقبولة في CI #164.
 **المبدأ:** توسيع عميل MCP المحلي تدريجياً مع إبقاء النقل والإصدارات القديمة؛ لا ترقية قسرية ولا تشغيل خادم أو Skill تلقائياً.
 
@@ -43,7 +43,14 @@
 
 المراجع في القسم 7 هي مصدر الحقيقة؛ أما SEP التاريخي فيوثق التصميم وليس بديلاً عن النص المستقر الحالي.
 
-## 2. حدود هذا checkpoint
+## 2. CI #175 — نتيجة التنفيذ الأولي
+
+CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 160 اختباراً في الحزم المحلية و440 اختبار Android JVM/Robolectric ونجاح محاكي Android وبناء ARM64. تم التحقق من APK المستخرج نفسه: `41,894,251` bytes، ABI `arm64-v8a` فقط، SHA-256 `a448f321903fa4bd871e96862f6ec6e18e480a85e6daf5bc43e72fd96a299f16`.
+
+**تدقيق ما بعد CI:** كشف أن stateless mode كان يُفعّل بعد `server/discover` بدلاً من قبله، وأن `connectWithRetry` لا يستخدم discovery، وأن SSE المرتبط بالطلب كان مرفوضاً، وأن ServerCapabilities لا تحفظ `extensions`. لذلك CI #175 يثبت سلامة الـslice الأولي فقط؛ لا تُقبل 14C.1 نهائياً قبل نجاح hardening follow-up واختبار HTTP الفعلي.
+
+## 3. حدود هذا checkpoint
+
 
 يقتصر هذا التغيير على:
 - تسجيل تقرير هذه الفجوات والعقود المستهدفة.

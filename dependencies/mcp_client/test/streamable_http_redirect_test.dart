@@ -9,6 +9,172 @@ import 'package:mcp_client/mcp_client.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('stateless HTTP advertises metadata on the first request and uses routed headers', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final methods = <String>[];
+    final observations = <Map<String, dynamic>>[];
+    final serving = () async {
+      await for (final request in server) {
+        methods.add(request.method);
+        final body = jsonDecode(
+          await request.transform(utf8.decoder).join(),
+        ) as Map<String, dynamic>;
+        observations.add({
+          'body': body,
+          'protocolVersion': request.headers.value('MCP-Protocol-Version'),
+          'method': request.headers.value('Mcp-Method'),
+          'name': request.headers.value('Mcp-Name'),
+          'session': request.headers.value('Mcp-Session-Id'),
+        });
+
+        final result = body['method'] == McpProtocol.methodServerDiscover
+            ? <String, dynamic>{
+                'resultType': 'complete',
+                'supportedVersions': [McpProtocol.v2026_07_28],
+                'capabilities': {'tools': {}, 'resources': {}},
+                '_meta': {
+                  McpProtocol.metaServerInfo: {
+                    'name': 'stateless-http-test',
+                    'version': '1.0.0',
+                  },
+                },
+                'ttlMs': 60000,
+                'cacheScope': 'public',
+              }
+            : <String, dynamic>{
+                'resultType': 'complete',
+                'content': [
+                  {'type': 'text', 'text': 'ok'},
+                ],
+                'isError': false,
+              };
+
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(jsonEncode({
+            'jsonrpc': McpProtocol.jsonRpcVersion,
+            'id': body['id'],
+            'result': result,
+          }));
+        await request.response.close();
+      }
+    }();
+
+    final transport = await StreamableHttpClientTransport.create(
+      baseUrl: 'http://${server.address.host}:${server.port}/mcp',
+      timeout: const Duration(seconds: 3),
+      terminateOnClose: true,
+    );
+    final client = Client(
+      name: 'stateless-http-client',
+      version: '1.0.0',
+      protocolVersion: McpProtocol.v2026_07_28,
+      requestTimeout: const Duration(seconds: 3),
+    );
+
+    try {
+      await client.connectWithRetry(transport, maxRetries: 1);
+      final result = await client.callTool('demo-tool', {'input': 'hello'});
+      expect((result.content.single as TextContent).text, 'ok');
+
+      expect(methods, ['POST', 'POST']);
+      expect(observations, hasLength(2));
+      expect(observations[0]['protocolVersion'], McpProtocol.v2026_07_28);
+      expect(observations[0]['method'], McpProtocol.methodServerDiscover);
+      expect(observations[0]['name'], isNull);
+      expect(observations[0]['session'], isNull);
+      final discoveryMeta =
+          (observations[0]['body'] as Map)['params']['_meta'] as Map;
+      expect(
+        discoveryMeta[McpProtocol.metaProtocolVersion],
+        McpProtocol.v2026_07_28,
+      );
+
+      expect(observations[1]['protocolVersion'], McpProtocol.v2026_07_28);
+      expect(observations[1]['method'], 'tools/call');
+      expect(observations[1]['name'], 'demo-tool');
+      expect(observations[1]['session'], isNull);
+      final callMeta =
+          (observations[1]['body'] as Map)['params']['_meta'] as Map;
+      expect(
+        callMeta[McpProtocol.metaProtocolVersion],
+        McpProtocol.v2026_07_28,
+      );
+
+      await transport.terminateSession();
+      client.disconnect();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(methods, everyElement('POST'));
+    } finally {
+      client.dispose();
+      await server.close(force: true);
+      await serving;
+    }
+  });
+
+  test('stateless HTTP accepts request-scoped SSE and never resumes with GET', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final methods = <String>[];
+    final serving = () async {
+      await for (final request in server) {
+        methods.add(request.method);
+        final body = jsonDecode(
+          await request.transform(utf8.decoder).join(),
+        ) as Map<String, dynamic>;
+        final result = <String, dynamic>{
+          'resultType': 'complete',
+          'supportedVersions': [McpProtocol.v2026_07_28],
+          'capabilities': {'resources': {}},
+          '_meta': {
+            McpProtocol.metaServerInfo: {
+              'name': 'stateless-sse-test',
+              'version': '1.0.0',
+            },
+          },
+          'ttlMs': 60000,
+          'cacheScope': 'private',
+        };
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType('text', 'event-stream')
+          ..write(
+            'event: message\n'
+            'data: ${jsonEncode({
+              'jsonrpc': McpProtocol.jsonRpcVersion,
+              'id': body['id'],
+              'result': result,
+            })}\n\n',
+          );
+        await request.response.close();
+      }
+    }();
+
+    final transport = await StreamableHttpClientTransport.create(
+      baseUrl: 'http://${server.address.host}:${server.port}/mcp',
+      timeout: const Duration(seconds: 3),
+    );
+    final client = Client(
+      name: 'stateless-sse-client',
+      version: '1.0.0',
+      protocolVersion: McpProtocol.v2026_07_28,
+      requestTimeout: const Duration(seconds: 3),
+    );
+
+    try {
+      await client.connect(transport);
+      expect(client.negotiatedProtocolVersion, McpProtocol.v2026_07_28);
+      expect(methods, ['POST']);
+      client.disconnect();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(methods, ['POST']);
+    } finally {
+      client.dispose();
+      await server.close(force: true);
+      await serving;
+    }
+  });
+
   test('follows 307 redirect for streamable HTTP POST', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final requests = <String>[];

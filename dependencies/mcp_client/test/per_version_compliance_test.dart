@@ -51,11 +51,34 @@ void main() {
   });
 
   group('Stateless 2026-07-28 discovery', () {
+    test('ServerCapabilities preserves unknown extension declarations', () {
+      final extensions = {
+        McpProtocol.skillsExtensionId: {'directoryRead': true},
+        'com.example/another-extension': {'enabled': true},
+      };
+      final capabilities = ServerCapabilities.fromJson({
+        'tools': {},
+        'extensions': extensions,
+      });
+
+      expect(capabilities.tools, isTrue);
+      expect(capabilities.extensions, extensions);
+      expect(capabilities.toJson()['extensions'], extensions);
+      expect(
+        ServerCapabilities.fromJson(capabilities.toJson()),
+        capabilities,
+      );
+    });
+
     test('client sends metadata in server/discover without legacy handshake', () async {
       final client = Client(
         name: 'test-client',
         version: '1.2.3',
         protocolVersion: McpProtocol.v2026_07_28,
+        requestMetadata: {
+          McpProtocol.metaProtocolVersion: McpProtocol.v2025_11_25,
+          'com.example/test': true,
+        },
       );
       final transport = MockTransport();
       transport.queueResponse({
@@ -80,6 +103,8 @@ void main() {
       expect(metadata[McpProtocol.metaProtocolVersion], McpProtocol.v2026_07_28);
       expect(metadata[McpProtocol.metaClientInfo], {'name': 'test-client', 'version': '1.2.3'});
       expect(metadata[McpProtocol.metaClientCapabilities], isA<Map>());
+      expect(metadata['com.example/test'], isTrue);
+      expect(metadata[McpProtocol.metaProtocolVersion], McpProtocol.v2026_07_28);
       expect(transport.sentMessages.any((message) =>
           message['method'] == McpProtocol.methodInitialize ||
           message['method'] == McpProtocol.methodInitialized), isFalse);

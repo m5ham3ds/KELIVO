@@ -254,9 +254,8 @@ class StreamableHttpClientTransport implements ClientTransport {
         return;
       }
       if (contentType.startsWith('text/event-stream')) {
-        if (_statelessMode) {
-          throw McpError('Stateless MCP responses must use application/json');
-        }
+        // Modern Streamable HTTP permits request-scoped SSE responses.
+        // Only legacy sessions may resume a broken response through GET.
         bool received;
         try {
           received = await _consumeSse(response.stream, task);
@@ -268,6 +267,11 @@ class StreamableHttpClientTransport implements ClientTransport {
           rethrow;
         }
         if (task.requestId != null && !received && !task.cancelled) {
+          if (_statelessMode) {
+            throw McpError(
+              'Stateless POST SSE ended before the final response; resumption is not supported',
+            );
+          }
           if (task.lastEventId == null) {
             throw McpError(
               'POST SSE ended before the final response; result is unknown',

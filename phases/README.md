@@ -2,7 +2,30 @@
 
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
-## أحدث بناء ناجح — CI #164
+## أحدث بناء ناجح — CI #175
+
+[GitHub Actions #175](https://github.com/m5ham3ds/KELIVO/actions/runs/45539996937) اكتمل بنجاح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، المطابق لرأس `main` وقت التشغيل.
+
+- Flutter Analyze وEnvironment lifecycle و14A و14B وGemini/OAuth و13Q: نجاح.
+- اختبارات الحزم المحلية: 160 نجاحاً.
+- Android JVM/Robolectric: 440 نجاحاً.
+- اختبارات محاكي Android: نجاح.
+- بناء APK ARM64 ورفع التقرير والسجلات: نجاح.
+
+**APK — CI #175**
+- الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
+- الحجم الفعلي: 41,894,251 bytes.
+- ABI المتحقق من محتويات APK: `arm64-v8a` فقط.
+- SHA-256 المتحقق محلياً: `a448f321903fa4bd871e96862f6ec6e18e480a85e6daf5bc43e72fd96a299f16`.
+- Artifact ID: `14989478648`.
+- [APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45539996937/artifacts/14989478648).
+- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45539996937/artifacts/14990331011).
+- [Raw logs](https://github.com/m5ham3ds/KELIVO/actions/runs/45539996937/artifacts/14990226810).
+
+**ملاحظة نطاق:** هذا الـworkflow لا يشغّل Flutter root unit/widget suite كاملة ولا اختبارات Phase 13E–13O المركزة. نجاح #175 لا يغلق هذه البوابات بأثر رجعي.
+
+**تدقيق ما بعد #175:** كشف تحسينات مطلوبة في أول stateless POST، SSE المرتبط بالطلب، `connectWithRetry`، وحفظ server capability extensions. هذه المتابعة تُختبر في CI مستقل؛ لا تُعلن 14C.1 مقبولة نهائياً قبل نجاح ذلك التشغيل.
+## سجل بناء سابق — CI #164
 
 [GitHub Actions #164](https://github.com/m5ham3ds/KELIVO/actions/runs/45517073229) اكتمل بنجاح في 25 نوفمبر 2026 على commit `0ef719649ff00f621a2fac62e801b15d41cc2239`، المطابق لرأس فرع `main`.
 
@@ -54,7 +77,7 @@
 
 **حالة التنفيذ — 25 نوفمبر 2026:**
 - **14A مقبولة:** اجتازت اختبارات Progressive Skill discovery في CI #162، إلى جانب Flutter Analyze واختبارات البناء Android ARM64 الكاملة.
-- **14B مقبولة:** نجحت اختبارات Plugin manifest/component registry في CI #164، مع Analyze وRobolectric وAndroid Emulator وبناء APK ARM64. التفاصيل في PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md.\n- **14C بدأت:** توجد وثيقة تدقيق وتعاقد MCP؛ لم يبدأ بعد تفعيل runtime لـSkills-over-MCP.
+- **14B مقبولة:** نجحت اختبارات Plugin manifest/component registry في CI #164، مع Analyze وRobolectric وAndroid Emulator وبناء APK ARM64. التفاصيل في PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md.\n- **14C.1 initial slice:** اجتاز CI #175؛ follow-up hardening مطلوب قبل قبول الأساس. Skills-over-MCP runtime لم يبدأ بعد.
 - لا تشغل هذه المرحلة Commands أو Hooks أو Scripts أو MCP servers؛ جميع descriptors تبقى metadata-only، والخدمات غير المدعومة تظهر بتحذير.
 - اختبارات الهاتف الفعلي ليست مستنتجة من نجاح محاكي Android.
 
