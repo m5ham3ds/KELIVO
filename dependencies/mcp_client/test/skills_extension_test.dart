@@ -254,6 +254,25 @@ void main() {
         throwsA(isA<FormatException>()),
       );
 
+      final encodedTraversal = <Map<String, dynamic>>[
+        <String, dynamic>{
+          'uri': _skillUri,
+          'digest':
+              'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          'size': 1,
+        },
+        <String, dynamic>{
+          'uri': 'skill://git-workflow/%2e%2e/secret.txt',
+          'digest':
+              'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          'size': 1,
+        },
+      ];
+      expect(
+        () => McpSkillEntry.fromJson(_manifest(resources: encodedTraversal)),
+        throwsA(isA<FormatException>()),
+      );
+
       final crossOrigin = <Map<String, dynamic>>[
         <String, dynamic>{
           'uri': _skillUri,

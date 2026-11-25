@@ -536,7 +536,7 @@ Uri _parseAbsoluteUri(String value, String errorCode) {
   if (fragmentIndex >= 0) rawPath = rawPath.substring(0, fragmentIndex);
 
   final traversalPattern = RegExp(
-    r'(?:^|/)(?:\\.|%2e){1,2}(?:/|$)',
+    r'(?:^|/)(?:[.]|%2e){1,2}(?:/|$)',
     caseSensitive: false,
   );
   final encodedSeparatorPattern = RegExp(
