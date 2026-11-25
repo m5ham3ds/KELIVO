@@ -25,8 +25,10 @@ class Client {
 
   Duration get requestTimeout => _requestTimeout;
 
-  /// Protocol version this client implements
-  final String protocolVersion = McpProtocol.defaultVersion;
+  /// Protocol revision selected for this connection.
+  final String protocolVersion;
+  final Map<String, dynamic> _requestMetadata;
+  final String? _statelessProtocolVersion;
 
   /// Transport connection
   ClientTransport? _transport;
@@ -104,7 +106,21 @@ class Client {
     required this.version,
     this.capabilities = const ClientCapabilities(),
     Duration requestTimeout = const Duration(seconds: 30),
-  }) : _requestTimeout = requestTimeout {
+    String? protocolVersion,
+    Map<String, dynamic>? requestMetadata,
+  }) : protocolVersion = protocolVersion ?? McpProtocol.defaultVersion,
+       _statelessProtocolVersion =
+           protocolVersion == McpProtocol.v2026_07_28
+               ? McpProtocol.v2026_07_28
+               : null,
+       _requestMetadata = Map<String, dynamic>.unmodifiable(
+         requestMetadata ??
+             <String, dynamic>{
+               McpProtocol.metaClientInfo: {'name': name, 'version': version},
+               McpProtocol.metaClientCapabilities: capabilities.toJson(),
+             },
+       ),
+       _requestTimeout = requestTimeout {
     // Default `roots/list` handler returns the locally registered roots.
     // Hosts may override with [onListRoots] for dynamic roots.
     _requestHandlers['roots/list'] =
@@ -136,9 +152,14 @@ class Client {
     _connecting = true;
     _attachTransport(transport);
 
-    // Initialize the connection
+    // Legacy revisions require initialize/initialized. Stateless MCP
+    // performs server discovery and sends metadata on every request instead.
     try {
-      await initialize();
+      if (_statelessProtocolVersion != null) {
+        await discoverStatelessServer();
+      } else {
+        await initialize();
+      }
       _connecting = false;
 
       _emitConnected();
@@ -299,6 +320,49 @@ class Client {
 
     _initialized = true;
     _logger.debug('Initialization complete');
+  }
+
+  /// Discover a server using MCP 2026-07-28 stateless semantics.
+  /// This path intentionally omits initialize/initialized and is opt-in.
+  Future<void> discoverStatelessServer() async {
+    if (_statelessProtocolVersion == null) {
+      throw McpError('Stateless discovery requires protocol 2026-07-28');
+    }
+    if (_initialized) throw McpError('Client is already initialized');
+    if (!isConnected) throw McpError('Client is not connected to a transport');
+
+    final response = await _sendRequest(McpProtocol.methodServerDiscover, {});
+    final supported = response['supportedVersions'];
+    if (supported is! List || !supported.every((value) => value is String)) {
+      throw McpError('server/discover returned invalid supportedVersions');
+    }
+    final selected = McpProtocol.negotiateVersion(
+      <String>[_statelessProtocolVersion!],
+      supported.cast<String>(),
+    );
+    if (selected == null) {
+      throw McpError('Server does not support a protocol version compatible with this client');
+    }
+    final serverCaps = response['capabilities'];
+    if (serverCaps is! Map) throw McpError('server/discover returned invalid capabilities');
+
+    _negotiatedProtocolVersion = selected;
+    _serverCapabilities = ServerCapabilities.fromJson(
+      Map<String, dynamic>.from(serverCaps),
+    );
+    final responseMeta = response['_meta'];
+    final info = responseMeta is Map
+        ? responseMeta[McpProtocol.metaServerInfo]
+        : null;
+    _serverInfo = info is Map
+        ? Map<String, dynamic>.from(info)
+        : <String, dynamic>{'name': 'Unknown', 'version': 'Unknown'};
+    final tx = _transport;
+    if (tx is StreamableHttpClientTransport) {
+      tx.setProtocolVersion(selected);
+      tx.setStatelessMode(true);
+    }
+    _initialized = true;
   }
 
   /// Negotiated protocol revision after initialize completes; null
@@ -1035,8 +1099,17 @@ class Client {
     }
     _requestCompleters[id] = completer;
 
-    // Create a deep copy of params to avoid potential modification issues
+    // Copy params before injecting the required stateless metadata.
     final Map<String, dynamic> safeParams = Map<String, dynamic>.from(params);
+    if (_statelessProtocolVersion != null) {
+      final existing = safeParams['_meta'];
+      safeParams['_meta'] = <String, dynamic>{
+        if (existing is Map) ...Map<String, dynamic>.from(existing),
+        McpProtocol.metaProtocolVersion:
+            _negotiatedProtocolVersion ?? _statelessProtocolVersion,
+        ..._requestMetadata,
+      };
+    }
 
     final request = {
       'jsonrpc': McpProtocol.jsonRpcVersion,
@@ -1101,10 +1174,20 @@ class Client {
       throw McpError('Client is not connected to a transport');
     }
 
+    final safeParams = Map<String, dynamic>.from(params);
+    if (_statelessProtocolVersion != null) {
+      final existing = safeParams['_meta'];
+      safeParams['_meta'] = <String, dynamic>{
+        if (existing is Map) ...Map<String, dynamic>.from(existing),
+        McpProtocol.metaProtocolVersion:
+            _negotiatedProtocolVersion ?? _statelessProtocolVersion,
+        ..._requestMetadata,
+      };
+    }
     final notification = {
       'jsonrpc': McpProtocol.jsonRpcVersion,
       'method': method,
-      'params': params,
+      'params': safeParams,
     };
 
     _sendUntracked(_transport!, notification);

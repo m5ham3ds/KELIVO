@@ -1,6 +1,6 @@
 # PHASE 14C — MCP Base Protocol Compatibility & Skills over MCP
 
-**الحالة:** بدء التنفيذ المعماري والتعاقدي؛ لا تُعلن الميزة جاهزة ولا يتم تفعيل remote Skills قبل إغلاق بوابات التوافق والأمان والاختبارات.
+**الحالة:** Phase 14C.1 runtime slice مضاف؛ لا تُعلن الميزة جاهزة ولا يتم تفعيل remote Skills قبل إغلاق بوابات التوافق والأمان والاختبارات.
 **تاريخ البدء:** 25 نوفمبر 2026.
 **الفرع:** `main` — نقطة البدء `0ef719649ff00f621a2fac62e801b15d41cc2239`.
 **المرحلة السابقة:** Phase 14B مقبولة في CI #164.
@@ -39,7 +39,7 @@
 
 المراجعة الرسمية للـbase protocol أكدت أن revision `2026-07-28` ليس تحديثاً سطحياً لـ2025-11-25؛ فهو stateless ويزيل initialize/initialized وprotocol-level session ID، وينقل protocol version وclient capabilities إلى `_meta` في كل طلب، ويضيف `server/discover` لاختيار النسخة والقدرات، ويستبدل موارد/إشعارات HTTP السابقة بمسار subscriptions الجديد. لذلك لا يمكن اعتبار client الحالي المتوافق مع 2025-11-25 متوافقاً مع 2026-07-28 بمجرد إضافة version constant.
 
-كما تؤكد مواصفة Skills stable أن `skills/list` قد يرجع قائمة فارغة أو جزئية، وأن skill URI يمكن أن يقرأ مباشرة عبر `resources/read` حتى إذا لم يرد في القائمة، وأن `skills/get` يعيد metadata/digests لمهارة واحدة، و`resources/directory/read` اختياري. وعليه، discovery لا يجوز أن يعتمد على استنفاد القائمة وحدها، ولا أن يحمّل كل الموارد مبكراً.
+كما تؤكد مواصفة Skills Beta الحالية أن `skills/list` قد يرجع قائمة فارغة أو جزئية، وأن skill URI يمكن أن يقرأ مباشرة عبر `resources/read` حتى إذا لم يرد في القائمة، وأن `skills/get` يعيد metadata/digests لمهارة واحدة، و`resources/directory/read` اختياري. وعليه، discovery لا يجوز أن يعتمد على استنفاد القائمة وحدها، ولا أن يحمّل كل الموارد مبكراً.
 
 المراجع في القسم 7 هي مصدر الحقيقة؛ أما SEP التاريخي فيوثق التصميم وليس بديلاً عن النص المستقر الحالي.
 
@@ -51,7 +51,7 @@
 - عدم تغيير بروتوكول MCP أو بدء اتصال جديد أو تشغيل أدوات/خوادم أثناء import/inspect.
 - إبقاء remote Skills غير مدعومة/غير متاحة حتى وصول التنفيذ واختبارات التوافق.
 
-**لا يدّعي هذا checkpoint** إنجاز 14C runtime implementation أو دعم Skills-over-MCP أو دعم protocol revision 2026-07-28.
+**لا يدّعي هذا slice** اكتمال 14C runtime أو دعم Skills-over-MCP؛ أضيف اكتشاف stateless أولي قابل للاختبار، لكن دعم كامل 2026-07-28 (subscriptions/MRTR/result semantics) لم يكتمل بعد.
 
 ## 3. عقد التوافق الذي يجب تنفيذه
 
@@ -139,12 +139,12 @@
 
 - المصدر الرسمي للمواصفة الأساسية 2026-07-28: https://github.com/modelcontextprotocol/modelcontextprotocol/tree/main/docs/specification/2026-07-28
 - سجل التغييرات 2026-07-28: https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/changelog.mdx
-- Skills extension stable: https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/stable/skills.mdx
-- SEP-2640 (سجل قرار تاريخي؛ عند تعارضه مع النسخة stable يجب اتباع المواصفة الحالية): https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/seps/2640-skills-extension.mdx
+- Skills extension Beta: https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx
+- SEP-2640 (سجل قرار تاريخي؛ عند تعارضه مع النسخة Beta الحالية يجب اتباع المواصفة الحالية): https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/seps/2640-skills-extension.mdx
 - سجل قرارات مجموعة العمل: https://github.com/modelcontextprotocol/ext-skills/blob/main/docs/decisions.md
 - مصدر عميل MCP وموصلاته محلي داخل `dependencies/mcp_client`.
 - سجل الفجوات مبني على رأس `0ef719649ff00f621a2fac62e801b15d41cc2239`.
-- تم تثبيت المصدر الرسمي: base protocol 2026-07-28 وstable Skills extension المبني عليه. يجب توليد DTOs واختبارها من النصين الرسميين، وعدم الاستناد إلى SEP التاريخي وحده.
+- تم تثبيت المصدر الرسمي: base protocol 2026-07-28 وBeta Skills extension المبني عليه. يجب توليد DTOs واختبارها من النصين الرسميين، وعدم الاستناد إلى SEP التاريخي وحده.
 - تراخيص الكود الخارجي يجب مراجعتها منفصلاً قبل أي نسخ.
 
 ## 8. القرار

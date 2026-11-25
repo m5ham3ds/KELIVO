@@ -12,6 +12,12 @@ import 'mock_transport.dart';
 
 void main() {
   group('Protocol version registry', () {
+    test('2026-07-28 is opt-in and does not change legacy default', () {
+      expect(McpProtocol.v2026_07_28, '2026-07-28');
+      expect(McpProtocol.defaultVersion, McpProtocol.v2025_11_25);
+      expect(McpProtocol.supportedVersions, isNot(contains(McpProtocol.v2026_07_28)));
+    });
+
     test('all four MCP revisions are listed (newest first)', () {
       expect(
         McpProtocol.supportedVersions,
@@ -26,6 +32,43 @@ void main() {
 
     test('defaultVersion tracks latest (2025-11-25)', () {
       expect(McpProtocol.defaultVersion, equals(McpProtocol.v2025_11_25));
+    });
+  });
+
+  group('Stateless 2026-07-28 discovery', () {
+    test('client sends metadata in server/discover without legacy handshake', () async {
+      final client = Client(
+        name: 'test-client',
+        version: '1.2.3',
+        protocolVersion: McpProtocol.v2026_07_28,
+      );
+      final transport = MockTransport();
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'id': 1,
+        'result': {
+          'supportedVersions': [McpProtocol.v2026_07_28],
+          'capabilities': {'resources': {}},
+          '_meta': {
+            McpProtocol.metaServerInfo: {'name': 'stateless-mock', 'version': '1'},
+          },
+          'resultType': 'complete',
+          'ttlMs': 1000,
+          'cacheScope': 'private',
+        },
+      });
+      await client.connect(transport);
+      final discover = transport.sentMessages.firstWhere(
+        (message) => message['method'] == McpProtocol.methodServerDiscover,
+      );
+      final metadata = discover['params']['_meta'] as Map;
+      expect(metadata[McpProtocol.metaProtocolVersion], McpProtocol.v2026_07_28);
+      expect(metadata[McpProtocol.metaClientInfo], {'name': 'test-client', 'version': '1.2.3'});
+      expect(metadata[McpProtocol.metaClientCapabilities], isA<Map>());
+      expect(transport.sentMessages.any((message) =>
+          message['method'] == McpProtocol.methodInitialize ||
+          message['method'] == McpProtocol.methodInitialized), isFalse);
+      client.dispose();
     });
   });
 

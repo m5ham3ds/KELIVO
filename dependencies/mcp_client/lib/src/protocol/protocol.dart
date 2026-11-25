@@ -14,6 +14,9 @@ class McpProtocol {
   /// header. Removes JSON-RPC batching.
   static const String v2025_06_18 = "2025-06-18";
 
+  /// Protocol version 2026-07-28 — stateless discovery and per-request metadata.
+  static const String v2026_07_28 = "2026-07-28";
+
   /// Protocol version 2025-11-25 — adds icons, sampling tool calling
   /// (`tools` / `toolChoice`), URL-mode elicitation, OIDC Discovery,
   /// Client ID Metadata Documents, default values in elicitation
@@ -46,6 +49,13 @@ class McpProtocol {
   /// (mandatory from 2025-06-18).
   static bool requiresProtocolHeader(String version) =>
       version == v2025_06_18 || version == v2025_11_25;
+
+  /// Stateless protocol discovery and metadata keys.
+  static const String methodServerDiscover = "server/discover";
+  static const String metaProtocolVersion = "io.modelcontextprotocol/protocolVersion";
+  static const String metaClientInfo = "io.modelcontextprotocol/clientInfo";
+  static const String metaClientCapabilities = "io.modelcontextprotocol/clientCapabilities";
+  static const String metaServerInfo = "io.modelcontextprotocol/serverInfo";
 
   /// JSON-RPC version
   static const String jsonRpcVersion = "2.0";
