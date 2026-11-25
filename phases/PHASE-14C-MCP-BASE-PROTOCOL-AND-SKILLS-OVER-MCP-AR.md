@@ -35,6 +35,14 @@
 
 هذه فجوات محددة من ملفات المصدر المذكورة، وليست ادعاءً أن بقية MCP transport غير صالح.
 
+## 2. تحديث مهم بعد تدقيق المواصفة الرسمية 2026-07-28
+
+المراجعة الرسمية للـbase protocol أكدت أن revision `2026-07-28` ليس تحديثاً سطحياً لـ2025-11-25؛ فهو stateless ويزيل initialize/initialized وprotocol-level session ID، وينقل protocol version وclient capabilities إلى `_meta` في كل طلب، ويضيف `server/discover` لاختيار النسخة والقدرات، ويستبدل موارد/إشعارات HTTP السابقة بمسار subscriptions الجديد. لذلك لا يمكن اعتبار client الحالي المتوافق مع 2025-11-25 متوافقاً مع 2026-07-28 بمجرد إضافة version constant.
+
+كما تؤكد مواصفة Skills stable أن `skills/list` قد يرجع قائمة فارغة أو جزئية، وأن skill URI يمكن أن يقرأ مباشرة عبر `resources/read` حتى إذا لم يرد في القائمة، وأن `skills/get` يعيد metadata/digests لمهارة واحدة، و`resources/directory/read` اختياري. وعليه، discovery لا يجوز أن يعتمد على استنفاد القائمة وحدها، ولا أن يحمّل كل الموارد مبكراً.
+
+المراجع في القسم 7 هي مصدر الحقيقة؛ أما SEP التاريخي فيوثق التصميم وليس بديلاً عن النص المستقر الحالي.
+
 ## 2. حدود هذا checkpoint
 
 يقتصر هذا التغيير على:
@@ -88,11 +96,12 @@
 ## 5. خطة التنفيذ المقسمة
 
 ### 14C.1 — MCP protocol compatibility core
-- version negotiation صارم مع الحفاظ على revisions الأربعة الحالية.
-- raw capability retention وhelper methods للتحقق من الامتدادات.
-- pagination primitives لـresources/list وtools/list حيث يحددها الإصدار.
-- cancellation وsession lifecycle tests.
-- لا تضف skills methods بعد.
+- إبقاء revisions الأربعة التاريخية مع سلوكها الحالي، وإضافة مسار مستقل للـ2026-07-28 دون كسر العميل القديم.
+- `server/discover` أولاً حيث يدعمه الخادم؛ ثم تحديد revision/capabilities قبل توجيه الطلبات.
+- إضافة stateless request envelope يحمل protocolVersion وclientCapabilities وclientInfo في `_meta` لكل طلب.
+- فصل transport/session strategy حتى لا يضيف أو يطلب `Mcp-Session-Id` في 2026-07-28، مع الإبقاء عليه للنسخ الأقدم.
+- اختبار Streamable HTTP stateless وSTDIO compatibility probe، وresultType/default compatibility.
+- لا تضف skills methods قبل ثبوت هذه الطبقة.
 
 ### 14C.2 — Skills-over-MCP typed adapter
 - DTOs/schema للامتداد وmethods بعد تثبيت النسخة الرسمية.
@@ -127,9 +136,15 @@
 9. عدم تفعيل Skills أو منحها صلاحيات تنفيذ بمجرد تنزيل الملفات.
 
 ## 7. الأدلة والمراجع
+
+- المصدر الرسمي للمواصفة الأساسية 2026-07-28: https://github.com/modelcontextprotocol/modelcontextprotocol/tree/main/docs/specification/2026-07-28
+- سجل التغييرات 2026-07-28: https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/changelog.mdx
+- Skills extension stable: https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/stable/skills.mdx
+- SEP-2640 (سجل قرار تاريخي؛ عند تعارضه مع النسخة stable يجب اتباع المواصفة الحالية): https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/seps/2640-skills-extension.mdx
+- سجل قرارات مجموعة العمل: https://github.com/modelcontextprotocol/ext-skills/blob/main/docs/decisions.md
 - مصدر عميل MCP وموصلاته محلي داخل `dependencies/mcp_client`.
 - سجل الفجوات مبني على رأس `0ef719649ff00f621a2fac62e801b15d41cc2239`.
-- قبل تنفيذ DTOs يجب تثبيت النص/النسخة الرسمية لمواصفة Skills extension وMCP base revision؛ لا تخترع JSON shapes.
+- تم تثبيت المصدر الرسمي: base protocol 2026-07-28 وstable Skills extension المبني عليه. يجب توليد DTOs واختبارها من النصين الرسميين، وعدم الاستناد إلى SEP التاريخي وحده.
 - تراخيص الكود الخارجي يجب مراجعتها منفصلاً قبل أي نسخ.
 
 ## 8. القرار
