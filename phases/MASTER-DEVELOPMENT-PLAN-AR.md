@@ -19,6 +19,7 @@
 - غياب `android/key.properties` يعني أن نجاح Release build لا يثبت استخدام مفتاح نشر متجر؛ راجع تقرير CI قبل النشر.
 - **Phase 14A:** مقبولة بعد نجاح اختباراتها المخصصة في CI #162.
 - **Phase 14B:** بدأ تنفيذ Plugin Manifest & Component Registry فوق ExtensionRegistry الحالي. الملفات وتغطية الاختبارات الأولية موثقة في `PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md`. القبول معلق حتى نجاح CI على commit هذه التغييرات.
+- **CI #163:** توقف عند Flutter Analyze قبل اختبارات 14B بسبب تمرير `rawKeywords` من نوع `Object` إلى `cast<String>()`. لم تبدأ اختبارات Plugin أو اختبارات Android في هذا التشغيل. أصلح التحويل في تحديث المصدر التالي، وإعادة CI مطلوبة للتحقق.
 - **Phase 13Q:** لا نوسع قبول 13Q.5 من تشغيل اختبارات discovery وحدها؛ دورة lifecycle المخصصة وموافقة واجهة المحادثة المرئية تظلان بحاجة إلى دليل مستقل.
 - اختبار الهاتف الفعلي يظل مطلوباً حيث تتطلب معايير المرحلة ذلك؛ نجاح Android Emulator ليس بديلاً عنه.
 

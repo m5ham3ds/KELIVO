@@ -64,7 +64,7 @@ final class PluginManifest {
       if (value is! String ||
           value.trim().isEmpty ||
           value.length > maxLength) {
-        throw FormatException('plugin_manifest_' + key);
+        throw FormatException('plugin_manifest_$key');
       }
       return value.trim();
     }
@@ -76,7 +76,7 @@ final class PluginManifest {
       if (value is! List ||
           value.length > 128 ||
           value.any((item) => item is! String)) {
-        throw FormatException('plugin_manifest_' + key);
+        throw FormatException('plugin_manifest_$key');
       }
       return value.cast<String>();
     }
@@ -106,8 +106,7 @@ final class PluginManifest {
     }
     if (unsupported.isNotEmpty) {
       warnings.add(
-        'unknown_manifest_fields:' +
-            (unsupported.keys.toList()..sort()).join(','),
+        'unknown_manifest_fields:${(unsupported.keys.toList()..sort()).join(',')}',
       );
     }
     if (json['hooks'] is Map) {
@@ -117,7 +116,7 @@ final class PluginManifest {
     for (final key in ['mcpServers', 'lspServers', 'outputStyles', 'strict']) {
       if (json.containsKey(key)) {
         unsupported[key] = json[key];
-        warnings.add('unsupported_manifest_field:' + key);
+        warnings.add('unsupported_manifest_field:$key');
       }
     }
 
@@ -131,7 +130,7 @@ final class PluginManifest {
       license: optionalText('license', maxLength: 256),
       keywords: rawKeywords == null
           ? const <String>[]
-          : List<String>.unmodifiable(rawKeywords.cast<String>()),
+          : List<String>.unmodifiable((rawKeywords as List).cast<String>()),
       commandPaths: List<String>.unmodifiable(readPaths('commands')),
       agentPaths: List<String>.unmodifiable(readPaths('agents')),
       skillPaths: List<String>.unmodifiable(readPaths('skills')),
