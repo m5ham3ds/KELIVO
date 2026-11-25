@@ -1,6 +1,6 @@
 # PHASE 14B — Plugin Manifest & Component Registry
 
-**الحالة:** تنفيذ أولي مضاف إلى المصدر؛ القبول النهائي معلّق حتى نجاح GitHub Actions على commit التنفيذ ومراجعة كل job/step.
+**الحالة:** **مقبولة** بعد اكتمال CI #164 بنجاح على رأس `main` الحالي `0ef719649ff00f621a2fac62e801b15d41cc2239` ومراجعة جميع وظائفه وخطواته.
 **تاريخ نقطة البدء:** 25 نوفمبر 2026.
 **بوابة المرحلة السابقة:** Phase 14A اجتازت CI #162 بنجاح على commit `14c7938617ccaab7b38542caebb891f292c7ef18`.
 **المستودع:** https://github.com/m5ham3ds/KELIVO — الفرع `main`.
@@ -60,7 +60,7 @@
 9. استيراد ZIP بمجلد جذر واحد.
 10. إثبات عدم تشغيل Script خلال inspect أو install عبر marker خارجي.
 
-**حالة التحقق:** أضيفت خطوة CI باسم `phase14b_plugin_manifest_tests` لتشغيل مجموعة الاختبارات أعلاه. هذه اختبارات مصدرية معدة للتشغيل في CI الجديد؛ لم تعتبر ناجحة قبل ظهور النتائج. يجب أن تشمل المراجعة Flutter Analyze ومرحلة اختبارات الخدمة وAndroid JVM/Robolectric وPhase 13P Emulator E2E وبناء ARM64 ورفع APK.
+**حالة التحقق — CI #164:** نجحت خطوة `phase14b_plugin_manifest_tests`، كما نجح Flutter Analyze وEnvironment lifecycle وPhase 14A وGemini/OAuth وPhase 13Q config discovery والحزم المحلية وAndroid JVM/Robolectric ومحاكي Phase 13P وبناء APK ARM64 ورفع APK وتقرير البناء.
 
 ## 4. القيود والقرارات
 
@@ -73,12 +73,12 @@
 
 ## 5. سجل CI والإصلاحات
 
-- **CI #163** على commit `5e3ea295fc88a60cd407d4116f3bad92f4a9d2ed`: فشل `Flutter Analyze` قبل بدء اختبارات 14B. الخطأ الوحيد من ملفات 14B كان استدعاء `cast<String>()` على متغير نوعه `Object` في فرع `keywords` داخل `plugin_manifest.dart`.
+- **CI #163** على commit `5e3ea295fc88a60cd407d4116f3bad92f4a9d2ed`: فشل `Flutter Analyze` قبل بدء اختبارات 14B بسبب استدعاء `cast<String>()` على متغير نوعه `Object` في فرع `keywords` داخل `plugin_manifest.dart`.
 - لم تُنفذ خطوة `phase14b_plugin_manifest_tests` ولا بقية الاختبارات أو بناء ARM64 في #163 لأن البوابة تشترط نجاح التحليل أولاً؛ لذلك لا نصنف اختبارات 14B على أنها فشلت.
-- **الإصلاح:** تحويل `rawKeywords` صراحةً إلى `List` قبل `cast<String>()`، مع تحسين رسائل تحذير Manifest. إعادة التحقق الجديدة مطلوبة قبل اعتبار الإصلاح ناجحاً.
+- **الإصلاح والتحقق:** تحويل `rawKeywords` صراحةً إلى `List` والتحقق من أن القيمة List لا تتضمن عناصر غير نصية؛ اجتاز الكود المصحح Flutter Analyze واختبارات 14B في #164.
 
 ## 6. قرار القبول
 
 **14A:** مقبولة بعد CI #162، بما يشمل اختبارات Progressive Skill Discovery وFlutter Analyze وRobolectric ومحاكي Android وبناء ARM64.
 
-**14B:** لم تقبل بعد. معيار القبول هو نجاح CI على تغييرات هذه المرحلة، ثم فحص logs/artifacts والتأكد من عدم تشغيل أي مكون أثناء الاستيراد والفحص. تسجل بصمة APK وABI ونتيجة كل job بعد اكتمال CI.
+**14B: مقبولة.** CI #164 اكتمل دون فشل. APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، الحجم 41,889,227 bytes، ABI `arm64-v8a` فقط، SHA-256 `ab8dd504fe45699dd64f80dea2962e7e87aaeb6f076d153ef992c7dd20ec4292`، Artifact ID `14978959033`. اجتازت اختبارات manifest/component registry وrollback/إزالة Plugin، ولم تشغّل المكونات أثناء الفحص والاستيراد بحسب نطاق الاختبارات.

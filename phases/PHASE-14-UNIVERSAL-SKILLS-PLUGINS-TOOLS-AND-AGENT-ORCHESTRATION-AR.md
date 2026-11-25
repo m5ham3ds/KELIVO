@@ -1,6 +1,6 @@
 # PHASE 14 — Universal Skills, Plugins, Tools & Agent Orchestration
 
-**الحالة — 25 نوفمبر 2026:** Phase 14A مقبولة بعد نجاح CI #162 على main. بدأ تنفيذ Phase 14B (Plugin Manifest & Component Registry) في المصدر، لكن قبولها ينتظر CI الخاص بالتغييرات الجديدة ومراجعة نتائجه. لا تعني هذه الحالة قبول Phase 13 أو تشغيل مكونات Plugin.
+**الحالة — 25 نوفمبر 2026:** Phase 14A مقبولة بعد CI #162، وPhase 14B مقبولة بعد نجاح CI #164 على commit 0ef719649ff00f621a2fac62e801b15d41cc2239. بدأ checkpoint Phase 14C لتوافق MCP وSkills over MCP؛ لم يكتمل runtime implementation بعد. لا تعني هذه الحالة قبول Phase 13 أو تشغيل مكونات Plugin.
 **خط الأساس:** 9abb9dcc40881b005902265fdbd86d93248cb906 — KELIVO 1.3.4+84، Flutter 3.47.6، Android ARM64.
 **المبدأ:** تطوير الأنظمة القائمة وإضافة adapters مستقلة؛ لا استبدال النواة ولا إدخال Runtime إلزامي غير مناسب لـAndroid.
 

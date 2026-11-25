@@ -12,6 +12,14 @@
 - Phase 13Q.1 اجتازت في CI #120؛ 13Q.2–13Q.5 لا تزال مفتوحة. Phase 13B تبقى مفتوحة حتى تنفيذ واختبار Skill-owned MCP lifecycle بما فيه tools/list وtools/call.
 - تحليل Reel Studio محدث في REEL-STUDIO-GAP-ANALYSIS-AR.md: TTS/ASR موجودان أساساً، لكن التوقيت الدقيق للكلمات وربط المراحل والمحرر المتزامن غير مكتمل. لا يدّعي ذلك جاهزية Reel end-to-end أو دعماً رسمياً لـAndroid PRoot.
 
+**التحديث المرجعي — 25 نوفمبر 2026 (بعد CI #164):**
+
+- آخر بناء كامل ناجح: [CI #164](https://github.com/m5ham3ds/KELIVO/actions/runs/45517073229) على commit `0ef719649ff00f621a2fac62e801b15d41cc2239`. اكتمل بنجاح على `main`.
+- نجحت خطوة Phase 14B Plugin manifest/component registry، إلى جانب Flutter Analyze وEnvironment lifecycle و14A وGemini/OAuth و13Q config discovery والحزم المحلية وAndroid JVM/Robolectric ومحاكي 13P وبناء ARM64 ورفع APK وتقرير البناء.
+- APK #164: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، الحجم 41,889,227 bytes، ABI `arm64-v8a` فقط، SHA-256 `ab8dd504fe45699dd64f80dea2962e7e87aaeb6f076d153ef992c7dd20ec4292`، Artifact ID `14978959033`.
+- Phase 14B مقبولة.
+- بدأ checkpoint Phase 14C بعقد التوافق وتقرير الفجوات في `PHASE-14C-MCP-BASE-PROTOCOL-AND-SKILLS-OVER-MCP-AR.md`. لا يعلن هذا بدء دعم runtime لـSkills over MCP.
+
 **التحديث المرجعي — 25 نوفمبر 2026:**
 
 - آخر بناء كامل ناجح على `main`: [CI #162](https://github.com/m5ham3ds/KELIVO/actions/runs/45508226377)، commit `14c7938617ccaab7b38542caebb891f292c7ef18`. اكتمل بنجاح: Android-only audit، Flutter Analyze، اختبارات Environment lifecycle، Phase 14A، اختبارات Gemini/OAuth وPhase 13Q configuration، الحزم المحلية، Android JVM/Robolectric، Phase 13P Emulator E2E، وARM64 APK.
