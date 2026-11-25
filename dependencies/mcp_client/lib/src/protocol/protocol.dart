@@ -120,18 +120,39 @@ class McpProtocol {
   static const int errorPromptNotFound = -32005;
   static const int errorProtocolError = -32006;
 
-  /// Check if a version is supported
+  /// Check if a version is supported by the default legacy client profile.
+  /// New protocol revisions remain opt-in until their full capability surface
+  /// has shipped; use [isVersionSupportedFor] for an explicit profile.
   static bool isVersionSupported(String version) {
     return supportedVersions.contains(version);
   }
 
-  /// Get the best common version from client and server versions
+  /// Check support against an explicit client profile without changing the
+  /// default compatibility registry.
+  static bool isVersionSupportedFor(
+    String version, {
+    Iterable<String> additionalVersions = const [],
+  }) {
+    return supportedVersions.contains(version) ||
+        additionalVersions.contains(version);
+  }
+
+  /// Get the best common version from client and server versions.
+  ///
+  /// [additionalVersions] are explicitly opted-in protocol revisions. They
+  /// are intentionally excluded from [supportedVersions] and from implicit
+  /// negotiation by default.
   static String? negotiateVersion(
     List<String> clientVersions,
-    List<String> serverVersions,
-  ) {
+    List<String> serverVersions, {
+    Iterable<String> additionalVersions = const [],
+  }) {
     for (final version in clientVersions) {
-      if (serverVersions.contains(version) && isVersionSupported(version)) {
+      if (serverVersions.contains(version) &&
+          isVersionSupportedFor(
+            version,
+            additionalVersions: additionalVersions,
+          )) {
         return version;
       }
     }
