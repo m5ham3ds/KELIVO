@@ -1,3 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:yaml/yaml.dart';
+
 import '../client/client.dart';
 import '../protocol/protocol.dart';
 
@@ -56,6 +62,88 @@ final class McpSkillIdentity {
 }
 
 /// One file resource in a Skill's complete manifest.
+/// A point-in-time Skill manifest bound to the host-assigned server identity.
+final class McpSkillSnapshot {
+  const McpSkillSnapshot._({
+    required this.identity,
+    required this.skill,
+    required this.ttlMs,
+    required this.cacheScope,
+    required this.retrievedAt,
+    required this.generation,
+    required this.resourceSetKey,
+  });
+
+  final McpSkillIdentity identity;
+  final McpSkillEntry skill;
+  final int ttlMs;
+  final String cacheScope;
+  final DateTime retrievedAt;
+  final int generation;
+
+  /// Stable fingerprint of every URI, digest and size in the complete manifest.
+  final String resourceSetKey;
+}
+
+/// Content that has passed the declared size and SHA-256 checks.
+final class McpVerifiedSkillResource {
+  const McpVerifiedSkillResource._({
+    required this.snapshot,
+    required this.uri,
+    required this.digest,
+    required this.size,
+    required this.mimeType,
+    required this.bytes,
+    required this.cacheScope,
+    required this.fromCache,
+  });
+
+  final McpSkillSnapshot snapshot;
+  final String uri;
+  final String digest;
+  final int size;
+  final String? mimeType;
+  final List<int> bytes;
+  final String cacheScope;
+  final bool fromCache;
+
+  String get text => utf8.decode(bytes, allowMalformed: false);
+
+  McpVerifiedSkillResource _asCacheHit() => McpVerifiedSkillResource._(
+        snapshot: snapshot,
+        uri: uri,
+        digest: digest,
+        size: size,
+        mimeType: mimeType,
+        bytes: bytes,
+        cacheScope: cacheScope,
+        fromCache: true,
+      );
+}
+
+/// Host-side integrity failure. The unverified bytes are never returned.
+final class McpSkillIntegrityException implements Exception {
+  const McpSkillIntegrityException(this.code, this.uri);
+
+  final String code;
+  final String uri;
+
+  @override
+  String toString() => 'McpSkillIntegrityException($code, $uri)';
+}
+
+final class _McpCachedSkillResource {
+  const _McpCachedSkillResource({
+    required this.identity,
+    required this.content,
+    required this.expiresAt,
+  });
+
+  final McpSkillIdentity identity;
+  final McpVerifiedSkillResource content;
+  final DateTime expiresAt;
+}
+
 final class McpSkillResource {
   McpSkillResource._({
     required this.uri,
@@ -234,6 +322,7 @@ final class McpSkillEntry {
 final class McpSkillsListResult {
   const McpSkillsListResult._({
     required this.skills,
+    required this.snapshots,
     required this.ttlMs,
     required this.cacheScope,
     required this.pagesFetched,
@@ -242,6 +331,7 @@ final class McpSkillsListResult {
   });
 
   final List<McpSkillEntry> skills;
+  final List<McpSkillSnapshot> snapshots;
   final int ttlMs;
   final String cacheScope;
   final int pagesFetched;
@@ -260,11 +350,13 @@ final class McpSkillsListResult {
 final class McpSkillsGetResult {
   const McpSkillsGetResult({
     required this.skill,
+    required this.snapshot,
     required this.ttlMs,
     required this.cacheScope,
   });
 
   final McpSkillEntry skill;
+  final McpSkillSnapshot snapshot;
   final int ttlMs;
   final String cacheScope;
 }
@@ -278,7 +370,9 @@ final class McpSkillsExtension {
     required this.client,
     required String serverIdentity,
     this.limits = const McpSkillsLimits(),
-  }) : serverIdentity = serverIdentity.trim() {
+    DateTime Function()? clock,
+  }) : serverIdentity = serverIdentity.trim(),
+       _clock = clock ?? DateTime.now {
     if (this.serverIdentity.isEmpty ||
         this.serverIdentity.length > 256 ||
         this.serverIdentity.contains(RegExp(r'[\x00-\x1f]'))) {
@@ -289,11 +383,23 @@ final class McpSkillsExtension {
       );
     }
     limits.validate();
+    _resourcesListChangedSubscription =
+        client.onResourcesListChangedStream.listen((_) => invalidateAll());
+    _disconnectSubscription =
+        client.onDisconnect.listen((_) => invalidateAll());
   }
 
   final Client client;
   final String serverIdentity;
   final McpSkillsLimits limits;
+  final DateTime Function() _clock;
+  late final StreamSubscription<void> _resourcesListChangedSubscription;
+  late final StreamSubscription<dynamic> _disconnectSubscription;
+  final Map<String, _McpCachedSkillResource> _resourceCache =
+      <String, _McpCachedSkillResource>{};
+  final Map<String, String> _latestManifestKeys = <String, String>{};
+  int _cacheGeneration = 0;
+  bool _disposed = false;
 
   Map<String, dynamic>? get _declaration {
     final capabilities = client.serverCapabilities;
@@ -329,6 +435,248 @@ final class McpSkillsExtension {
 
   McpSkillIdentity identityFor(McpSkillEntry skill) =>
       McpSkillIdentity(serverIdentity: serverIdentity, uri: skill.uri);
+
+  String _identityKey(McpSkillIdentity identity) =>
+      jsonEncode(<String>[identity.serverIdentity, identity.uri]);
+
+  String _resourceSetFingerprint(McpSkillEntry skill) {
+    if (skill.isDynamic) return 'dynamic';
+    final entries = skill.resources
+        .map((resource) => <String, dynamic>{
+              'uri': resource.uri,
+              'digest': resource.digest,
+              'size': resource.size,
+            })
+        .toList()
+      ..sort(
+        (left, right) =>
+            (left['uri'] as String).compareTo(right['uri'] as String),
+      );
+    return sha256.convert(utf8.encode(jsonEncode(entries))).toString();
+  }
+
+  McpSkillSnapshot _createSnapshot(
+    McpSkillEntry skill, {
+    required int ttlMs,
+    required String cacheScope,
+  }) {
+    final identity = identityFor(skill);
+    final resourceSetKey = _resourceSetFingerprint(skill);
+    final identityKey = _identityKey(identity);
+    final previous = _latestManifestKeys[identityKey];
+    if (previous != null && previous != resourceSetKey) {
+      _resourceCache.removeWhere(
+        (key, cached) => cached.identity == identity,
+      );
+    }
+    _latestManifestKeys[identityKey] = resourceSetKey;
+    return McpSkillSnapshot._(
+      identity: identity,
+      skill: skill,
+      ttlMs: ttlMs,
+      cacheScope: cacheScope,
+      retrievedAt: _clock(),
+      generation: _cacheGeneration,
+      resourceSetKey: resourceSetKey,
+    );
+  }
+
+  /// Drop every verified byte cache after a source/list change.
+  ///
+  /// Existing snapshots become unusable and must be refreshed with skills/get
+  /// or skills/list before a subsequent resource read.
+  void invalidateAll() {
+    _cacheGeneration++;
+    _resourceCache.clear();
+    _latestManifestKeys.clear();
+  }
+
+  /// Release notification subscriptions and in-memory verified content.
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    await _resourcesListChangedSubscription.cancel();
+    await _disconnectSubscription.cancel();
+    invalidateAll();
+  }
+
+  void _requireSnapshotCurrent(McpSkillSnapshot snapshot) {
+    if (_disposed) throw StateError('skills_extension_disposed');
+    if (snapshot.identity.serverIdentity != serverIdentity ||
+        snapshot.identity.uri != snapshot.skill.uri) {
+      throw const McpSkillIntegrityException(
+        'skill_snapshot_origin_mismatch',
+        '',
+      );
+    }
+    if (snapshot.generation != _cacheGeneration) {
+      throw McpSkillIntegrityException(
+        'skill_snapshot_invalidated_refresh_required',
+        snapshot.skill.uri,
+      );
+    }
+    final currentKey = _latestManifestKeys[_identityKey(snapshot.identity)];
+    if (currentKey != null && currentKey != snapshot.resourceSetKey) {
+      throw McpSkillIntegrityException(
+        'skill_manifest_changed_refresh_required',
+        snapshot.skill.uri,
+      );
+    }
+    if (snapshot.ttlMs > 0 &&
+        !_clock().isBefore(
+          snapshot.retrievedAt.add(Duration(milliseconds: snapshot.ttlMs)),
+        )) {
+      throw McpSkillIntegrityException(
+        'skill_manifest_expired_refresh_required',
+        snapshot.skill.uri,
+      );
+    }
+  }
+
+  /// Fetch one declared file only when requested, then verify its raw bytes.
+  ///
+  /// This method never loads or activates the Skill. It returns immutable
+  /// verified bytes, with origin identity retained for the caller.
+  Future<McpVerifiedSkillResource> readSkillResource({
+    required McpSkillSnapshot snapshot,
+    required String uri,
+  }) async {
+    _requireSupported();
+    _requireSnapshotCurrent(snapshot);
+    if (snapshot.skill.isDynamic) {
+      throw McpSkillIntegrityException(
+        'dynamic_skill_resources_are_unverifiable',
+        uri,
+      );
+    }
+
+    McpSkillResource declared;
+    try {
+      declared = snapshot.skill.resources.firstWhere(
+        (resource) => resource.uri == uri,
+      );
+    } on StateError {
+      throw McpSkillIntegrityException(
+        'skill_resource_not_in_held_manifest',
+        uri,
+      );
+    }
+
+    final cacheKey = jsonEncode(<String>[
+      snapshot.identity.serverIdentity,
+      snapshot.identity.uri,
+      snapshot.resourceSetKey,
+      uri,
+    ]);
+    final now = _clock();
+    final cached = _resourceCache[cacheKey];
+    if (cached != null && now.isBefore(cached.expiresAt)) {
+      return cached.content._asCacheHit();
+    }
+    _resourceCache.remove(cacheKey);
+
+    final readResult = await client.readResource(uri);
+    if (readResult.resultType != 'complete' ||
+        readResult.ttlMs == null ||
+        readResult.cacheScope == null) {
+      throw McpSkillIntegrityException(
+        'skill_resource_cache_metadata_missing',
+        uri,
+      );
+    }
+    if (readResult.contents.length != 1) {
+      throw McpSkillIntegrityException(
+        'skill_resource_read_content_count_invalid',
+        uri,
+      );
+    }
+    final content = readResult.contents.single;
+    if (content.uri != uri) {
+      throw McpSkillIntegrityException(
+        'skill_resource_read_uri_mismatch',
+        uri,
+      );
+    }
+
+    final hasText = content.text != null;
+    final hasBlob = content.blob != null;
+    if (hasText == hasBlob) {
+      throw McpSkillIntegrityException(
+        'skill_resource_content_encoding_invalid',
+        uri,
+      );
+    }
+
+    final List<int> rawBytes;
+    if (hasText) {
+      rawBytes = utf8.encode(content.text!);
+    } else {
+      try {
+        rawBytes = base64Decode(content.blob!);
+      } on FormatException {
+        throw McpSkillIntegrityException(
+          'skill_resource_blob_invalid',
+          uri,
+        );
+      }
+    }
+
+    if (rawBytes.length != declared.size) {
+      throw McpSkillIntegrityException(
+        'skill_resource_size_mismatch',
+        uri,
+      );
+    }
+    final actualDigest = 'sha256:' + sha256.convert(rawBytes).toString();
+    if (actualDigest != declared.digest) {
+      throw McpSkillIntegrityException(
+        'skill_resource_digest_mismatch',
+        uri,
+      );
+    }
+
+    if (uri == snapshot.skill.uri) {
+      _verifySkillFrontmatter(rawBytes, snapshot.skill);
+    }
+
+    final immutableBytes = List<int>.unmodifiable(rawBytes);
+    final mergedCacheScope =
+        snapshot.cacheScope == 'private' || readResult.cacheScope == 'private'
+            ? 'private'
+            : 'public';
+    final verified = McpVerifiedSkillResource._(
+      snapshot: snapshot,
+      uri: uri,
+      digest: declared.digest,
+      size: rawBytes.length,
+      mimeType: content.mimeType,
+      bytes: immutableBytes,
+      cacheScope: mergedCacheScope,
+      fromCache: false,
+    );
+
+    // Cache only in memory. Persistent storage is intentionally deferred until
+    // a host-only path outside every local Skill discovery root is guaranteed.
+    if (snapshot.ttlMs > 0 && readResult.ttlMs! > 0) {
+      final snapshotExpiry = snapshot.retrievedAt.add(
+        Duration(milliseconds: snapshot.ttlMs),
+      );
+      final readExpiry = now.add(
+        Duration(milliseconds: readResult.ttlMs!),
+      );
+      final expiresAt = snapshotExpiry.isBefore(readExpiry)
+          ? snapshotExpiry
+          : readExpiry;
+      if (now.isBefore(expiresAt)) {
+        _resourceCache[cacheKey] = _McpCachedSkillResource(
+          identity: snapshot.identity,
+          content: verified,
+          expiresAt: expiresAt,
+        );
+      }
+    }
+    return verified;
+  }
 
   void _requireSupported() {
     if (client.negotiatedProtocolVersion != McpProtocol.v2026_07_28) {
@@ -387,6 +735,7 @@ final class McpSkillsExtension {
     }
 
     final skills = <McpSkillEntry>[];
+    final snapshots = <McpSkillSnapshot>[];
     final seenSkillUris = <String>{};
     final requestedCursors = <String>{};
     var nextRequestCursor = cursor;
@@ -432,6 +781,13 @@ final class McpSkillsExtension {
           throw const FormatException('skills_list_uri_duplicate');
         }
         skills.add(skill);
+        snapshots.add(
+          _createSnapshot(
+            skill,
+            ttlMs: pageTtl,
+            cacheScope: pageScope,
+          ),
+        );
       }
       pagesFetched++;
 
@@ -456,6 +812,7 @@ final class McpSkillsExtension {
 
     return McpSkillsListResult._(
       skills: List<McpSkillEntry>.unmodifiable(skills),
+      snapshots: List<McpSkillSnapshot>.unmodifiable(snapshots),
       ttlMs: ttlMs,
       cacheScope: cacheScope,
       pagesFetched: pagesFetched,
@@ -486,10 +843,18 @@ final class McpSkillsExtension {
     if (skill.uri != uri) {
       throw const FormatException('skills_get_uri_mismatch');
     }
+    final ttlMs = _readTtl(result);
+    final cacheScope = _readCacheScope(result);
+    final snapshot = _createSnapshot(
+      skill,
+      ttlMs: ttlMs,
+      cacheScope: cacheScope,
+    );
     return McpSkillsGetResult(
       skill: skill,
-      ttlMs: _readTtl(result),
-      cacheScope: _readCacheScope(result),
+      snapshot: snapshot,
+      ttlMs: ttlMs,
+      cacheScope: cacheScope,
     );
   }
 }
@@ -562,6 +927,99 @@ bool _isUnsafePathSegment(String segment) =>
     segment.contains('/') ||
     segment.contains(String.fromCharCode(92)) ||
     segment.contains(RegExp(r'[\x00-\x1f]'));
+
+void _verifySkillFrontmatter(
+  List<int> rawBytes,
+  McpSkillEntry skill,
+) {
+  final String text;
+  try {
+    text = utf8.decode(rawBytes, allowMalformed: false);
+  } on FormatException {
+    throw McpSkillIntegrityException(
+      'skill_markdown_is_not_valid_utf8',
+      skill.uri,
+    );
+  }
+
+  try {
+    final lines = text.split(RegExp(r'\r?\n'));
+    if (lines.isEmpty || lines.first.trim() != '---') {
+      throw const FormatException('skill_frontmatter_opening_delimiter_missing');
+    }
+    final closingIndex = lines.indexWhere(
+      (line) => line.trim() == '---',
+      1,
+    );
+    if (closingIndex < 0) {
+      throw const FormatException('skill_frontmatter_closing_delimiter_missing');
+    }
+    final yamlText = lines.sublist(1, closingIndex).join('\n');
+    if (yamlText.trim().isEmpty) {
+      throw const FormatException('skill_frontmatter_empty');
+    }
+    final parsed = loadYaml(yamlText);
+    final normalized = _normalizeYamlValue(parsed);
+    if (normalized is! Map<String, dynamic>) {
+      throw const FormatException('skill_frontmatter_root_not_mapping');
+    }
+    if (!_deepJsonEquals(normalized, skill.frontmatter)) {
+      throw McpSkillIntegrityException(
+        'skill_frontmatter_mismatch',
+        skill.uri,
+      );
+    }
+  } on McpSkillIntegrityException {
+    rethrow;
+  } catch (_) {
+    throw McpSkillIntegrityException(
+      'skill_frontmatter_invalid',
+      skill.uri,
+    );
+  }
+}
+
+dynamic _normalizeYamlValue(dynamic value) {
+  if (value is Map) {
+    final result = <String, dynamic>{};
+    for (final entry in value.entries) {
+      if (entry.key is! String) {
+        throw const FormatException('skill_frontmatter_key_not_string');
+      }
+      result[entry.key as String] = _normalizeYamlValue(entry.value);
+    }
+    return result;
+  }
+  if (value is List) {
+    return value.map(_normalizeYamlValue).toList(growable: false);
+  }
+  if (value is DateTime) return value.toIso8601String();
+  if (value == null || value is String || value is num || value is bool) {
+    return value;
+  }
+  throw const FormatException('skill_frontmatter_value_not_json_compatible');
+}
+
+bool _deepJsonEquals(dynamic left, dynamic right) {
+  if (left is Map && right is Map) {
+    if (left.length != right.length) return false;
+    for (final entry in left.entries) {
+      if (!right.containsKey(entry.key) ||
+          !_deepJsonEquals(entry.value, right[entry.key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (!_deepJsonEquals(left[index], right[index])) return false;
+    }
+    return true;
+  }
+  return left == right;
+}
 
 bool _isWithinSkillDirectory(Uri skillUri, String resourceValue) {
   final resource = _parseAbsoluteUri(

@@ -490,28 +490,69 @@ class ResourceContentInfo {
   }
 }
 
-/// Resource read result
+/// Resource read result, including cache hints from CacheableResult.
 @immutable
 class ReadResourceResult {
   final List<ResourceContentInfo> contents;
 
-  const ReadResourceResult({required this.contents});
+  /// Present on modern MCP revisions. Older revisions may omit this field.
+  final String? resultType;
+
+  /// Server hint for how long the result may be treated as current.
+  final int? ttlMs;
+
+  /// Cache visibility hint returned by the server.
+  final String? cacheScope;
+
+  const ReadResourceResult({
+    required this.contents,
+    this.resultType,
+    this.ttlMs,
+    this.cacheScope,
+  });
 
   Map<String, dynamic> toJson() {
-    return {'contents': contents.map((c) => c.toJson()).toList()};
+    return {
+      'contents': contents.map((c) => c.toJson()).toList(),
+      if (resultType != null) 'resultType': resultType,
+      if (ttlMs != null) 'ttlMs': ttlMs,
+      if (cacheScope != null) 'cacheScope': cacheScope,
+    };
   }
 
   factory ReadResourceResult.fromJson(Map<String, dynamic> json) {
-    final List<dynamic> contentsList = json['contents'] as List<dynamic>? ?? [];
-    final contents =
-        contentsList
-            .map(
-              (content) =>
-                  ResourceContentInfo.fromJson(content as Map<String, dynamic>),
-            )
-            .toList();
+    final rawResultType = json['resultType'];
+    if (rawResultType != null && rawResultType != 'complete') {
+      throw const FormatException('resource_read_result_not_complete');
+    }
+    final rawContents = json['contents'];
+    if (rawContents != null && rawContents is! List) {
+      throw const FormatException('resource_read_contents_invalid');
+    }
+    final contentsList = rawContents as List<dynamic>? ?? const <dynamic>[];
+    final rawTtl = json['ttlMs'];
+    if (rawTtl != null && (rawTtl is! int || rawTtl < 0)) {
+      throw const FormatException('resource_read_ttl_invalid');
+    }
+    final rawCacheScope = json['cacheScope'];
+    if (rawCacheScope != null &&
+        rawCacheScope != 'public' &&
+        rawCacheScope != 'private') {
+      throw const FormatException('resource_read_cache_scope_invalid');
+    }
+    final contents = contentsList
+        .map(
+          (content) =>
+              ResourceContentInfo.fromJson(content as Map<String, dynamic>),
+        )
+        .toList(growable: false);
 
-    return ReadResourceResult(contents: contents);
+    return ReadResourceResult(
+      contents: List<ResourceContentInfo>.unmodifiable(contents),
+      resultType: rawResultType as String?,
+      ttlMs: rawTtl as int?,
+      cacheScope: rawCacheScope as String?,
+    );
   }
 }
 

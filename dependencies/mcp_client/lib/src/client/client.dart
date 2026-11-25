@@ -47,6 +47,10 @@ class Client {
   /// Stream controller for error events
   final _errorStreamController = StreamController<McpError>.broadcast();
 
+  /// Additive stream for resource catalogue changes. This does not replace the
+  /// legacy single onResourcesListChanged callback.
+  final _resourcesListChangedController = StreamController<void>.broadcast();
+
   /// Request identifier counter
   int _requestId = 1;
 
@@ -103,6 +107,10 @@ class Client {
 
   /// Stream of error events
   Stream<McpError> get onError => _errorStreamController.stream;
+
+  /// Stream of resource catalogue changes for multiple independent consumers.
+  Stream<void> get onResourcesListChangedStream =>
+      _resourcesListChangedController.stream;
 
   /// Creates a new MCP client with the specified parameters
   Client({
@@ -1013,6 +1021,7 @@ class Client {
     _connectStreamController.close();
     _disconnectStreamController.close();
     _errorStreamController.close();
+    _resourcesListChangedController.close();
   }
 
   /// Handle transport disconnection
@@ -1143,6 +1152,11 @@ class Client {
   void _handleNotification(JsonRpcMessage notification) {
     final method = notification.method;
     final params = notification.params ?? {};
+
+    if (method == McpProtocol.methodResourceListChanged &&
+        !_resourcesListChangedController.isClosed) {
+      _resourcesListChangedController.add(null);
+    }
 
     final handler = _notificationHandlers[method];
     if (handler != null) {
