@@ -175,6 +175,92 @@ void main() {
     }
   });
 
+  test('rejects oversized chunked JSON responses before decoding', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final serving = _serveOversizedStatelessResponse(server, useSse: false);
+    final transport = await StreamableHttpClientTransport.create(
+      baseUrl: 'http://${server.address.host}:${server.port}/mcp',
+      timeout: const Duration(seconds: 3),
+      maxResponseBytes: 1024,
+      terminateOnClose: false,
+    );
+    final client = Client(
+      name: 'bounded-json-client',
+      version: '1.0.0',
+      protocolVersion: McpProtocol.v2026_07_28,
+      requestTimeout: const Duration(seconds: 3),
+    );
+
+    try {
+      await client.connect(transport);
+      await expectLater(
+        client.callTool('oversized-json', const {}),
+        throwsA(
+          isA<McpError>().having(
+            (error) => error.message,
+            'message',
+            contains('response_too_large'),
+          ),
+        ),
+      );
+    } finally {
+      client.dispose();
+      await server.close(force: true);
+      await serving;
+    }
+  });
+
+  test('rejects oversized request-scoped SSE responses without resuming', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final methods = <String>[];
+    final serving = _serveOversizedStatelessResponse(
+      server,
+      useSse: true,
+      methods: methods,
+    );
+    final transport = await StreamableHttpClientTransport.create(
+      baseUrl: 'http://${server.address.host}:${server.port}/mcp',
+      timeout: const Duration(seconds: 3),
+      maxResponseBytes: 1024,
+      terminateOnClose: false,
+    );
+    final client = Client(
+      name: 'bounded-sse-client',
+      version: '1.0.0',
+      protocolVersion: McpProtocol.v2026_07_28,
+      requestTimeout: const Duration(seconds: 3),
+    );
+
+    try {
+      await client.connect(transport);
+      await expectLater(
+        client.callTool('oversized-sse', const {}),
+        throwsA(
+          isA<McpError>().having(
+            (error) => error.message,
+            'message',
+            contains('response_too_large'),
+          ),
+        ),
+      );
+      expect(methods, ['server/discover', 'tools/call']);
+    } finally {
+      client.dispose();
+      await server.close(force: true);
+      await serving;
+    }
+  });
+
+  test('rejects invalid response byte limits', () async {
+    await expectLater(
+      StreamableHttpClientTransport.create(
+        baseUrl: 'http://127.0.0.1:1/mcp',
+        maxResponseBytes: 0,
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test('follows 307 redirect for streamable HTTP POST', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final requests = <String>[];
@@ -525,6 +611,64 @@ void main() {
       expect(initializeCount, 2);
     },
   );
+}
+
+Future<void> _serveOversizedStatelessResponse(
+  HttpServer server, {
+  required bool useSse,
+  List<String>? methods,
+}) async {
+  await for (final request in server) {
+    final message = await _readMessage(request);
+    final method = message['method'] as String;
+    methods?.add(method);
+    if (method == McpProtocol.methodServerDiscover) {
+      _writeJson(request.response, {
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'id': message['id'],
+        'result': {
+          'resultType': 'complete',
+          'supportedVersions': [McpProtocol.v2026_07_28],
+          'capabilities': {'tools': {}, 'resources': {}},
+          '_meta': {
+            McpProtocol.metaServerInfo: {
+              'name': 'oversized-response-test',
+              'version': '1.0.0',
+            },
+          },
+          'ttlMs': 60000,
+          'cacheScope': 'private',
+        },
+      });
+      await request.response.close();
+      continue;
+    }
+
+    final payload = jsonEncode({
+      'jsonrpc': McpProtocol.jsonRpcVersion,
+      'id': message['id'],
+      'result': {
+        'content': [
+          {'type': 'text', 'text': List<String>.filled(4096, 'x').join()},
+        ],
+        'isError': false,
+      },
+    });
+    request.response.bufferOutput = false;
+    if (useSse) {
+      request.response.headers.contentType = ContentType('text', 'event-stream');
+      final event = 'event: message\\ndata: $payload\\n\\n';
+      request.response.write(event.substring(0, 1536));
+      await request.response.flush();
+      request.response.write(event.substring(1536));
+    } else {
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(payload.substring(0, 1536));
+      await request.response.flush();
+      request.response.write(payload.substring(1536));
+    }
+    await request.response.close();
+  }
 }
 
 Future<Client> _connectClient(

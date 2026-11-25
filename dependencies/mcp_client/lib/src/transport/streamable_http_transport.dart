@@ -28,6 +28,9 @@ class StreamableHttpTransportConfig {
   final int maxConcurrentRequests;
   final bool useHttp2;
   final bool terminateOnClose;
+  final int maxResponseBytes;
+
+  static const int defaultMaxResponseBytes = 24 * 1024 * 1024;
 
   const StreamableHttpTransportConfig({
     required this.baseUrl,
@@ -38,6 +41,7 @@ class StreamableHttpTransportConfig {
     this.maxConcurrentRequests = 10,
     this.useHttp2 = true,
     this.terminateOnClose = true,
+    this.maxResponseBytes = defaultMaxResponseBytes,
   });
 }
 
@@ -97,7 +101,11 @@ class StreamableHttpClientTransport implements ClientTransport {
     bool? useHttp2,
     http.Client? httpClient,
     bool terminateOnClose = true,
+    int maxResponseBytes = StreamableHttpTransportConfig.defaultMaxResponseBytes,
   }) async {
+    if (maxResponseBytes < 1) {
+      throw ArgumentError.value(maxResponseBytes, 'maxResponseBytes', 'must be positive');
+    }
     final config = StreamableHttpTransportConfig(
       baseUrl: baseUrl,
       oauthConfig: oauthConfig,
@@ -106,6 +114,7 @@ class StreamableHttpClientTransport implements ClientTransport {
       maxConcurrentRequests: maxConcurrentRequests ?? 10,
       useHttp2: useHttp2 ?? true,
       terminateOnClose: terminateOnClose,
+      maxResponseBytes: maxResponseBytes,
     );
     final client = httpClient ?? http.Client();
     final oauthClient =
@@ -231,6 +240,7 @@ class StreamableHttpClientTransport implements ClientTransport {
       }
 
       final response = await _sendWithRedirects(request);
+      await _ensureResponseWithinLimit(response);
       if (!_statelessMode) {
         _captureSessionId(response.headers['mcp-session-id']);
       }
@@ -249,7 +259,7 @@ class StreamableHttpClientTransport implements ClientTransport {
 
       final contentType = response.headers['content-type']?.toLowerCase() ?? '';
       if (contentType.startsWith('application/json')) {
-        final body = await response.stream.bytesToString();
+        final body = await _readBoundedResponseText(response.stream);
         if (body.isNotEmpty) _dispatchJson(body, task);
         return;
       }
@@ -259,7 +269,8 @@ class StreamableHttpClientTransport implements ClientTransport {
         bool received;
         try {
           received = await _consumeSse(response.stream, task);
-        } catch (_) {
+        } catch (error) {
+          if (error is McpResponseTooLargeException) rethrow;
           if (_canResumePost(task)) {
             await _resumePost(task);
             return;
@@ -282,7 +293,7 @@ class StreamableHttpClientTransport implements ClientTransport {
         return;
       }
 
-      final body = await response.stream.bytesToString();
+      final body = await _readBoundedResponseText(response.stream);
       if (body.isNotEmpty) {
         try {
           _dispatchJson(body, task);
@@ -356,7 +367,15 @@ class StreamableHttpClientTransport implements ClientTransport {
     _PostRequestTask task,
   ) async {
     final parser = SseParser();
-    await for (final chunk in byteStream.transform(utf8.decoder)) {
+    var receivedBytes = 0;
+    final boundedByteStream = byteStream.map((chunk) {
+      receivedBytes += chunk.length;
+      if (receivedBytes > config.maxResponseBytes) {
+        throw McpResponseTooLargeException(config.maxResponseBytes);
+      }
+      return chunk;
+    });
+    await for (final chunk in boundedByteStream.transform(utf8.decoder)) {
       for (final event in parser.add(chunk)) {
         if (_applyPostEvent(event, task)) return true;
       }
@@ -581,12 +600,35 @@ class StreamableHttpClientTransport implements ClientTransport {
   Future<void> _drainResponse(http.StreamedResponse response) =>
       response.stream.drain<void>().timeout(_requestTimeout);
 
+  Future<void> _ensureResponseWithinLimit(
+    http.StreamedResponse response,
+  ) async {
+    final declaredLength = response.contentLength;
+    if (declaredLength != null && declaredLength > config.maxResponseBytes) {
+      await response.stream.listen((_) {}).cancel();
+      throw McpResponseTooLargeException(config.maxResponseBytes);
+    }
+  }
+
+  Future<String> _readBoundedResponseText(Stream<List<int>> stream) async {
+    final bytes = BytesBuilder(copy: false);
+    var receivedBytes = 0;
+    await for (final chunk in stream) {
+      if (chunk.length > config.maxResponseBytes - receivedBytes) {
+        throw McpResponseTooLargeException(config.maxResponseBytes);
+      }
+      receivedBytes += chunk.length;
+      bytes.add(chunk);
+    }
+    return utf8.decode(bytes.takeBytes());
+  }
+
   Future<McpHttpError> _httpError(
     http.StreamedResponse response, {
     required bool sessionIdPresent,
     required bool canRetryRequest,
   }) async {
-    final body = await response.stream.bytesToString();
+    final body = await _readBoundedResponseText(response.stream);
     return McpHttpError(
       statusCode: response.statusCode,
       message:
@@ -715,6 +757,17 @@ class StreamableHttpClientTransport implements ClientTransport {
     _tokenManager?.setToken(token);
   }
 }
+/// Raised when an HTTP response exceeds the configured streaming byte cap.
+final class McpResponseTooLargeException implements Exception {
+  const McpResponseTooLargeException(this.maxBytes);
+
+  final int maxBytes;
+
+  @override
+  String toString() =>
+      'MCP HTTP response exceeded $maxBytes bytes (response_too_large)';
+}
+
 final class _PostRequestTask {
   final int? requestId;
   final Completer<void> _cancelled = Completer<void>();
