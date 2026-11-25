@@ -343,6 +343,7 @@ class Client {
     final selected = McpProtocol.negotiateVersion(
       <String>[_statelessProtocolVersion!],
       supported.cast<String>(),
+      additionalVersions: <String>[_statelessProtocolVersion!],
     );
     if (selected == null) {
       throw McpError('Server does not support a protocol version compatible with this client');

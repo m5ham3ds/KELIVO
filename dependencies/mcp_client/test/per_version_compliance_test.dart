@@ -12,10 +12,25 @@ import 'mock_transport.dart';
 
 void main() {
   group('Protocol version registry', () {
-    test('2026-07-28 is opt-in and does not change legacy default', () {
+    test('2026-07-28 remains explicit and negotiates only when opted in', () {
       expect(McpProtocol.v2026_07_28, '2026-07-28');
       expect(McpProtocol.defaultVersion, McpProtocol.v2025_11_25);
       expect(McpProtocol.supportedVersions, isNot(contains(McpProtocol.v2026_07_28)));
+      expect(
+        McpProtocol.negotiateVersion(
+          [McpProtocol.v2026_07_28],
+          [McpProtocol.v2026_07_28],
+        ),
+        isNull,
+      );
+      expect(
+        McpProtocol.negotiateVersion(
+          [McpProtocol.v2026_07_28],
+          [McpProtocol.v2026_07_28],
+          additionalVersions: [McpProtocol.v2026_07_28],
+        ),
+        McpProtocol.v2026_07_28,
+      );
     });
 
     test('all four MCP revisions are listed (newest first)', () {
