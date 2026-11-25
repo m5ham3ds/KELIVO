@@ -57,6 +57,9 @@ class McpProtocol {
   static const String metaClientCapabilities = "io.modelcontextprotocol/clientCapabilities";
   static const String metaServerInfo = "io.modelcontextprotocol/serverInfo";
   static const String skillsExtensionId = "io.modelcontextprotocol/skills";
+  static const String methodListSkills = "skills/list";
+  static const String methodGetSkill = "skills/get";
+  static const String methodReadResourceDirectory = "resources/directory/read";
 
   /// JSON-RPC version
   static const String jsonRpcVersion = "2.0";

@@ -12,6 +12,7 @@ import 'src/models/models.dart';
 import 'src/auth/oauth.dart';
 
 export 'src/models/models.dart';
+export 'src/extensions/skills_extension.dart';
 export 'src/client/client.dart';
 export 'src/transport/transport.dart';
 export 'src/transport/streamable_http_transport.dart';

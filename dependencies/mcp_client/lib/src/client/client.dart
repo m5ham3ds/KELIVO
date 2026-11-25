@@ -496,6 +496,37 @@ class Client {
     return toolsList.map((tool) => Tool.fromJson(tool)).toList();
   }
 
+  /// Send a request belonging to a server-advertised MCP extension.
+  ///
+  /// Extension requests are available only after successful 2026-07-28
+  /// stateless discovery and only when the server advertised [extensionId].
+  Future<Map<String, dynamic>> requestExtension({
+    required String extensionId,
+    required String method,
+    Map<String, dynamic> params = const <String, dynamic>{},
+  }) async {
+    if (!_initialized) {
+      throw McpError('Client is not initialized');
+    }
+    if (_negotiatedProtocolVersion != McpProtocol.v2026_07_28) {
+      throw McpError(
+        'MCP extension requests require protocol 2026-07-28 discovery',
+      );
+    }
+    if (extensionId.trim().isEmpty || method.trim().isEmpty) {
+      throw ArgumentError('extensionId and method must not be empty');
+    }
+    if (_serverCapabilities?.extensions.containsKey(extensionId) != true) {
+      throw McpError('Server did not advertise extension: $extensionId');
+    }
+
+    final response = await _sendRequest(method, params);
+    if (response is! Map) {
+      throw McpError('Extension method returned a non-object result: $method');
+    }
+    return Map<String, dynamic>.from(response);
+  }
+
   /// Call a tool on the server
   Future<CallToolResult> callTool(
     String name,

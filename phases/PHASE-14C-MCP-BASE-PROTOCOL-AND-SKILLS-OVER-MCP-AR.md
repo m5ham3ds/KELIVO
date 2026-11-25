@@ -1,8 +1,8 @@
 # PHASE 14C — MCP Base Protocol Compatibility & Skills over MCP
 
-**الحالة:** 14C.1 initial slice passed CI #175; post-CI protocol hardening is in progress. Remote Skills stay disabled until the Skills adapter, integrity checks, approval binding, and security gates pass.
+**الحالة:** 14C.1 hardening اجتاز CI #177؛ 14C.2 typed Skills adapter قيد التنفيذ. محتوى Remote Skills يظل غير مقروء وغير مفعّل حتى اكتمال integrity verification وموافقة المستخدم لكل Skill.
 **تاريخ البدء:** 25 نوفمبر 2026.
-**الفرع:** `main` — first runtime slice `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`; hardening follow-up is recorded below.
+**الفرع:** `main` — 14C.1 hardening baseline `2ea38c430dd67e5675aaee83488b8ff84fc3b2d3`; verified by CI #177.
 **المرحلة السابقة:** Phase 14B مقبولة في CI #164.
 **المبدأ:** توسيع عميل MCP المحلي تدريجياً مع إبقاء النقل والإصدارات القديمة؛ لا ترقية قسرية ولا تشغيل خادم أو Skill تلقائياً.
 
@@ -29,7 +29,7 @@
 1. يرسل `Client.initialize()` قيمة `McpProtocol.defaultVersion` وحدها؛ لا يرسل قائمة versions ولا يفاوض قائمة capabilities المتقاطعة.
 2. إذا أعاد الخادم revision مختلفاً، يستدعي العميل تحذيراً فقط؛ لا يرفض revision غير معروف ولا يضمن أن الإصدار الذي استقر عليه هو تقاطع مدعوم.
 3. resource list/read APIs الحالية لا تعرض cursor pagination؛ `listResources()` يطلب الصفحة الأولى فقط.
-4. لا توجد نماذج typed أو methods لـ`io.modelcontextprotocol/skills` في عميل MCP الحالي.
+4. يجري الآن إضافة typed DTOs وmethods لـ`io.modelcontextprotocol/skills` في 14C.2.
 5. تمثيل server capabilities الحالي يغطي أدوات وموارد وprompts وغيرها، لكنه لا يحتفظ بصورة عامة خام للـcapabilities/experimental extensions بشكل يكفي وحده لاكتشاف امتداد Skills بسلامة.
 6. تحتاج عملية remote Skill إلى manifest/resource model مستقل؛ لا يجوز استخدام Skill local registry أو URI وحده كهوية.
 
@@ -43,7 +43,21 @@
 
 المراجع في القسم 7 هي مصدر الحقيقة؛ أما SEP التاريخي فيوثق التصميم وليس بديلاً عن النص المستقر الحالي.
 
-## 2. CI #175 — نتيجة التنفيذ الأولي
+## 2. CI #177 — إغلاق 14C.1 hardening
+
+اجتاز الالتزام `2ea38c430dd67e5675aaee83488b8ff84fc3b2d3` جميع وظائف CI #177، وكان رأس `main` مطابقاً للالتزام المختبَر. نجحت Flutter Analyze، Environment lifecycle، Phase 14A/14B/13Q، Gemini/OAuth، اختبارات الحزم المحلية (140)، Android JVM/Robolectric (325)، محاكي Android (بما فيه Phase 13P)، وبناء ورفع ARM64.
+
+APK release: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`; الحجم `41,894,427` bytes؛ ABI `arm64-v8a` فقط؛ SHA-256 `5ad3659620bae5d85c660144a1ca52ba4518dac32746f5674f54929bd30a6641`. Artifact ID: `15029793958`. Report: `15029442954`; raw logs: `15029349291`.
+
+**حدود workflow:** لا يشغّل Flutter root unit/widget suite كاملة ولا مجموعات Phase 13E–13O المركزة. التقرير سجل 117 تطابقاً لتحذيرات وإهمالات deprecated، دون فشل في التحليل أو البناء.
+
+### نتيجة تدقيق ما بعد CI
+- أول stateless HTTP POST يحمل protocol/method metadata قبل `server/discover`.
+- SSE المرتبط بالطلب مدعوم دون GET resumption/session.
+- `connectWithRetry` يستخدم اكتشاف stateless.
+- `ServerCapabilities.extensions` يحفظ امتدادات الخادم.
+- اختبارات HTTP integration للـheaders/SSE اجتازت الحزم المحلية.
+- MRTR (`input_required`/إعادة الطلب) و`subscriptions/listen` لم يكتمل دعمهما بعد؛ لا يُعلن full 2026-07-28 base protocol compliance بعد.
 
 CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 160 اختباراً في الحزم المحلية و440 اختبار Android JVM/Robolectric ونجاح محاكي Android وبناء ARM64. تم التحقق من APK المستخرج نفسه: `41,894,251` bytes، ABI `arm64-v8a` فقط، SHA-256 `a448f321903fa4bd871e96862f6ec6e18e480a85e6daf5bc43e72fd96a299f16`.
 
@@ -92,13 +106,14 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - لا اتصال ولا read ولا تفعيل افتراضي عند import/inspect؛ كل عملية شبكة تحتاج consent flow صريح.
 
 ## 4. حدود الحجم والوقت
-القيم النهائية يجب أن تتطابق أو تكون أشد من مواصفة الامتداد، وتوضع مركزياً كسياسة قابلة للاختبار:
-- عدد صفحات list: 32 كحد افتراضي أولي.
-- عدد Skills: 512 كحد أعلى لكل مصدر.
-- مجموع محتوى Skill: 16 MiB كحد أعلى، مع حد لكل مورد أصغر.
-- مهلة كل request: مرتبطة بمهلة MCP، مع حد تراكمي لعملية discovery.
-- حد redirect/response/body: لا تقبل response بلا سقف.
-- هذه القيم لا تعتمد نهائياً قبل مطابقتها مع مواصفة الامتداد الرسمية عند تنفيذ البروتوكول.
+- عدد صفحات `skills/list`: 32 صفحة كحد محلي افتراضي؛ إذا بقي `nextCursor` بعدها ترجع النتيجة مقطوعة مع cursor الاستكمال. هذا حد سياسة للمضيف وليس حداً تضعه المواصفة للخادم.
+- موارد المهارة الواحدة: 512 مدخلاً كحد أقصى، شاملاً `SKILL.md`.
+- الحجم الكلي لموارد المهارة الواحدة: 16 MiB (16,777,216 bytes)، وهو مجموع `size` لكل موارد manifest.
+- هذان الحدان يخصان **كل Skill على حدة**؛ مواصفة الامتداد لا تحد عدد Skills الذي يمكن للخادم نشره أو عدد عناصر الفهرس الكلي.
+- مهلة كل request مرتبطة بمهلة MCP، مع حد تراكمي لعملية pagination.
+- حد response/body/redirect يجب أن يبقى محدوداً وقابلاً للاختبار؛ لا تُحمّل ملفات Skill خلال list/get.
+- `resources: "dynamic"` مسموح في manifest لكنه بلا digest ثابت، ويظل غير قابل للتحقق بالمحتوى في هذه المرحلة.
+- القيم مأخوذة من Skills extension Beta الحالية وتُراجع عند ترقية المواصفة.
 
 ## 5. خطة التنفيذ المقسمة
 
@@ -111,10 +126,13 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - لا تضف skills methods قبل ثبوت هذه الطبقة.
 
 ### 14C.2 — Skills-over-MCP typed adapter
-- DTOs/schema للامتداد وmethods بعد تثبيت النسخة الرسمية.
-- capability-gated list/get.
-- pagination/partial-list semantics.
-- لا caching دائم حتى اكتمال integrity.
+- `McpSkillEntry` و`McpSkillResource` ونتائج list/get typed، مع تمرير frontmatter الإضافي.
+- لا تُستدعى `skills/list` أو `skills/get` إلا بعد إعلان `io.modelcontextprotocol/skills` داخل capabilities في `server/discover`، ومع `resources` capability والتفاوض على 2026-07-28.
+- `skills/list` يتبع cursor حتى النهاية أو حد 32 صفحة، ويكشف cursor المكرر ويُظهر عند قطع pagination. القائمة الفارغة أو المنتهية لا تثبت عدم وجود مهارة لأن الخادم قد يعرض قائمة جزئية.
+- `skills/get` يقبل URI صريحاً حتى لو لم يظهر في القائمة.
+- هوية السجل المركبة = host-assigned server identity + Skill URI؛ الاسم ليس معرفاً ولا يجوز إسقاط تعارض أسماء بين خادمين أو مع Local Skill.
+- تحقق parsing من frontmatter/URI/manifest؛ 512 resource entries و16 MiB لكل Skill، مع قبول `resources: "dynamic"` بوصفه غير قابل للتحقق.
+- لا `resources/read` ولا تحميل ملفات ولا تفعيل أثناء list/get. لا caching دائم قبل اكتمال integrity في 14C.3.
 
 ### 14C.3 — Resource integrity and lazy fetch
 - manifest validation.
