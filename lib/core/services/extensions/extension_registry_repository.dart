@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../database/extension_entity_store.dart';
 import '../../models/extension_record.dart';
+import '../../models/plugin_component.dart';
 
 /// Persists all installable extension metadata in the existing extension
 /// entity table. This adds no SQLite schema migration and keeps extension
@@ -40,6 +41,46 @@ final class ExtensionRegistryRepository {
   Future<void> upsert(ExtensionRecord record) async {
     record.validate();
     await _store.upsert(storageKind, record.storageId, record.toJson());
+  }
+
+  /// Returns the metadata-only component descriptors owned by one Plugin.
+  /// Descriptors never imply that a component is enabled or executable.
+  Future<List<PluginComponentDescriptor>> componentsForPlugin(
+    String pluginId,
+  ) async {
+    final plugin = await get('plugin', pluginId);
+    if (plugin == null) return const <PluginComponentDescriptor>[];
+    final raw = plugin.metadata['components'];
+    if (raw == null) return const <PluginComponentDescriptor>[];
+    if (raw is! List) {
+      throw const FormatException('plugin_components_invalid');
+    }
+    return List<PluginComponentDescriptor>.unmodifiable([
+      for (final item in raw) PluginComponentDescriptor.fromJson(item),
+    ]);
+  }
+
+  Stream<List<PluginComponentDescriptor>> watchPluginComponents(
+    String pluginId,
+  ) {
+    return watch(kind: 'plugin').asyncMap((plugins) async {
+      ExtensionRecord? plugin;
+      for (final candidate in plugins) {
+        if (candidate.id == pluginId) {
+          plugin = candidate;
+          break;
+        }
+      }
+      if (plugin == null) return const <PluginComponentDescriptor>[];
+      final raw = plugin.metadata['components'];
+      if (raw == null) return const <PluginComponentDescriptor>[];
+      if (raw is! List) {
+        throw const FormatException('plugin_components_invalid');
+      }
+      return List<PluginComponentDescriptor>.unmodifiable([
+        for (final item in raw) PluginComponentDescriptor.fromJson(item),
+      ]);
+    });
   }
 
   Future<ExtensionRecord> transition({

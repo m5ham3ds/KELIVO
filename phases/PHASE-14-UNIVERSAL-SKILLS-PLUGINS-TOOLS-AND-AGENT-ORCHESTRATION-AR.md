@@ -1,6 +1,6 @@
 # PHASE 14 — Universal Skills, Plugins, Tools & Agent Orchestration
 
-**الحالة:** الخطة موثقة بعد فحص المستودع ومراجع OSS؛ لا تعني قبول Phase 13 أو دمج أي مشروع خارجي.
+**الحالة — 25 نوفمبر 2026:** Phase 14A مقبولة بعد نجاح CI #162 على main. بدأ تنفيذ Phase 14B (Plugin Manifest & Component Registry) في المصدر، لكن قبولها ينتظر CI الخاص بالتغييرات الجديدة ومراجعة نتائجه. لا تعني هذه الحالة قبول Phase 13 أو تشغيل مكونات Plugin.
 **خط الأساس:** 9abb9dcc40881b005902265fdbd86d93248cb906 — KELIVO 1.3.4+84، Flutter 3.47.6، Android ARM64.
 **المبدأ:** تطوير الأنظمة القائمة وإضافة adapters مستقلة؛ لا استبدال النواة ولا إدخال Runtime إلزامي غير مناسب لـAndroid.
 
@@ -192,14 +192,20 @@
 
 ## 5. خطة التنفيذ في أول تغيير برمجي
 
-بعد تسجيل هذه الخطة، يبدأ التطوير بـ **14A فقط**:
-1. إضافة metadata-only read path مع حفظ توافق frontmatter والـdigest.
-2. تعديل composition حتى لا يقرأ أجسام كل المرشحين؛ يقرأ التعليمات الكاملة للـselected IDs فقط.
-3. فحص budget بعد التحميل الكامل ومنع الحقن إذا تجاوز.
-4. إضافة اختبار يثبت lazy-read count، وtest يختار Skill خارج أول 20 عبر extension_search.
-5. التأكد أن جميع selection modes/dependency DAG/permissions/readiness/digest checks تحافظ على معناها.
-6. CI focused regression + Analyze + ARM64 build.
-لا يبدأ 14B قبل نجاح 14A ومراجعة نتيجة CI.
+### قبول 14A وبدء 14B
+
+اجتازت Phase 14A بوابة CI #162 في 25 نوفمبر 2026. الاختبارات المستهدفة Progressive Skill discovery، وFlutter Analyze، والحزم المحلية، واختبارات Android JVM/Robolectric ومحاكي 13P وبناء ARM64 كلها اكتملت بنجاح. سجل التشغيل التفصيلي في `phases/README.md`.
+
+بدأت Phase 14B بعد إغلاق بوابة 14A، والنطاق الحالي:
+1. `PluginManifest` و`PluginComponentDescriptor` بإصدار schema وتحقق من حقول manifest والمسارات.
+2. قراءة Claude Plugin directory وZIP؛ حفظ unknown/unsupported fields كبيانات وتحذيرات بدلاً من إسقاطها.
+3. رفض المسارات المطلقة وtraversal والروابط الرمزية والملفات الخاصة، مع حدود لحجم/عدد الملفات.
+4. استخدام `ExtensionRegistryRepository` الحالي وسجل Parent Plugin واحد يحتوي descriptors؛ لا قاعدة بيانات أو سجل موازٍ للـSkills.
+5. staging ثم إعادة فحص SHA-256 قبل cutover، مع backup/rollback عند فشل تحديث السجل أو الاستبدال.
+6. عرض Plugins ومكوناتها من واجهة Workspace؛ حالات المكونات metadata-only.
+7. اختبارات لملفات fixture، والمكونات المكررة، والحقول غير المدعومة، والمسارات الخبيثة/المفقودة، وZIP، وrollback، وعدم تشغيل Scripts.
+
+**حدود 14B:** لا تنفيذ Commands أو Hooks أو Scripts ولا تشغيل MCP server عند الفحص أو الاستيراد أو التحديث. لا تعتبر المرحلة مقبولة قبل نجاح CI الجديد على التغييرات وفحص Android ARM64.
 
 ## 6. تعريف Done لكل مرحلة
 
@@ -220,3 +226,5 @@
 - MCP Skills over MCP لا يبدأ قبل base protocol compatibility.
 - Plugin manifest parsing يأتي قبل تنفيذ hooks/commands/agents.
 - كل مراحل 14B–14H تعتمد على نتائج بوابات المراحل السابقة؛ لا تنفذ بالتوازي إذا كان بينها dependency.
+- 2026-11-25: اجتازت Phase 14A بوابة CI #162 بنجاح على commit `14c7938617ccaab7b38542caebb891f292c7ef18`; أصبح الانتقال إلى 14B مسموحاً بعد مراجعة run/jobs/steps وAPK artifact وSHA-256.
+- 2026-11-25: بدأ تنفيذ Phase 14B فوق ExtensionRegistry الحالي. ملفات التنفيذ والاختبارات الأولية مسجلة في `PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md`; القبول النهائي ينتظر CI بعد commit التنفيذ.

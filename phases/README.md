@@ -2,44 +2,44 @@
 
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
-## أحدث بناء ناجح — CI #154
+## أحدث بناء ناجح — CI #162
 
-[GitHub Actions #150](https://github.com/m5ham3ds/KELIVO/actions/runs/45446237776) اكتمل بنجاح في 24 نوفمبر 2026 على commit \`b4dcb3430743eeee6e6022a797bcc5e6a899bf5b\`. اجتازت بوابات التحليل والاختبارات والبناء كاملة.
+[GitHub Actions #162](https://github.com/m5ham3ds/KELIVO/actions/runs/45508226377) اكتمل بنجاح في 25 نوفمبر 2026 على commit `14c7938617ccaab7b38542caebb891f292c7ef18`، المطابق لرأس فرع `main`.
 
-- Android-only source audit وFlutter 3.47.6 وJava 21 وGradle وNDK 28.2.13676358 وCMake: نجاح.
-- Flutter dependencies وLinux native test dependencies وArabic localization parity وflutter gen-l10n: نجاح.
-- Flutter Analyze: نجاح، بلا analyzer errors/warnings.
+- Android-only source audit وFlutter 3.47.6 وJava/Gradle/NDK/CMake: نجاح.
+- Arabic localization parity و`flutter gen-l10n`: نجاح.
+- Flutter Analyze: نجاح.
 - Environment installation lifecycle regression tests: نجاح.
-- Phase 14A progressive Skill discovery tests: نجاح.
-- Gemini schema وGoogle/Hugging Face OAuth tests: نجاح.
-- Phase 13Q Skill MCP discovery/ownership/stdio connection/tools list/tools call/approval integration tests: نجاح.
+- Phase 14A progressive Skill discovery tests: نجاح؛ وبذلك اجتازت 14A بوابة CI.
+- Gemini schema وGoogle/Hugging Face OAuth regression tests: نجاح.
+- Phase 13Q Skill MCP configuration discovery tests: نجاح.
 - vendored local package test suites: نجاح.
 - Android JVM/Robolectric: نجاح.
 - Phase 13P Android Emulator Skill lifecycle E2E: نجاح.
-- Android ARM64 Release APK، ABI verification، SHA-256 ورفع Artifact: نجاح.
+- Android ARM64 Release build، ABI verification، SHA-256 ورفع Artifact: نجاح.
 - job جمع السجلات وتوليد تقرير Markdown: نجاح.
 
 **APK**
-- الاسم: \`Kelivo-Android-arm64-v8a-1.3.4+84-release.apk\`.
-- الحجم: 40,654,079 bytes (artifact upload).
-- ABI المتحقق: \`arm64-v8a\` فقط.
-- SHA-256 للـAPK: \`920d06177a307f2bdcda48d8c3f845231ce6b9903c4dcbad1459d2b993b548d1\`.
-- Artifact ID: \`14948111971\`.
-- [تنزيل APK artifact من GitHub Actions](https://github.com/m5ham3ds/KELIVO/actions/runs/45459799636/artifacts/14954456167).
-- [تقرير البناء Markdown — Artifact 14953991360](https://github.com/m5ham3ds/KELIVO/actions/runs/45459799636/artifacts/14953991360).
-- SHA-256 لحزمة Artifact ZIP: \`b8e5da79c65eba84a35b75aba171777b2b0c7a2ffdbe2fb3c1f354764f0d872d\`.
+- الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
+- الحجم الفعلي للـAPK: 41,849,191 bytes.
+- ABI المتحقق: `arm64-v8a` فقط.
+- SHA-256 للـAPK: `cc9767860e9aa927cf6ab84d9be085335d78ef4bca00b83ecaa3522a76e680a2`.
+- Artifact ID: `14975842089`.
+- [تنزيل APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45508226377/artifacts/14975842089).
+- [تقرير البناء Markdown — Artifact 14975990946](https://github.com/m5ham3ds/KELIVO/actions/runs/45508226377/artifacts/14975990946).
+- [سجلات التشخيص الخام — Artifact 14975094936](https://github.com/m5ham3ds/KELIVO/actions/runs/45508226377/artifacts/14975094936).
 
-**قيد التوقيع:** غياب \`android/key.properties\` يجعل CI يستخدم debug key. هذا APK قابل للتثبيت والاختبار، وليس ادعاء توقيع نشر عام لمتجر التطبيقات.
+**قيد التوقيع:** لا يعني نجاح بناء Release أن APK موقّع بمفتاح نشر متجر؛ سجل CI يستخدم debug key عند غياب `android/key.properties`.
 
-## حالة Phase 13 بعد CI #154
+## حالة Phase 13 بعد CI #162
 
 - **13A–13D:** توجد checkpoints مصدرية واختبارات تاريخية؛ لا تحول نجاح البناء الحالي وحده إلى قبول رجعي لكل هذه المراحل.
 - **13B:** ما زالت غير مكتملة حتى إغلاق تكامل MCP المملوك للمهارة وبوابات 13Q ذات الصلة.
-- **13P:** Android Emulator E2E اجتازت في CI #150. هذا ليس اختبار Force Stop على هاتف المستخدم ولا إثبات عزل kernel.
+- **13P:** Android Emulator E2E اجتازت في CI #162. هذا ليس اختبار Force Stop على هاتف المستخدم ولا إثبات عزل kernel.
 - **13Q.1–13Q.3:** اجتازت CI #150؛ شملت الملكية والتحقق من digest والموافقة على اتصال stdio ونسخ Skill إلى مجلد جلسة خاص واكتشاف الأدوات.
 - **13Q.4:** اجتازت CI #154؛ شملت tools/list وtools/call، namespace، موافقة منفصلة، فحص schema وحدود البيانات وتنقيح الأسرار وسجل التدقيق. لا يدعي اختبار الخدمة اكتمال نافذة الموافقة المرئية في واجهة المحادثة.
-- **13Q.5:** أضيف مستمع دورة الحياة لقطع الاتصال وحذف نسخة الجلسة عند التعطيل أو الحذف أو تغير المصدر؛ ينتظر CI #155 أو التشغيل التالي.
-- **13R:** بوابات Environment وRobolectric وPhase13P Emulator اجتازت؛ اختبار الهاتف الفعلي عند مغادرة الصفحة وإزالة التطبيق من Recents وStop بعد commit point ما زال مطلوباً.
+- **13Q.5:** أضيف مستمع دورة الحياة لقطع الاتصال وحذف نسخة الجلسة عند التعطيل أو الحذف أو تغير المصدر، لكن CI #162 لم يتضمن خطوة قبول مستقلة لهذه الحالات؛ تظل بوابة 13Q.5 معلقة حتى تشغيل الاختبارات المخصصة. نافذة الموافقة المرئية في واجهة المحادثة غير مثبتة كذلك.
+- **13R:** اختبارات Environment lifecycle وRobolectric وPhase13P Emulator اجتازت في CI #162؛ اختبار الهاتف الفعلي عند مغادرة الصفحة وإزالة التطبيق من Recents وStop بعد commit point ما زال مطلوباً.
 - **PRoot:** Linux userland فقط، RootFS نشط مشترك وقابل للكتابة، والشبكة غير مقيدة بالكامل. لا تصفه كـkernel sandbox.
 - **HTTP/SSE:** ما زال مرفوضاً لخوادم Skills حتى اكتمال DNS pinning وحماية SSRF وموافقة المضيف.
 
@@ -49,9 +49,14 @@
 
 - [Phase 14 — تقرير تدقيق المستودع ومصفوفة الاستفادة من OSS](PHASE-14-REPOSITORY-AUDIT-AND-OSS-REUSE-MATRIX-AR.md)
 - [Phase 14 — الخطة المعمارية والتنفيذية والقيود](PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md)
+- [Phase 14B — تقرير تنفيذ Plugin Manifest & Component Registry](PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md)
 - [Phase 14 — فهرس كل مسارات Git عند baseline](PHASE-14-REPOSITORY-TREE-MANIFEST-2026-11-24.json)
 
-**المرحلة التنفيذية الأولى المقترحة:** 14A Progressive Skill Discovery & Lazy Instruction Loading. سبب الاختيار أن skills_prompt.dart يعرض أول 20 Skill افتراضياً، وskill_composition_service.dart يقرأ أجسام كل المرشحين حتى 64 قبل تحديد المختار، مع أن planner scoring يعتمد على metadata. المطلوب تحسين الموجود دون إنشاء مستورد أو منفذ مهارات آخر.
+**حالة التنفيذ — 25 نوفمبر 2026:**
+- **14A مقبولة:** اجتازت اختبارات Progressive Skill discovery في CI #162، إلى جانب Flutter Analyze واختبارات البناء Android ARM64 الكاملة.
+- **14B قيد التنفيذ:** أضيفت نماذج Plugin manifest/component، فحص directory وZIP للقراءة فقط، سجل Parent Plugin ضمن ExtensionRegistry، حفظ staged مع rollback، وصفحات عرض المكونات وإدارتها. اختبار CI لهذه التغييرات ما زال مطلوباً قبل قبول 14B.
+- لا تشغل هذه المرحلة Commands أو Hooks أو Scripts أو MCP servers؛ جميع descriptors تبقى metadata-only، والخدمات غير المدعومة تظهر بتحذير.
+- اختبارات الهاتف الفعلي ليست مستنتجة من نجاح محاكي Android.
 
 ## تشخيص فشل CI السابق
 
@@ -98,10 +103,11 @@
 | 07–12 | مواصفات وتقارير Phases 07–12 | تخضع لأدلة اختبارات المحرك/المزود والجودة والهاتف |
 | 13A–13D | تقارير PHASE-13A/B/C/D-IMPLEMENTATION-REPORT.md | checkpoints موجودة؛ بوابات القبول بحسب تقاريرها، و13B مفتوحة حتى MCP |
 | 13E–13O | مواصفات وتقارير Phases 13E–13O | لا تعمم قبول CI على runners التاريخية غير المشغلة |
-| 13P | PHASE-13P-END-TO-END-SKILL-TESTING-AR.md | Emulator E2E اجتازت CI #139؛ الهاتف الحقيقي غير مفحوص هنا |
-| 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | 13Q.1 فقط مقبولة؛ 13Q.2–13Q.5 مفتوحة |
-| 13R | PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md | CI #139 نجح؛ اختبار الهاتف مطلوب |
-| 14 | PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md | خطة موثقة؛ يبدأ التنفيذ بـ14A بعد هذا التوثيق |
+| 13P | PHASE-13P-END-TO-END-SKILL-TESTING-AR.md | Emulator E2E اجتازت CI #162؛ الهاتف الحقيقي غير مفحوص هنا |
+| 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | 13Q.1–13Q.4 backend مقبولة؛ 13Q.5 واختبار موافقة الواجهة المرئية ما زالا مفتوحين |
+| 13R | PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md | اختبارات lifecycle/Robolectric في CI #162 نجحت؛ اختبار الهاتف مطلوب |
+| 14A | PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md | مقبولة في CI #162 |
+| 14B | PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md | تنفيذ مبدئي قيد CI؛ القبول معلّق حتى نجاح البناء والاختبارات |
 | Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | Orchestrator والإنتاج المتزامن العام غير منفذين |
 
 ## أرشيف CI

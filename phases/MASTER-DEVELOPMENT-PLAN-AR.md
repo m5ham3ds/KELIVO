@@ -3,7 +3,7 @@
 
 **الحالة:** الخطة المعتمدة لمسار التطوير الحالي. اجتازت Phase 2 بوابات Android CI وبناء Release وفق تقرير التشغيل `42424318897`. Phase 3 وPhase 4 لديهما تغييرات مصدر وتقارير تنفيذ، لكنهما ما زالتا تنتظران اعتماد GitHub Actions ومعايير القبول المتبقية. بناءً على طلب المستخدم بالاستمرار مباشرة، بدأ تنفيذ Phase 7 ثم Phase 8 ثم Phase 9 وPhase 10 ثم Phase 11 وPhase 12 بتوجيه المستخدم، مع إبقاء بوابات قبول المراحل السابقة معلقة حتى تحققها الفعلي.
 
-**تحديث الحالة — 23 نوفمبر 2026:**
+**سجل تاريخي — 23 نوفمبر 2026 (قبل CI #162):**
 - آخر بناء كامل ناجح قبل إصلاح دورة تثبيت البيئة: [CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038)، commit 85e4653674916ecc65e3d30daa417e29547245a6. اجتاز Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وAndroid JVM/Robolectric وPhase 13P Android Emulator E2E وبناء ARM64 ورفع Artifact.
 - Android JVM/Robolectric: BUILD SUCCESSFUL in 5m 16s. تحليل Flutter لم يسجل أخطاء أو تحذيرات analyzer.
 - APK #120: 41,842,583 bytes، ABI arm64-v8a فقط؛ SHA-256 5791a197b30bb3a160c41739a788a1c1b5053ca77599a9ba007de84acd632654؛ Artifact ID 14840756161.
@@ -11,6 +11,16 @@
 - Phase 13R تعالج إعادة فتح صفحات System image وMedia tools، probe غير المحدد الذي يتبع تثبيت Preset، ونقطة commit التي تمنع إلغاء تثبيت حزمة أصبحت مثبتة بالفعل. أضيفت اختبارات Flutter مركزة وRobolectric إلى مسار التحقق التالي. لا تُقبل هذه المرحلة قبل نجاح CI الجديد واختبار الجهاز.
 - Phase 13Q.1 اجتازت في CI #120؛ 13Q.2–13Q.5 لا تزال مفتوحة. Phase 13B تبقى مفتوحة حتى تنفيذ واختبار Skill-owned MCP lifecycle بما فيه tools/list وtools/call.
 - تحليل Reel Studio محدث في REEL-STUDIO-GAP-ANALYSIS-AR.md: TTS/ASR موجودان أساساً، لكن التوقيت الدقيق للكلمات وربط المراحل والمحرر المتزامن غير مكتمل. لا يدّعي ذلك جاهزية Reel end-to-end أو دعماً رسمياً لـAndroid PRoot.
+
+**التحديث المرجعي — 25 نوفمبر 2026:**
+
+- آخر بناء كامل ناجح على `main`: [CI #162](https://github.com/m5ham3ds/KELIVO/actions/runs/45508226377)، commit `14c7938617ccaab7b38542caebb891f292c7ef18`. اكتمل بنجاح: Android-only audit، Flutter Analyze، اختبارات Environment lifecycle، Phase 14A، اختبارات Gemini/OAuth وPhase 13Q configuration، الحزم المحلية، Android JVM/Robolectric، Phase 13P Emulator E2E، وARM64 APK.
+- APK #162: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، الحجم 41,849,191 bytes، ABI `arm64-v8a` فقط، SHA-256 `cc9767860e9aa927cf6ab84d9be085335d78ef4bca00b83ecaa3522a76e680a2`، Artifact ID `14975842089`.
+- غياب `android/key.properties` يعني أن نجاح Release build لا يثبت استخدام مفتاح نشر متجر؛ راجع تقرير CI قبل النشر.
+- **Phase 14A:** مقبولة بعد نجاح اختباراتها المخصصة في CI #162.
+- **Phase 14B:** بدأ تنفيذ Plugin Manifest & Component Registry فوق ExtensionRegistry الحالي. الملفات وتغطية الاختبارات الأولية موثقة في `PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md`. القبول معلق حتى نجاح CI على commit هذه التغييرات.
+- **Phase 13Q:** لا نوسع قبول 13Q.5 من تشغيل اختبارات discovery وحدها؛ دورة lifecycle المخصصة وموافقة واجهة المحادثة المرئية تظلان بحاجة إلى دليل مستقل.
+- اختبار الهاتف الفعلي يظل مطلوباً حيث تتطلب معايير المرحلة ذلك؛ نجاح Android Emulator ليس بديلاً عنه.
 
 **سجل الحالة التاريخي للمراحل:**
 
@@ -1348,7 +1358,7 @@ KELIVO يجب أن يكون **نواة محادثة ووكلاء وإدارة إ
 
 **القرارات:**
 - تطوير الأنظمة الحالية وعدم بناء مستورد/منفذ موازٍ.
-- البدء بـ14A Progressive Skill Discovery & Lazy Instruction Loading؛ metadata أولاً ثم SKILL.md للمهارات المختارة فقط، مع حماية context budget.
+- اجتازت 14A Progressive Skill Discovery & Lazy Instruction Loading بوابة CI #162؛ التنفيذ الحالي هو 14B Plugin Manifest & Component Registry فوق ExtensionRegistry الحالي.
 - دعم Plugin manifests ومكوناتها read-only قبل إتاحة تنفيذ commands/hooks/agents.
 - ترقية MCP عبر مصفوفة إصدارات واختبارات توافق قبل Skills over MCP؛ لا يُفترض أن عميل 2025 يدعم 2026-07-28.
 - إكمال Skill-owned MCP lifecycle وربط كل خادم وبصمة وموافقة بالمهارة المالكة.
@@ -1358,6 +1368,7 @@ KELIVO يجب أن يكون **نواة محادثة ووكلاء وإدارة إ
 راجع:
 - phases/PHASE-14-REPOSITORY-AUDIT-AND-OSS-REUSE-MATRIX-AR.md
 - phases/PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md
+- PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md
 - phases/PHASE-14-REPOSITORY-TREE-MANIFEST-2026-11-24.json
 
 **قيود Phase 14:** Flutter/Dart-first؛ لا Docker/PC requirement؛ لا PRoot sandbox claims؛ لا script/server/hook execution on import/inspect/compose؛ لا credentials in prompts/logs؛ license review لكل code/vendor؛ لا حذف/استبدال Skills أو Skill Packs الحالية؛ واختبارات CI مركزة مع Android ARM64 وحالات Android الواقعية حيث يلزم.

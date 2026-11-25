@@ -66,6 +66,26 @@ class AppDirectories {
 
   /// Installed skill bodies: `<appData>/skills`.
   static Future<Directory> getSkillsDirectory() => _ensureSubdir('skills');
+  /// Installed Plugin bundles kept inert until a later execution phase.
+  static Future<Directory> getPluginsDirectory() => _ensureSubdir('plugins');
+
+  /// Managed storage directory for one validated Plugin id.
+  static Future<Directory> pluginDir(String pluginId) {
+    if (pluginId.isEmpty || pluginId.length > 128) {
+      throw const FormatException('plugin_id');
+    }
+    for (var index = 0; index < pluginId.length; index++) {
+      final unit = pluginId.codeUnitAt(index);
+      final isLower = unit >= 97 && unit <= 122;
+      final isDigit = unit >= 48 && unit <= 57;
+      final isPunctuation = unit == 45 || unit == 46 || unit == 95;
+      if ((!isLower && !isDigit && !isPunctuation) ||
+          (index == 0 && !isLower && !isDigit)) {
+        throw const FormatException('plugin_id');
+      }
+    }
+    return _ensurePath('plugins/' + pluginId);
+  }
 
   /// Import provenance/manifests and repository-shared Skill resources. Kept
   /// outside the `/skills` PRoot bind mount; runtime access is not enabled by
