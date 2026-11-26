@@ -287,7 +287,7 @@ void main() {
         },
       });
       transport.sendMockNotification({
-        'jsonrpc': McpProtocol.methodSubscriptionsAcknowledged,
+        'jsonrpc': McpProtocol.jsonRpcVersion,
         'method': McpProtocol.methodPromptListChanged,
         'params': {
           '_meta': {McpProtocol.metaSubscriptionId: request['id']},
