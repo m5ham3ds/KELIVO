@@ -305,28 +305,13 @@ void main() {
 
   test('rejects oversized chunked redirect bodies before following', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final requests = <String>[];
-    final serving = () async {
-      await for (final request in server) {
-        requests.add('${request.method} ${request.uri.path}');
-        final message = await _readMessage(request);
-        if (message['method'] == 'initialize') {
-          request.response.headers.set('MCP-Session-Id', 'bounded-redirect-session');
-          _writeJson(request.response, _initializeResult(message['id']));
-          await request.response.close();
-          continue;
-        }
-        request.response
-          ..statusCode = HttpStatus.temporaryRedirect
-          ..headers.set(HttpHeaders.locationHeader, '/mcp/')
-          ..bufferOutput = false;
-        request.response.write(List<String>.filled(768, 'x').join());
-        await request.response.flush();
-        request.response.write(List<String>.filled(768, 'x').join());
-        await request.response.close();
-      }
-    }();
-
+    final methods = <String>[];
+    final serving = _serveOversizedStatelessResponse(
+      server,
+      useSse: false,
+      methods: methods,
+      oversizedRedirect: true,
+    );
     final transport = await StreamableHttpClientTransport.create(
       baseUrl: 'http://${server.address.host}:${server.port}/mcp',
       timeout: const Duration(seconds: 3),
@@ -336,6 +321,7 @@ void main() {
     final client = Client(
       name: 'bounded-redirect-client',
       version: '1.0.0',
+      protocolVersion: McpProtocol.v2026_07_28,
       requestTimeout: const Duration(seconds: 3),
     );
 
@@ -351,7 +337,7 @@ void main() {
           ),
         ),
       );
-      expect(requests, ['POST /mcp', 'POST /mcp']);
+      expect(methods, [McpProtocol.methodServerDiscover, 'tools/call']);
     } finally {
       client.dispose();
       await server.close(force: true);
@@ -716,6 +702,7 @@ Future<void> _serveOversizedStatelessResponse(
   required bool useSse,
   List<String>? methods,
   bool oversizedAccepted = false,
+  bool oversizedRedirect = false,
 }) async {
   await for (final request in server) {
     final message = await _readMessage(request);
@@ -746,6 +733,18 @@ Future<void> _serveOversizedStatelessResponse(
     if (oversizedAccepted) {
       request.response
         ..statusCode = HttpStatus.accepted
+        ..bufferOutput = false;
+      request.response.write(List<String>.filled(768, 'x').join());
+      await request.response.flush();
+      request.response.write(List<String>.filled(768, 'x').join());
+      await request.response.close();
+      continue;
+    }
+
+    if (oversizedRedirect) {
+      request.response
+        ..statusCode = HttpStatus.temporaryRedirect
+        ..headers.set(HttpHeaders.locationHeader, '/mcp/')
         ..bufferOutput = false;
       request.response.write(List<String>.filled(768, 'x').join());
       await request.response.flush();
