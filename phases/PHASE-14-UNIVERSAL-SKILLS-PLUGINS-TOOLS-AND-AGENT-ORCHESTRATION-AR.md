@@ -91,8 +91,10 @@
 6. الهوية تكون pair(server identity, skill URI)، لا URI فقط. يجب ألا تطغى remote Skill على local Skill باسم مماثل.
 7. approval binding إلى server identity + URI + complete resource digest set؛ تغير manifest يبطل الموافقة.
 8. رفض/تحذير resources: dynamic حسب سياسة الثقة؛ وعدم معاملتها كمحتوى مضمون السلامة.
+9. واجهة Remote Skills discovery metadata-first (14C.4) مع مصدر مُعرّف مسبقاً، HTTPS/DNS/IP pinning، موافقة منفصلة قبل list وقبل كل resource read، وعدم عرض المحتوى remote كـMarkdown أو تنفيذه.
+10. إبقاء استيراد Remote Skill إلى Local Registry وSkill-owned MCP lifecycle خارج 14C.4؛ import/provenance و14D عمليتان منفصلتان.
 
-**بوابة القبول:** compatibility matrix لكل إصدار؛ mock servers مطابقة للمواصفة؛ pagination/partial lists/cache invalidation؛ stale digest/frontmatter mismatch؛ URI collision بين خادمين؛ nested skills؛ رفض الموارد الزائدة؛ لا اتصال أو تفعيل دون موافقة.
+**بوابة القبول:** compatibility matrix لكل إصدار؛ mock servers مطابقة للمواصفة؛ pagination/partial lists/cache invalidation؛ stale digest/frontmatter mismatch؛ URI collision بين خادمين؛ nested skills؛ رفض الموارد الزائدة؛ no connection/list/read without explicit consent؛ SSRF/DNS rebinding/redirect/cross-origin credential tests؛ no automatic install or execution.
 
 ### PHASE 14D — Skill-owned MCP Lifecycle (إغلاق 13Q.2–13Q.5)
 
@@ -228,3 +230,6 @@
 - كل مراحل 14B–14H تعتمد على نتائج بوابات المراحل السابقة؛ لا تنفذ بالتوازي إذا كان بينها dependency.
 - 2026-11-25: اجتازت Phase 14A بوابة CI #162 بنجاح على commit `14c7938617ccaab7b38542caebb891f292c7ef18`; أصبح الانتقال إلى 14B مسموحاً بعد مراجعة run/jobs/steps وAPK artifact وSHA-256.
 - 2026-11-25: بدأ تنفيذ Phase 14B فوق ExtensionRegistry الحالي. ملفات التنفيذ والاختبارات الأولية مسجلة في `PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md`; القبول النهائي ينتظر CI بعد commit التنفيذ.
+
+- 2026-11-26: اجتازت Phase 14C.3 integrity/lazy resource وHTTP response-body limits بوابة CI #187 على `cfd74942`. run #187 نجح في الوظيفة الرئيسية 40/40 ووظيفة التقرير 9/9، مع Android JVM/Robolectric وPhase13P Emulator وARM64 release artifact. لم يُقبل full MCP 2026-07-28 compliance؛ MRTR وsubscriptions/listen ما زالت gaps.
+- 2026-11-26: بدء Phase 14C.4 Secure Remote Skills discovery UI؛ يجب أن يبقى metadata listing وقراءة resource عمليتين منفصلتين بموافقتين مستقلتين وHTTPs/DNS/IP pinning. لا تداخل مع Phase 14D أو local Skills registry.

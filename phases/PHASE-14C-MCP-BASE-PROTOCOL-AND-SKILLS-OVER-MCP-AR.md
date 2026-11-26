@@ -1,10 +1,10 @@
 # PHASE 14C — MCP Base Protocol Compatibility & Skills over MCP
 
-**الحالة:** 14C.1 hardening اجتاز CI #177؛ 14C.2 typed Skills adapter قيد التنفيذ. محتوى Remote Skills يظل غير مقروء وغير مفعّل حتى اكتمال integrity verification وموافقة المستخدم لكل Skill.
+**الحالة:** 14C.1 transport-hardening slice و14C.2 typed Skills adapter و14C.3 lazy resource integrity اجتازت بوابات CI حتى #187. Phase 14C.4 Secure Remote Skills discovery integration قيد التنفيذ. هذا لا يعني اكتمال full MCP 2026-07-28؛ MRTR وsubscriptions/listen semantics ما زالت خارج الدعم الكامل.
 **تاريخ البدء:** 25 نوفمبر 2026.
-**الفرع:** `main` — 14C.1 hardening baseline `2ea38c430dd67e5675aaee83488b8ff84fc3b2d3`; verified by CI #177.
+**آخر تحقق شامل:** CI #187 على `main` commit `cfd749429083b42b9228f594ed9992c5fd68507a`.
 **المرحلة السابقة:** Phase 14B مقبولة في CI #164.
-**المبدأ:** توسيع عميل MCP المحلي تدريجياً مع إبقاء النقل والإصدارات القديمة؛ لا ترقية قسرية ولا تشغيل خادم أو Skill تلقائياً.
+**المبدأ:** توسيع عميل MCP المحلي تدريجياً مع إبقاء النقل والإصدارات القديمة؛ لا ترقية قسرية ولا تشغيل خادم أو Skill تلقائياً. Remote discovery منفصل عن Skill-owned local MCP lifecycle في 14D.
 
 ## 1. نتيجة مراجعة الوضع الحالي
 
@@ -42,6 +42,20 @@
 كما تؤكد مواصفة Skills Beta الحالية أن `skills/list` قد يرجع قائمة فارغة أو جزئية، وأن skill URI يمكن أن يقرأ مباشرة عبر `resources/read` حتى إذا لم يرد في القائمة، وأن `skills/get` يعيد metadata/digests لمهارة واحدة، و`resources/directory/read` اختياري. وعليه، discovery لا يجوز أن يعتمد على استنفاد القائمة وحدها، ولا أن يحمّل كل الموارد مبكراً.
 
 المراجع في القسم 7 هي مصدر الحقيقة؛ أما SEP التاريخي فيوثق التصميم وليس بديلاً عن النص المستقر الحالي.
+
+## 2.1 CI #187 — اعتماد طبقة النقل والـSkills integrity
+
+اجتاز CI #187 (run `45730072596`) على commit `cfd749429083b42b9228f594ed9992c5fd68507a` جميع بوابات الوظيفة الرئيسية 40/40 ووظيفة التقرير 9/9. شمل ذلك Flutter Analyze، Environment lifecycle، Phase 14A/14B/13Q، Gemini/OAuth، كل الحزم المحلية، Android JVM/Robolectric، Phase 13P Emulator E2E، وبناء Release ARM64.
+
+اختبارات `dependencies/mcp_client` التي اجتازت تضمنت:
+- lazy resource integrity والتحقق من SHA-256/frontmatter وحالات digest mismatch.
+- حد الأجسام المتدفقة لاستجابات JSON وSSE قبل تجميعها بالذاكرة.
+- رفض استجابة HTTP 202 كبيرة أثناء التصريف، ورفض جسم redirect 307 كبير قبل اتباعه.
+- منع إعادة توجيه cross-origin مع حماية الترويسات السرية.
+
+**APK:** `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`؛ 41,900,015 bytes؛ ABI `arm64-v8a`؛ SHA-256 `cc6c39f8022e193a6fdf893d3d401bcc96f181293c8e9cd4e7fe96ea6710a2be`؛ Artifact ID `15077442763`. تقرير البناء: Artifact `15076853823`.
+
+**نطاق القبول:** هذا CI يغلق 14C.3 lazy resource integrity/response bounds، ويثبت اختبارات الـadapter الموجودة؛ لا يشغّل كامل Flutter root unit/widget suite، ولا يثبت دعم MRTR أو subscriptions/listen في base protocol 2026-07-28، ولا يثبت تجربة هاتف فعلي أو Force Stop.
 
 ## 2. CI #177 — إغلاق 14C.1 hardening
 
@@ -134,18 +148,22 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - تحقق parsing من frontmatter/URI/manifest؛ 512 resource entries و16 MiB لكل Skill، مع قبول `resources: "dynamic"` بوصفه غير قابل للتحقق.
 - لا `resources/read` ولا تحميل ملفات ولا تفعيل أثناء list/get. لا caching دائم قبل اكتمال integrity في 14C.3.
 
-### 14C.3 — Resource integrity and lazy fetch
-- manifest validation.
-- size/digest verification.
-- lazy `resources/read` للملفات المطلوبة فقط.
-- cache keyed by composite identity and complete digest set.
-- invalidation on listChanged/TTL/source change.
+### 14C.3 — Resource integrity and lazy fetch — مقبولة في CI #187
+- manifest validation؛ size/digest verification؛ lazy `resources/read` للموارد المعلنة فقط.
+- cache keyed by composite identity and complete digest set، مع invalidation on listChanged/TTL/source change.
+- response-byte caps تطبق قبل buffering على JSON وSSE، وعلى أجسام 202 وredirect التي يجري تصريفها.
+- اختبارات هذه الطبقة اجتازت ضمن الحزمة المحلية في CI #187. لا يعني ذلك أن النص remote content صار موثوقاً أو قابلاً للتنفيذ.
 
-### 14C.4 — Secure discovery integration
-- صفحة/واجهة عرض remote Skill source مع origin/server identity والتحذيرات.
-- preview metadata أولاً، ثم consent منفصل لجلب التعليمات/الموارد.
-- لا تثبيت في Skills registry المحلي تلقائياً؛ يتطلب import صريح وخطوة provenance مستقلة.
-- لا تنفيذ أوامر أو Scripts أو MCP tools نتيجة مجرد اكتشاف Skill.
+### 14C.4 — Secure Remote Skills discovery integration — قيد التنفيذ
+- اختيار مصدر من ملفات MCP HTTP التي أعدّها المستخدم مسبقاً؛ لا URL حر أو اتصال تلقائي عند فتح الصفحة.
+- HTTPS فقط، رفض userinfo/fragments/unsupported schemes، DNS resolve + رفض أي عنوان non-public، وتثبيت الاتصال على عنوان IP الذي اجتاز الفحص مع بقاء TLS hostname verification على اسم المضيف.
+- منع proxy/redirect غير المنضبطين ومنع cross-origin credential forwarding؛ جميع استجابات discovery/resource تخضع لحدود body/time/redirect.
+- الموافقة الأولى منفصلة قبل `server/discover` و`skills/list` لعرض metadata فقط.
+- موافقة ثانية صريحة لكل URI/resource قبل `resources/read`; الموافقة مرتبطة بهوية الخادم وURI ومجموعة digests الكاملة، وأي تغيير يبطلها.
+- عرض النص المسترجع كنص غير موثوق (لا Markdown rendering، ولا prompt execution، ولا shell/MCP tool calls).
+- dynamic resources بلا digest ثابت تبقى غير قابلة للتحقق، وتُعرض كغير مدعومة للقراءة الموثوقة.
+- لا تثبيت في Skills registry المحلي تلقائياً؛ import صريح مستقل مع provenance يأتي لاحقاً.
+- لا خلط مع Phase 14D؛ لا server lifecycle أو tools/list أو tools/call في 14C.4.
 
 ## 6. بوابة القبول
 
@@ -173,4 +191,6 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - تراخيص الكود الخارجي يجب مراجعتها منفصلاً قبل أي نسخ.
 
 ## 8. القرار
-هذه الوثيقة checkpoint تنفيذية لـ14C، وليست إعلان اكتمال. أول تعديل runtime يجب أن يبدأ بـ14C.1 ويضيف اختبارات regression قبل إدخال أي Skills extension methods.
+- CI #187 يقبل 14C.3 lazy resource integrity وresponse-size hardening على main commit `cfd74942`.
+- Phase 14C ما زالت مفتوحة حتى دمج Secure Remote Skills UI (14C.4) واستكمال دعم base-protocol gaps المعلنة؛ لا يُدعى full MCP 2026-07-28 compliance.
+- التنفيذ التالي هو 14C.4 فقط، مع عدم تعديل مسار اتصال MCP القديم وعدم إدخال Skill-owned server lifecycle من 14D.

@@ -2,27 +2,28 @@
 
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
-## أحدث بناء ناجح — CI #177
+## أحدث بناء ناجح — CI #187
 
-[GitHub Actions #177](https://github.com/m5ham3ds/KELIVO/actions/runs/45626282326) اكتمل بنجاح على commit `2ea38c430dd67e5675aaee83488b8ff84fc3b2d3`، المطابق لرأس `main`.
+[GitHub Actions #187](https://github.com/m5ham3ds/KELIVO/actions/runs/45730072596) اكتمل بنجاح على commit `cfd749429083b42b9228f594ed9992c5fd68507a`، وهو مطابق لرأس `main`.
 
-- Flutter Analyze وEnvironment lifecycle وPhase 14A/14B وGemini/OAuth وPhase 13Q: نجاح.
-- اختبارات الحزم المحلية: 140.
-- Android JVM/Robolectric: 325.
-- محاكي Android وPhase 13P Skill lifecycle E2E: نجاح.
-- Build release ARM64 ورفع Artifact والتقرير: نجاح.
+- وظيفة البناء: 40/40 خطوة ناجحة؛ وظيفة التقرير: 9/9 خطوات ناجحة.
+- Flutter Analyze وEnvironment lifecycle وPhase 14A و14B وGemini/OAuth وPhase 13Q: نجاح.
+- اختبارات الحزم المحلية المستقلة، بما فيها اختبارات MCP Skills وJSON/SSE وحدود استجابات HTTP 202 وإعادة التوجيه 307: نجاح.
+- Android JVM/Robolectric: نجاح؛ إعداد Kotlin عبر Maven Central mirror اجتاز فحص التوجيه وتجاوز مشكلة HTTP 429 السابقة.
+- Phase 13P Android Emulator Skill lifecycle E2E: نجاح.
+- بناء Release ARM64، فحص ABI، احتساب SHA-256، رفع APK، توليد التقرير ورفعه: نجاح.
 
-**APK — CI #177**
+**APK — CI #187**
 - الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
-- الحجم: 41,894,427 bytes.
+- الحجم: 41,900,015 bytes.
 - ABI المتحقق: `arm64-v8a` فقط.
-- SHA-256: `5ad3659620bae5d85c660144a1ca52ba4518dac32746f5674f54929bd30a6641`.
-- Artifact ID: `15029793958`.
-- [APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45626282326/artifacts/15029793958).
-- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45626282326/artifacts/15029442954).
-- [Raw logs](https://github.com/m5ham3ds/KELIVO/actions/runs/45626282326/artifacts/15029349291).
+- SHA-256: `cc6c39f8022e193a6fdf893d3d401bcc96f181293c8e9cd4e7fe96ea6710a2be`.
+- Artifact ID: `15077442763`.
+- [APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45730072596/artifacts/15077442763).
+- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45730072596/artifacts/15076853823).
+- [Raw diagnostics](https://github.com/m5ham3ds/KELIVO/actions/runs/45730072596/artifacts/15077413003).
 
-**ملاحظة نطاق:** workflow لا يشغّل Flutter root unit/widget suite كاملة ولا Phase 13E–13O. كما رصد التقرير 117 تطابقاً لتحذيرات/deprecations، لكنها لم تمنع نجاح التحليل أو البناء.
+**ملاحظة نطاق:** workflow لا يشغّل Flutter root unit/widget suite كاملة ولا Phase 13E–13O المركزة. سجل التقرير 117 مطابقة تحذير/deprecation؛ لم تمنع Analyze أو الاختبارات أو البناء. عند غياب `android/key.properties` يستخدم Release مفتاح Debug الافتراضي؛ هذا artifact اختباري وليس توقيع نشر Google Play.
 
 ## سجل بناء سابق — CI #175
 
@@ -152,7 +153,8 @@
 | 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | 13Q.1–13Q.4 backend مقبولة؛ 13Q.5 واختبار موافقة الواجهة المرئية ما زالا مفتوحين |
 | 13R | PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md | اختبارات lifecycle/Robolectric في CI #162 نجحت؛ اختبار الهاتف مطلوب |
 | 14A | PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md | مقبولة في CI #162 |
-| 14B | PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md | مقبولة في CI #164 على commit 0ef71964؛ كل الوظائف وخطوات الاختبارات والبناء نجحت |
+| 14B | PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md | مقبولة في CI #164؛ اختبارات الوظائف والبناء نجحت |
+| 14C | PHASE-14C-MCP-BASE-PROTOCOL-AND-SKILLS-OVER-MCP-AR.md | 14C.1–14C.3 slices مقبولة في CI #187؛ 14C.4 Remote Skills UI قيد التنفيذ، وfull MRTR/subscriptions compliance غير مكتمل |
 | Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | Orchestrator والإنتاج المتزامن العام غير منفذين |
 
 ## أرشيف CI

@@ -16,11 +16,12 @@
 6. اختبارات Flutter المركزة لدورة Environment install lifecycle (Image وPresets وMedia tools وحالة الإشعار) التي أضيفت في Phase 13R.
 7. اختبارات Phase 13Q للقراءة فقط لإعداد MCP المعلن من Skill، دون تشغيل الخادم.
 8. اختبارات الحزم المحلية: mcp_client وdownsize وflutter_math_fork وmarkstream وterminal_view.
-9. Java 21 وGradle 8.14 وNDK 28.2.13676358 وCMake 3.22.1.
-10. Android JVM/Robolectric عبر :app:testDebugUnitTest.
-11. أربعة Android emulator integration tests على main، ومنها skill_execution_e2e_test.dart.
-12. إعداد plugin registrant لوضع البناء وتعطيل ABI التجريبي.
-13. بناء ARM64 APK والتحقق من ZIP وحساب SHA-256 ورفع artifact.
+9. Java 21 وGradle 8.14؛ توجيه Kotlin plugin marker عبر `pluginManagement.resolutionStrategy.eachPlugin/useModule` مباشرة إلى `org.jetbrains.kotlin:kotlin-gradle-plugin`، مع Google Maven ومرآة Maven Central؛ لا Plugin Portal fallback لمعرّف Kotlin.
+10. NDK 28.2.13676358 وCMake 3.22.1.
+11. Android JVM/Robolectric عبر :app:testDebugUnitTest.
+12. أربعة Android emulator integration tests على main، ومنها skill_execution_e2e_test.dart.
+13. إعداد plugin registrant لوضع البناء وتعطيل ABI التجريبي.
+14. بناء ARM64 APK والتحقق من ZIP وحساب SHA-256 ورفع artifact.
 
 ## ما لا يشغله workflow
 - لا يشغّل كامل Flutter root unit/widget test suite.
@@ -48,9 +49,23 @@ CI #72 (22 November 2026) نجح: https://github.com/m5ham3ds/KELIVO/actions/run
 APK 41,825,267 bytes · 18 .so ضمن arm64-v8a فقط · SHA-256 a6271844472413909fa927b5220601dc2825b86e1b01386ef3bc2cce6a56a3a3.
 
 
-## سجل CI الأحدث
+## أحدث تحقق — CI #187
 
-CI #76 على commit `f68e792b771822b31522705720a2ecc82c2d5606` فشل في المحاولة الثانية أثناء `:app:testDebugUnitTest`: لم يستطع Gradle تنزيل `org.robolectric:nativeruntime-dist-compat:1.0.18` لأن Maven Central أعاد HTTP 429. لم يتم إنشاء APK في ذلك التشغيل. أضيفت مرآة Google scoped لمجموعة Robolectric؛ يظل الإصلاح بانتظار إثباته في CI لاحق.
+- التشغيل: https://github.com/m5ham3ds/KELIVO/actions/runs/45730072596
+- commit: `cfd749429083b42b9228f594ed9992c5fd68507a`؛ مطابق لرأس `main`.
+- جميع وظائف CI: build job 40/40 وreport job 9/9، بلا إخفاقات.
+- Android JVM/Robolectric: نجاح؛ `BUILD SUCCESSFUL in 4m 40s`.
+- Phase 13P Android Emulator E2E: نجاح.
+- Android ARM64 Release وABI verification وArtifact upload: نجاح.
+- APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، 41,900,015 bytes، `arm64-v8a` فقط.
+- SHA-256: `cc6c39f8022e193a6fdf893d3d401bcc96f181293c8e9cd4e7fe96ea6710a2be`.
+- APK artifact: `15077442763`.
+- Build report artifact: `15076853823`؛ Raw report input: `15077413003`.
+
+**إغلاق مشكلة Kotlin Plugin HTTP 429:** فشل #186 قبل تشغيل Robolectric بسبب تنزيل Kotlin Gradle plugin dependencies من Maven Central بعد تحويل Plugin Portal لطلبات إلى `repo.maven.apache.org` وإرجاع 429. أزال commit `cfd74942` الاعتماد على Plugin Portal لمعرّف `org.jetbrains.kotlin` وربط plugin marker مباشرة بوحدة `org.jetbrains.kotlin:kotlin-gradle-plugin` عبر `resolutionStrategy.eachPlugin/useModule`، مع mirror قبل Maven Central. اجتازت خطوة تحقق الإعداد ثم Gradle/Robolectric في #187 نجاحاً فعلياً؛ `BUILD SUCCESSFUL in 4m 40s`.
+
+**نطاق الاختبارات:** #187 لم يشغل كامل Flutter root unit/widget suite ولا اختبارات Phase 13E–13O. كما أن نجاح Release لا يعني توقيع متجر؛ عند غياب `android/key.properties` يستخدم Debug key. سجل التقرير 117 warning/deprecation matches دون أن تفشل بوابة.
+
 
 
 ## تحقق البناء النهائي — CI #78
