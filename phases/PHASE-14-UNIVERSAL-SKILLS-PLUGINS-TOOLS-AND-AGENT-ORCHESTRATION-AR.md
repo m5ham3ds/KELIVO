@@ -93,7 +93,7 @@
 8. رفض/تحذير resources: dynamic حسب سياسة الثقة؛ وعدم معاملتها كمحتوى مضمون السلامة.
 9. واجهة Remote Skills discovery metadata-first (14C.4) مع مصدر مُعرّف مسبقاً، HTTPS/DNS/IP pinning، موافقة منفصلة قبل list وقبل كل resource read، وعدم عرض المحتوى remote كـMarkdown أو تنفيذه. اجتازت 19 اختباراً مخصصاً في CI #193.
 10. دعم MRTR / `InputRequiredResult` في 14C.5 للطلبات الثلاثة المسموح بها فقط (`prompts/get` و`resources/read` و`tools/call`)، مع capability-gated input handlers و`inputResponses` وrequest IDs جديدة وecho حرفي لـ`requestState` وحدود anti-loop.
-11. دعم `subscriptions/listen` في 14C.5 كـlong-lived request-scoped SSE stream، مع ack وnotification filters وcancellation بإغلاق الاتصال؛ لا GET stream ولا Last-Event-ID resume. رفض server-initiated JSON-RPC requests في 2026 مع إبقاء التوافق القديم.
+11. دعم `subscriptions/listen` في 14C.5 بفلتر object محدد الحقول، وإقرار مرتبط بـ`_meta.subscriptionId`، وعزل الإشعارات حسب الفلتر والمعرّف، وإغلاق منظم؛ HTTP يلغي stream بإغلاق POST، وSTDIO يرسل `notifications/cancelled`. لا GET stream ولا Last-Event-ID resume. رفض server-initiated JSON-RPC requests في 2026 مع إبقاء التوافق القديم؛ log level يصبح per-request metadata، و`ping` و`logging/setLevel` و`roots/list_changed` القديمة لا تُرسل في 2026.
 12. إبقاء استيراد Remote Skill إلى Local Registry وSkill-owned MCP lifecycle خارج Phase 14C؛ import/provenance وSkill-owned servers تتبع 14D.
 
 **بوابة القبول:** compatibility matrix لكل إصدار؛ mock servers مطابقة للمواصفة؛ pagination/partial lists/cache invalidation؛ stale digest/frontmatter mismatch؛ URI collision بين خادمين؛ nested skills؛ رفض الموارد الزائدة؛ no connection/list/read without explicit consent؛ SSRF/DNS rebinding/redirect/cross-origin credential tests؛ no automatic install or execution؛ MRTR positive/negative and retry-state tests؛ subscriptions/listen ack/filter/stream/cancel tests؛ legacy revision regression suite.
@@ -235,4 +235,4 @@
 
 - 2026-11-26: اجتازت Phase 14C.3 integrity/lazy resource وHTTP response-body limits بوابة CI #187 على `cfd74942`. لم يكن ذلك قبولاً لـfull MCP 2026-07-28 compliance.
 - 2026-11-26: اجتازت Phase 14C.4 Secure Remote Skills discovery UI بوابة CI #193 على main commit `924ea5a2`؛ 19 اختباراً مخصصاً، مع Android JVM/Robolectric وPhase13P Emulator وARM64 release artifact. لم يُثبت هذا الاختبار تشغيل هاتف ARM64 فعلي.
-- 2026-11-26: بدأ استكمال 14C.5 MRTR و`subscriptions/listen` على فرع `phase-14c5-mrtr-subscriptions`; يتضمن تغيير protocol/client واختبارات package جديدة. لا يبدأ Phase 14D ولا يدمج العمل إلى main قبل نجاح CI ومراجعة النتائج.
+- 2026-11-26: بدأ استكمال 14C.5 MRTR و`subscriptions/listen` على فرع `phase-14c5-mrtr-subscriptions`; يتضمن تغيير protocol/client واختبارات package جديدة للـMRTR وحدود الإشعارات والاشتراك. لم يُشغّل CI على هذه التغييرات بعد؛ لا يبدأ Phase 14D ولا يدمج العمل إلى main قبل نجاح CI ومراجعة النتائج.
