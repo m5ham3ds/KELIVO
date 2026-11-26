@@ -429,6 +429,46 @@ void main() {
       );
     });
 
+    test('stateless change events require an active subscription ID', () async {
+      await connectStateless(client, transport);
+      var toolChanges = 0;
+      var resourceChanges = 0;
+      client.onToolsListChanged(() => toolChanges++);
+      final resourceListener = client.onResourcesListChangedStream.listen((_) {
+        resourceChanges++;
+      });
+
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodToolListChanged,
+        'params': const {},
+      });
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodToolListChanged,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: 999},
+        },
+      });
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodResourceListChanged,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: 999},
+        },
+      });
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodRootListChanged,
+        'params': const {},
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(toolChanges, 0);
+      expect(resourceChanges, 0);
+      await resourceListener.cancel();
+    });
+
     test('legacy resource subscription API is not sent in stateless mode', () async {
       await connectStateless(client, transport);
       await expectLater(
