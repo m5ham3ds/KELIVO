@@ -46,15 +46,14 @@ Future<http.Client> createMcpSkillsPinnedHttpClient(
   final addresses = await resolveMcpSkillsPinnedAddresses(uri, lookup: lookup);
   final pinnedAddress = addresses.first;
   final connector = socketConnector ?? Socket.startConnect;
-  final origin = _McpHttpsOrigin(uri);
+  final origin = _McpHttpsOrigin.fromUri(uri);
   final client = HttpClient()
     ..connectionTimeout = _networkTimeout
     ..findProxy = (_) => 'DIRECT'
     ..connectionFactory = (requestUri, proxyHost, proxyPort) {
-      if (!_McpHttpsOrigin(requestUri).sameAs(origin)) {
+      if (!_McpHttpsOrigin.fromUri(requestUri).sameAs(origin)) {
         throw SocketException(
           'Remote Skills client refused a cross-origin request',
-          address: requestUri.host,
         );
       }
       if (proxyHost != null || proxyPort != null) {
@@ -83,8 +82,11 @@ void _validateMcpSkillsUri(Uri uri) {
 class _McpHttpsOrigin {
   const _McpHttpsOrigin(this.scheme, this.host, this.port);
 
-  factory _McpHttpsOrigin(Uri uri) =>
-      _McpHttpsOrigin(uri.scheme.toLowerCase(), uri.host.toLowerCase(), uri.port);
+  factory _McpHttpsOrigin.fromUri(Uri uri) => _McpHttpsOrigin(
+    uri.scheme.toLowerCase(),
+    uri.host.toLowerCase(),
+    uri.port,
+  );
 
   final String scheme;
   final String host;
