@@ -61,6 +61,9 @@ class Client {
   /// Map of notification handlers by method
   final _notificationHandlers = <String, Function(Map<String, dynamic>)>{};
 
+  /// Acknowledged notification filters keyed by subscriptions/listen request ID.
+  final _activeSubscriptionFilters = <int, Map<String, dynamic>>{};
+
   /// Handlers used by legacy server-initiated requests and by 2026 MRTR
   /// input requests. Stateless 2026 servers cannot send independent requests.
   final _requestHandlers =
@@ -738,13 +741,14 @@ class Client {
   }
 
   /// Opens a long-lived notification stream using MCP 2026-07-28
-  /// `subscriptions/listen`.
-  ///
-  /// The Future remains pending until the server closes the stream or the
-  /// client disconnects. Notifications are dispatched through the registered
-  /// [onNotification] handlers. Resumable streams are not supported.
-  Future<void> listenForNotifications({
-    required List<String> notifications,
+  /// `subscriptions/listen`. The Future resolves after the server
+  /// acknowledges the requested filter; keep the returned handle to observe
+  /// stream completion or cancel this subscription.
+  Future<McpSubscription> listenForNotifications({
+    bool toolsListChanged = false,
+    bool promptsListChanged = false,
+    bool resourcesListChanged = false,
+    List<String> resourceSubscriptions = const <String>[],
   }) async {
     if (!_initialized) {
       throw McpError('Client is not initialized');
@@ -755,66 +759,203 @@ class Client {
         'subscriptions/listen requires MCP 2026-07-28 stateless mode',
       );
     }
-    if (notifications.isEmpty || notifications.length > 32) {
+
+    const maxResourceSubscriptions = 256;
+    if (resourceSubscriptions.length > maxResourceSubscriptions) {
       throw ArgumentError.value(
-        notifications,
-        'notifications',
-        'must contain between 1 and 32 notification methods',
+        resourceSubscriptions.length,
+        'resourceSubscriptions',
+        'exceeds the local subscription URI limit',
       );
     }
-
-    final seen = <String>{};
-    final methods = <String>[];
-    const prefix = 'notifications/';
-    for (final method in notifications) {
-      var valid = method.startsWith(prefix) &&
-          method.length > prefix.length &&
-          method.length <= prefix.length + 120;
-      for (final code in method.codeUnits) {
-        final alphanumeric =
-            (code >= 48 && code <= 57) ||
-            (code >= 65 && code <= 90) ||
-            (code >= 97 && code <= 122);
-        if (!alphanumeric && code != 45 && code != 46 &&
-            code != 47 && code != 95) {
-          valid = false;
-          break;
-        }
-      }
-      if (!valid || !seen.add(method)) {
+    final seenUris = <String>{};
+    for (final resourceUri in resourceSubscriptions) {
+      final parsed = Uri.tryParse(resourceUri);
+      if (resourceUri.isEmpty ||
+          resourceUri.length > 2048 ||
+          parsed == null ||
+          !parsed.hasScheme ||
+          !seenUris.add(resourceUri)) {
         throw ArgumentError.value(
-          method,
-          'notifications',
-          'must contain unique, valid notification method names',
+          resourceUri,
+          'resourceSubscriptions',
+          'must contain unique absolute resource URIs no longer than 2048 characters',
         );
       }
-      methods.add(method);
     }
 
-    var acknowledged = false;
-    final acknowledgementWatcher = _messageController.stream.listen((message) {
-      if (message.isNotification &&
-          message.method == McpProtocol.methodSubscriptionsAcknowledged) {
-        acknowledged = true;
+    final requestedFilter = <String, dynamic>{
+      if (toolsListChanged) 'toolsListChanged': true,
+      if (promptsListChanged) 'promptsListChanged': true,
+      if (resourcesListChanged) 'resourcesListChanged': true,
+      if (resourceSubscriptions.isNotEmpty)
+        'resourceSubscriptions': List<String>.unmodifiable(resourceSubscriptions),
+    };
+    if (requestedFilter.isEmpty) {
+      throw ArgumentError(
+        'At least one subscription notification type or resource URI is required',
+      );
+    }
+
+    // _sendSingleRequest allocates the current ID synchronously before its
+    // first await. Capturing it immediately lets us correlate the ack and
+    // every notification on this subscription stream.
+    final subscriptionId = _requestId;
+    final acknowledged = Completer<Map<String, dynamic>>();
+    var cancelRequested = false;
+    void Function()? cancelTransport;
+
+    final ackWatcher = _messageController.stream.listen((message) {
+      if (!message.isNotification ||
+          message.method != McpProtocol.methodSubscriptionsAcknowledged) {
+        return;
+      }
+      final params = message.params ?? const <String, dynamic>{};
+      final metadata = params['_meta'];
+      if (metadata is! Map ||
+          metadata[McpProtocol.metaSubscriptionId] != subscriptionId) {
+        return;
+      }
+      try {
+        final rawFilter = params['notifications'];
+        if (rawFilter is! Map) {
+          throw McpError(
+            'subscriptions/listen acknowledgement has no notification filter',
+          );
+        }
+        final acceptedFilter = _validateAcknowledgedSubscriptionFilter(
+          requestedFilter,
+          Map<String, dynamic>.from(rawFilter),
+        );
+        // Register synchronously inside the ack callback so a following SSE
+        // event cannot arrive before its subscription ID has been installed.
+        _activeSubscriptionFilters[subscriptionId] = acceptedFilter;
+        if (!acknowledged.isCompleted) acknowledged.complete(acceptedFilter);
+      } catch (error, stackTrace) {
+        if (!acknowledged.isCompleted) {
+          acknowledged.completeError(error, stackTrace);
+        }
       }
     });
-    try {
-      final response = await _sendSingleRequest(
-        McpProtocol.methodSubscriptionsListen,
-        {'notifications': methods},
-        allowLongLived: true,
-      );
-      if (!acknowledged) {
+
+    final requestFuture = _sendSingleRequest(
+      McpProtocol.methodSubscriptionsListen,
+      {'notifications': requestedFilter},
+      allowLongLived: true,
+      onOperationCreated: (cancel) {
+        cancelTransport = () {
+          if (cancelRequested) return;
+          cancelRequested = true;
+          _activeSubscriptionFilters.remove(subscriptionId);
+          cancel();
+        };
+      },
+    );
+
+    final streamDone = requestFuture.then<void>((response) {
+      if (response is! Map || response['resultType'] != 'complete') {
+        throw McpError('subscriptions/listen returned an invalid result');
+      }
+      final metadata = response['_meta'];
+      if (metadata is Map &&
+          metadata[McpProtocol.metaSubscriptionId] != null &&
+          metadata[McpProtocol.metaSubscriptionId] != subscriptionId) {
+        throw McpError(
+          'subscriptions/listen final response has a mismatched subscription ID',
+        );
+      }
+      if (!acknowledged.isCompleted) {
         throw McpError(
           'subscriptions/listen ended without an acknowledgement notification',
         );
       }
-      if (response is! Map || response['resultType'] != 'complete') {
-        throw McpError('subscriptions/listen returned an invalid result');
+    }).catchError((Object error, StackTrace stackTrace) {
+      if (!acknowledged.isCompleted) {
+        acknowledged.completeError(error, stackTrace);
       }
-    } finally {
-      await acknowledgementWatcher.cancel();
+      if (cancelRequested) return;
+      Error.throwWithStackTrace(error, stackTrace);
+    }).whenComplete(() async {
+      _activeSubscriptionFilters.remove(subscriptionId);
+      await ackWatcher.cancel();
+    });
+
+    try {
+      final acceptedFilter = await acknowledged.future.timeout(requestTimeout);
+      return McpSubscription(
+        id: subscriptionId,
+        requestedFilter: requestedFilter,
+        acceptedFilter: acceptedFilter,
+        done: streamDone,
+        cancel: () {
+          if (cancelRequested) return;
+          final cancel = cancelTransport;
+          if (cancel == null) {
+            cancelRequested = true;
+            _activeSubscriptionFilters.remove(subscriptionId);
+            return;
+          }
+          cancel();
+        },
+      );
+    } catch (_) {
+      cancelTransport?.call();
+      _activeSubscriptionFilters.remove(subscriptionId);
+      await ackWatcher.cancel();
+      rethrow;
     }
+  }
+
+  Map<String, dynamic> _validateAcknowledgedSubscriptionFilter(
+    Map<String, dynamic> requested,
+    Map<String, dynamic> accepted,
+  ) {
+    const booleanFields = <String>{
+      'toolsListChanged',
+      'promptsListChanged',
+      'resourcesListChanged',
+    };
+    const allowedFields = <String>{
+      'toolsListChanged',
+      'promptsListChanged',
+      'resourcesListChanged',
+      'resourceSubscriptions',
+    };
+    for (final entry in accepted.entries) {
+      if (!allowedFields.contains(entry.key)) {
+        throw McpError(
+          'subscriptions/listen acknowledgement contains an unknown filter field',
+        );
+      }
+      if (booleanFields.contains(entry.key)) {
+        if (entry.value is! bool ||
+            (entry.value == true && requested[entry.key] != true)) {
+          throw McpError(
+            'subscriptions/listen acknowledgement exceeds the requested filter',
+          );
+        }
+      } else if (entry.key == 'resourceSubscriptions') {
+        final rawUris = entry.value;
+        final requestedUris = requested['resourceSubscriptions'];
+        if (rawUris is! List || requestedUris is! List) {
+          throw McpError(
+            'subscriptions/listen acknowledgement has invalid resourceSubscriptions',
+          );
+        }
+        final requestedSet = requestedUris.cast<String>().toSet();
+        final acceptedSet = <String>{};
+        for (final uri in rawUris) {
+          if (uri is! String ||
+              !requestedSet.contains(uri) ||
+              !acceptedSet.add(uri)) {
+            throw McpError(
+              'subscriptions/listen acknowledgement exceeds the requested resource URIs',
+            );
+          }
+        }
+      }
+    }
+    return Map<String, dynamic>.unmodifiable(accepted);
   }
 
   /// List resource templates on the server
@@ -992,6 +1133,27 @@ class Client {
     _notificationHandlers[method] = handler;
   }
 
+  bool _subscriptionFilterAllows(
+    Map<String, dynamic> filter,
+    String? method,
+    Map<String, dynamic> params,
+  ) {
+    switch (method) {
+      case McpProtocol.methodToolListChanged:
+        return filter['toolsListChanged'] == true;
+      case McpProtocol.methodPromptListChanged:
+        return filter['promptsListChanged'] == true;
+      case McpProtocol.methodResourceListChanged:
+        return filter['resourcesListChanged'] == true;
+      case McpProtocol.methodResourceUpdated:
+        final uri = params['uri'];
+        final resources = filter['resourceSubscriptions'];
+        return uri is String && resources is List && resources.contains(uri);
+      default:
+        return false;
+    }
+  }
+
   /// Handle tools list changed notification
   void onToolsListChanged(Function() handler) {
     onNotification(McpProtocol.methodToolListChanged, (_) => handler());
@@ -1142,6 +1304,7 @@ class Client {
       }
     }
     _requestCompleters.clear();
+    _activeSubscriptionFilters.clear();
     _completePendingRequestsDrain();
   }
 
@@ -1266,6 +1429,18 @@ class Client {
     if (method == McpProtocol.methodResourceListChanged &&
         !_resourcesListChangedController.isClosed) {
       _resourcesListChangedController.add(null);
+    }
+
+    final metadata = params['_meta'];
+    if (metadata is Map &&
+        metadata.containsKey(McpProtocol.metaSubscriptionId)) {
+      final subscriptionId = metadata[McpProtocol.metaSubscriptionId];
+      if (subscriptionId is! int) return;
+      final acceptedFilter = _activeSubscriptionFilters[subscriptionId];
+      if (acceptedFilter == null ||
+          !_subscriptionFilterAllows(acceptedFilter, method, params)) {
+        return;
+      }
     }
 
     final handler = _notificationHandlers[method];
@@ -1407,6 +1582,7 @@ class Client {
     String method,
     Map<String, dynamic> params, {
     bool allowLongLived = false,
+    void Function(void Function() cancel)? onOperationCreated,
   }) async {
     if (!isConnected) {
       throw McpError('Client is not connected to a transport');
@@ -1441,6 +1617,12 @@ class Client {
     late final TransportSendOperation operation;
     try {
       operation = _transport!.send(request);
+      onOperationCreated?.call(() {
+        operation.cancel();
+        if (!completer.isCompleted) {
+          completer.completeError(McpError('Subscription request cancelled'));
+        }
+      });
     } catch (e) {
       _removeRequestCompleter(id);
       final error = McpError('Failed to send request: $e');
@@ -1548,6 +1730,38 @@ enum DisconnectReason {
 
   /// Unknown reason
   unknown,
+}
+
+/// Handle for one MCP 2026-07-28 `subscriptions/listen` stream.
+///
+/// The acknowledgement is available immediately; [done] completes when the
+/// server closes the stream gracefully. [cancel] aborts only this request's
+/// response stream, without disconnecting other MCP requests.
+class McpSubscription {
+  final int id;
+  final Map<String, dynamic> requestedFilter;
+  final Map<String, dynamic> acceptedFilter;
+  final Future<void> done;
+  final void Function() _cancel;
+  bool _cancelled = false;
+
+  McpSubscription({
+    required this.id,
+    required Map<String, dynamic> requestedFilter,
+    required Map<String, dynamic> acceptedFilter,
+    required this.done,
+    required void Function() cancel,
+  }) : requestedFilter = Map<String, dynamic>.unmodifiable(requestedFilter),
+       acceptedFilter = Map<String, dynamic>.unmodifiable(acceptedFilter),
+       _cancel = cancel;
+
+  bool get isCancelled => _cancelled;
+
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    _cancel();
+  }
 }
 
 /// Class to hold result of a tracked tool call
