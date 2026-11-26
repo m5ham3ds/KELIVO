@@ -189,9 +189,12 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - retry للطلب الأصلي بمعرّف JSON-RPC جديد، وإرفاق `inputResponses` المقابلة؛ تمرير `requestState` كقيمة opaque دون تحليل أو تعديل أو تخزين جانبي.
 - حد محلي أقصى 5 جولات و16 input request في الجولة، مع رفض shapes غير الصالحة، resultType المفقود أو غير المعروف، InputRequiredResult على method غير مسموح.
 - في 2026 stateless، رفض server-initiated JSON-RPC requests؛ الإصدارات القديمة تحتفظ بسلوكها.
-- دعم `subscriptions/listen` كطلب Streamable HTTP طويل العمر يستقبل acknowledgment ثم notifications المختارة، دون GET stream أو Last-Event-ID resumption. إغلاق transport هو cancellation.
-- تعطيل `resources/subscribe` و`resources/unsubscribe` القديمة عند استخدام 2026، مع إبقاء APIs للإصدارات التاريخية.
-- اختبارات مطلوبة: MRTR success وno-input state وmissing state وcapability denial وunknown method وround cap وstateless server-request rejection؛ subscription ack/filter/cancel/long-lived timeout؛ ومصفوفة legacy regression.
+- دعم `subscriptions/listen` بفلتر كائن محدد الحقول: `toolsListChanged` و`promptsListChanged` و`resourcesListChanged` و`resourceSubscriptions`؛ رفض الفلتر الفارغ أو غير الصالح.
+- مطابقة acknowledgement عبر `_meta.subscriptionId` والتحقق من أن الفلتر المعتمد subset من المطلوب؛ تمرير الإشعارات فقط إلى الاشتراك الذي يحمل المعرف نفسه ويطابق الفلتر، مع عزل عدة streams مستقلة.
+- `listenForNotifications` يعيد مقبض `McpSubscription` بعد الإقرار، ويعرض `done` لإغلاق stream المنظم؛ الإغلاق النهائي يتطلب `resultType=complete` ومعرف الاشتراك ذاته. لا GET stream ولا Last-Event-ID/resume.
+- إلغاء HTTP يغلق POST SSE response stream فقط؛ إلغاء STDIO يرسل `notifications/cancelled` مع request ID. legacy SSE غير مدعوم مع subscriptions في إصدار 2026.
+- تعطيل `resources/subscribe` و`resources/unsubscribe` و`ping` و`logging/setLevel` و`notifications/roots/list_changed` القديمة عند استخدام 2026، مع إبقاء APIs للإصدارات التاريخية؛ مستوى السجل ينتقل إلى `_meta/io.modelcontextprotocol/logLevel` لكل طلب.
+- اختبارات MRTR الإيجابية والسلبية: handler/capability gating، opaque requestState، missing/unknown resultType، malformed requests، round-trip cap، وعدم تنفيذ server-initiated requests؛ واختبارات subscription ack/filter/demultiplexing/HTTP وSTDIO cancellation/closure، مع legacy regression.
 
 
 - اختيار مصدر من ملفات MCP HTTP التي أعدّها المستخدم مسبقاً؛ لا URL حر أو اتصال تلقائي عند فتح الصفحة.
@@ -235,5 +238,5 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 ## 8. القرار
 - CI #187 يقبل 14C.3 lazy resource integrity وresponse-size hardening؛ وظل سجلاً تاريخياً لنجاح تلك الشريحة.
 - CI #193 يقبل تكامل واجهة 14C.4 واختباراتها المخصصة (19 اختباراً)، على main commit `924ea5a2`.
-- Phase 14C ما زالت مفتوحة؛ استكمال MRTR و`subscriptions/listen` مسجل في الشريحة 14C.5 على فرع `phase-14c5-mrtr-subscriptions`.
+- Phase 14C ما زالت مفتوحة؛ استكمال MRTR و`subscriptions/listen` مسجل في الشريحة 14C.5 على فرع `phase-14c5-mrtr-subscriptions`، ويشمل دعم فلتر الاشتراك المقيّد، وsubscription ID demultiplexing، وHTTP/STDIO cancellation، وحدود RPCs المحذوفة في 2026. لم يجتز CI بعد.
 - لا يبدأ Phase 14D قبل اجتياز 14C.5 والبوابات المتبقية على CI، ولا يُعلن full MCP 2026-07-28 compliance لمجرد نجاح هذا slice.
