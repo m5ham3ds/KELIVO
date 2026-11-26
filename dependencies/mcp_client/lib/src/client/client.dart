@@ -819,7 +819,8 @@ class Client {
       final params = message.params ?? const <String, dynamic>{};
       final metadata = params['_meta'];
       if (metadata is! Map ||
-          metadata[McpProtocol.metaSubscriptionId] != subscriptionId) {
+          metadata[McpProtocol.metaSubscriptionId] != subscriptionId ||
+          acknowledged.isCompleted) {
         return;
       }
       try {
@@ -894,21 +895,18 @@ class Client {
         done: streamDone,
         cancel: () {
           if (cancelRequested) return;
-          if (_transport is! StreamableHttpClientTransport) {
-            // Stdio uses one channel and must receive an explicit cancellation
-            // notification. HTTP cancellation is the aborted response stream.
-            _sendNotification(
-              McpProtocol.methodCancelled,
-              {'requestId': subscriptionId},
-            );
-          }
           final cancel = cancelTransport;
-          if (cancel == null) {
-            cancelRequested = true;
-            _activeSubscriptionFilters.remove(subscriptionId);
-            return;
+          try {
+            if (_transport is! StreamableHttpClientTransport) {
+              // Stdio uses one channel and requires a cancellation notification.
+              _sendNotification(
+                McpProtocol.methodCancelled,
+                {'requestId': subscriptionId},
+              );
+            }
+          } finally {
+            cancel?.call();
           }
-          cancel();
         },
       );
     } catch (_) {
