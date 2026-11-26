@@ -228,7 +228,7 @@ void main() {
           ..headers.contentType = ContentType('text', 'event-stream');
 
         request.response.write(
-          'event: message\\n'
+          'event: message\n'
           'data: ${jsonEncode({
             'jsonrpc': McpProtocol.jsonRpcVersion,
             'method': McpProtocol.methodSubscriptionsAcknowledged,
@@ -236,26 +236,26 @@ void main() {
               '_meta': {McpProtocol.metaSubscriptionId: id},
               'notifications': {'toolsListChanged': true},
             },
-          })}\\n\\n',
+          })}\n\n',
         );
         await request.response.flush();
         if (!ackSent.isCompleted) ackSent.complete();
 
         request.response.write(
-          'event: message\\n'
+          'event: message\n'
           'data: ${jsonEncode({
             'jsonrpc': McpProtocol.jsonRpcVersion,
             'method': McpProtocol.methodToolListChanged,
             'params': {
               '_meta': {McpProtocol.metaSubscriptionId: id},
             },
-          })}\\n\\n',
+          })}\n\n',
         );
         await request.response.flush();
 
         await finishSubscription.future.timeout(const Duration(seconds: 3));
         request.response.write(
-          'event: message\\n'
+          'event: message\n'
           'data: ${jsonEncode({
             'jsonrpc': McpProtocol.jsonRpcVersion,
             'id': id,
@@ -263,7 +263,7 @@ void main() {
               'resultType': 'complete',
               '_meta': {McpProtocol.metaSubscriptionId: id},
             },
-          })}\\n\\n',
+          })}\n\n',
         );
         await request.response.close();
         if (!finalResponseSent.isCompleted) finalResponseSent.complete();
@@ -353,7 +353,7 @@ void main() {
           ..bufferOutput = false
           ..headers.contentType = ContentType('text', 'event-stream');
         request.response.write(
-          'event: message\\n'
+          'event: message\n'
           'data: ${jsonEncode({
             'jsonrpc': McpProtocol.jsonRpcVersion,
             'method': McpProtocol.methodSubscriptionsAcknowledged,
@@ -361,7 +361,7 @@ void main() {
               '_meta': {McpProtocol.metaSubscriptionId: id},
               'notifications': {'toolsListChanged': true},
             },
-          })}\\n\\n',
+          })}\n\n',
         );
         await request.response.flush();
         if (!ackSent.isCompleted) ackSent.complete();
@@ -369,7 +369,7 @@ void main() {
         // Keep this response alive until the client aborts only this POST.
         for (var attempt = 0; attempt < 200; attempt++) {
           try {
-            request.response.write(': subscription heartbeat\\n\\n');
+            request.response.write(': subscription heartbeat\n\n');
             await request.response.flush();
           } catch (_) {
             if (!subscriptionCancelled.isCompleted) {
@@ -1045,7 +1045,7 @@ Future<void> _serveOversizedStatelessResponse(
     request.response.bufferOutput = false;
     if (useSse) {
       request.response.headers.contentType = ContentType('text', 'event-stream');
-      final event = 'event: message\\ndata: $payload\\n\\n';
+      final event = 'event: message\ndata: $payload\n\n';
       request.response.write(event.substring(0, 1536));
       await request.response.flush();
       request.response.write(event.substring(1536));
