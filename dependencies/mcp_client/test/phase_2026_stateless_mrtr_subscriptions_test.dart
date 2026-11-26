@@ -451,7 +451,87 @@ void main() {
         ),
         isEmpty,
       );
+    }); 
+    test('sends STDIO cancellation with the original request ID', () async {
+      await connectStateless(client, transport);
+      final listening = client.listenForNotifications(toolsListChanged: true);
+      await Future<void>.delayed(Duration.zero);
+      final request = transport.sentMessages.singleWhere(
+        (message) => message['method'] == McpProtocol.methodSubscriptionsListen,
+      );
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodSubscriptionsAcknowledged,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+          'notifications': {'toolsListChanged': true},
+        },
+      });
+      final subscription = await listening;
+      subscription.cancel();
+      await expectLater(subscription.done, completes);
+      expect(
+        transport.sentMessages.any(
+          (message) =>
+              message['method'] == McpProtocol.methodCancelled &&
+              (message['params'] as Map)['requestId'] == request['id'],
+        ),
+        isTrue,
+      );
     });
+
+    test('rejects MRTR beyond the local round-trip cap', () async {
+      await connectStateless(client, transport);
+      for (var i = 0; i < 5; i++) {
+        transport.queueResponse({
+          'jsonrpc': McpProtocol.jsonRpcVersion,
+          'result': {
+            'resultType': 'input_required',
+            'requestState': 'opaque-$i',
+          },
+        });
+      }
+      await expectLater(
+        client.callTool('loop', const {}),
+        throwsA(isA<McpError>()),
+      );
+      expect(
+        transport.sentMessages.where((message) => message['method'] == 'tools/call'),
+        hasLength(5),
+      );
+    });
+
+    test('uses per-request log metadata and does not send removed 2026 RPCs', () async {
+      await connectStateless(client, transport);
+      await expectLater(client.ping(), throwsUnsupportedError);
+      await client.setLoggingLevel(McpLogLevel.debug);
+      client.addRoot(const Root(uri: 'file:///tmp/root', name: 'root'));
+      client.removeRoot('file:///tmp/root');
+
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {
+          'resultType': 'complete',
+          'content': const [],
+        },
+      });
+      await client.callTool('log-aware', const {});
+      final call = transport.sentMessages.singleWhere(
+        (message) => message['method'] == 'tools/call',
+      );
+      final metadata = (call['params'] as Map)['_meta'] as Map;
+      expect(metadata[McpProtocol.metaLogLevel], 'debug');
+      expect(
+        transport.sentMessages.any(
+          (message) =>
+              message['method'] == 'ping' ||
+              message['method'] == 'logging/setLevel' ||
+              message['method'] == McpProtocol.methodRootListChanged,
+        ),
+        isFalse,
+      );
+    });
+
   });
 
   test('2026-07-28 advertises Elicitation and requires protocol header', () {
