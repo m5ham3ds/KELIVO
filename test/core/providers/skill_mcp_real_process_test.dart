@@ -108,7 +108,7 @@ void main() {
     });
 
     Future<_RegisteredSkill> registerServer(String mode) async {
-      final source = Directory('${root.path}/source-$mode');
+      final source = Directory('${root.path}/real-stdio-$mode');
       await source.create(recursive: true);
       await File('${source.path}/SKILL.md').writeAsString('''
 ---
