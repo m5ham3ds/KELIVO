@@ -882,7 +882,11 @@ class Client {
       }
     }).catchError((Object error, StackTrace stackTrace) {
       if (!acknowledged.isCompleted) {
+        // Before acknowledgement this is a setup error. Surface it through
+        // the Future awaited by listenForNotifications, not as a second
+        // unhandled error from the independently observed stream Future.
         acknowledged.completeError(error, stackTrace);
+        return;
       }
       if (cancelRequested) return;
       Error.throwWithStackTrace(error, stackTrace);
