@@ -228,21 +228,30 @@ void main() {
       client.dispose();
     });
 
-    test('listens for acknowledged change notifications without request timeout', () async {
+    test('uses an object filter and returns after correlated acknowledgement', () async {
       await connectStateless(client, transport);
       client.setRequestTimeout(const Duration(milliseconds: 2));
-      var changed = 0;
-      client.onToolsListChanged(() => changed++);
+      final changedMethods = <String>[];
+      client.onToolsListChanged(() => changedMethods.add('tools'));
+      client.onPromptsListChanged(() => changedMethods.add('prompts'));
+      final updatedUris = <String>[];
+      client.onResourceUpdated(updatedUris.add);
 
       final listening = client.listenForNotifications(
-        notifications: [McpProtocol.methodToolListChanged],
+        toolsListChanged: true,
+        promptsListChanged: true,
+        resourceSubscriptions: ['file:///tmp/a'],
       );
       await Future<void>.delayed(Duration.zero);
       final request = transport.sentMessages.singleWhere(
         (message) => message['method'] == McpProtocol.methodSubscriptionsListen,
       );
       final params = request['params'] as Map<String, dynamic>;
-      expect(params['notifications'], [McpProtocol.methodToolListChanged]);
+      expect(params['notifications'], {
+        'toolsListChanged': true,
+        'promptsListChanged': true,
+        'resourceSubscriptions': ['file:///tmp/a'],
+      });
       expect(
         (params['_meta'] as Map)[McpProtocol.metaProtocolVersion],
         McpProtocol.v2026_07_28,
@@ -251,37 +260,169 @@ void main() {
       transport.sendMockNotification({
         'jsonrpc': McpProtocol.jsonRpcVersion,
         'method': McpProtocol.methodSubscriptionsAcknowledged,
-        'params': {'notifications': [McpProtocol.methodToolListChanged]},
+        'params': {
+          '_meta': {
+            McpProtocol.metaSubscriptionId: request['id'],
+          },
+          'notifications': {
+            'toolsListChanged': true,
+            'promptsListChanged': true,
+            'resourceSubscriptions': ['file:///tmp/a'],
+          },
+        },
       });
+      final subscription = await listening;
+      expect(subscription.id, request['id']);
+      expect(subscription.acceptedFilter, {
+        'toolsListChanged': true,
+        'promptsListChanged': true,
+        'resourceSubscriptions': ['file:///tmp/a'],
+      });
+
       transport.sendMockNotification({
         'jsonrpc': McpProtocol.jsonRpcVersion,
         'method': McpProtocol.methodToolListChanged,
-        'params': const {},
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+        },
+      });
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.methodSubscriptionsAcknowledged,
+        'method': McpProtocol.methodPromptListChanged,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+        },
+      });
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodPromptListChanged,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+        },
+      });
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodResourceUpdated,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+          'uri': 'file:///tmp/a',
+        },
+      });
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodResourceUpdated,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+          'uri': 'file:///tmp/not-requested',
+        },
       });
       await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(changedMethods, ['tools', 'prompts']);
+      expect(updatedUris, ['file:///tmp/a']);
+
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'id': request['id'],
+        'result': {
+          'resultType': 'complete',
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+        },
+      });
+      await expectLater(subscription.done, completes);
+    });
+
+    test('allows the server to acknowledge only a supported subset', () async {
+      await connectStateless(client, transport);
+      final listening = client.listenForNotifications(
+        toolsListChanged: true,
+        resourceSubscriptions: ['file:///tmp/a'],
+      );
+      await Future<void>.delayed(Duration.zero);
+      final request = transport.sentMessages.singleWhere(
+        (message) => message['method'] == McpProtocol.methodSubscriptionsListen,
+      );
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodSubscriptionsAcknowledged,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+          'notifications': {'toolsListChanged': true},
+        },
+      });
+      final subscription = await listening;
+      expect(subscription.acceptedFilter, {'toolsListChanged': true});
+      subscription.cancel();
+      await expectLater(subscription.done, completes);
+    });
+
+    test('cancels only the subscription stream after acknowledgement', () async {
+      await connectStateless(client, transport);
+      final listening = client.listenForNotifications(toolsListChanged: true);
+      await Future<void>.delayed(Duration.zero);
+      final request = transport.sentMessages.singleWhere(
+        (message) => message['method'] == McpProtocol.methodSubscriptionsListen,
+      );
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodSubscriptionsAcknowledged,
+        'params': {
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+          'notifications': {'toolsListChanged': true},
+        },
+      });
+      final subscription = await listening;
+      subscription.cancel();
+      expect(subscription.isCancelled, isTrue);
+      await expectLater(subscription.done, completes);
+      expect(client.isConnected, isTrue);
+    });
+
+    test('rejects an acknowledgement for a different subscription ID', () async {
+      await connectStateless(client, transport);
+      client.setRequestTimeout(const Duration(milliseconds: 5));
+      final listening = client.listenForNotifications(toolsListChanged: true);
+      await Future<void>.delayed(Duration.zero);
+      final request = transport.sentMessages.singleWhere(
+        (message) => message['method'] == McpProtocol.methodSubscriptionsListen,
+      );
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodSubscriptionsAcknowledged,
+        'params': {
+          '_meta': {
+            McpProtocol.metaSubscriptionId: (request['id'] as int) + 1,
+          },
+          'notifications': {'toolsListChanged': true},
+        },
+      });
       transport.sendMockNotification({
         'jsonrpc': McpProtocol.jsonRpcVersion,
         'id': request['id'],
         'result': {'resultType': 'complete'},
       });
-
-      await expectLater(listening, completes);
-      expect(changed, 1);
+      await expectLater(listening, throwsA(isA<McpError>()));
     });
 
-    test('rejects duplicate or invalid notification filters', () async {
+    test('rejects empty and malformed subscription filters before sending', () async {
       await connectStateless(client, transport);
       await expectLater(
+        client.listenForNotifications(),
+        throwsArgumentError,
+      );
+      await expectLater(
         client.listenForNotifications(
-          notifications: [
-            McpProtocol.methodToolListChanged,
-            McpProtocol.methodToolListChanged,
-          ],
+          resourceSubscriptions: ['relative/path'],
         ),
         throwsArgumentError,
       );
       await expectLater(
-        client.listenForNotifications(notifications: ['tools/list']),
+        client.listenForNotifications(
+          resourceSubscriptions: [
+            'file:///tmp/a',
+            'file:///tmp/a',
+          ],
+        ),
         throwsArgumentError,
       );
       expect(
