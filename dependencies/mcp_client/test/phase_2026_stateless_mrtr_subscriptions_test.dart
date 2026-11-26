@@ -295,13 +295,6 @@ void main() {
       });
       transport.sendMockNotification({
         'jsonrpc': McpProtocol.jsonRpcVersion,
-        'method': McpProtocol.methodPromptListChanged,
-        'params': {
-          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
-        },
-      });
-      transport.sendMockNotification({
-        'jsonrpc': McpProtocol.jsonRpcVersion,
         'method': McpProtocol.methodResourceUpdated,
         'params': {
           '_meta': {McpProtocol.metaSubscriptionId: request['id']},
@@ -399,7 +392,10 @@ void main() {
       transport.sendMockNotification({
         'jsonrpc': McpProtocol.jsonRpcVersion,
         'id': request['id'],
-        'result': {'resultType': 'complete'},
+        'result': {
+          'resultType': 'complete',
+          '_meta': {McpProtocol.metaSubscriptionId: request['id']},
+        },
       });
       await expectLater(listening, throwsA(isA<McpError>()));
     });
