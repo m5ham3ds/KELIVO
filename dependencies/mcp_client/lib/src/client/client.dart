@@ -902,6 +902,11 @@ class Client {
       cancelTransport?.call();
       _activeSubscriptionFilters.remove(subscriptionId);
       await ackWatcher.cancel();
+      try {
+        await streamDone;
+      } catch (_) {
+        // The acknowledgement error is the primary result for this call.
+      }
       rethrow;
     }
   }
@@ -937,12 +942,15 @@ class Client {
       } else if (entry.key == 'resourceSubscriptions') {
         final rawUris = entry.value;
         final requestedUris = requested['resourceSubscriptions'];
-        if (rawUris is! List || requestedUris is! List) {
+        if (rawUris is! List ||
+            (requestedUris != null && requestedUris is! List)) {
           throw McpError(
             'subscriptions/listen acknowledgement has invalid resourceSubscriptions',
           );
         }
-        final requestedSet = requestedUris.cast<String>().toSet();
+        final requestedSet = requestedUris is List
+            ? requestedUris.cast<String>().toSet()
+            : <String>{};
         final acceptedSet = <String>{};
         for (final uri in rawUris) {
           if (uri is! String ||
