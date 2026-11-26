@@ -957,10 +957,36 @@ Map<String, dynamic> _readReply({
       connection.client.onResourcesListChanged(() {
         legacyCallbackCount++;
       });
+      final adapter = McpSkillsExtension(
+        client: connection.client,
+        serverIdentity: 'host-server-label-1',
+      );
+
+      final listening = connection.client.listenForNotifications(
+        resourcesListChanged: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      final listenRequest = connection.transport.sentMessages.singleWhere(
+        (message) =>
+            message['method'] == McpProtocol.methodSubscriptionsListen,
+      );
+      connection.transport.sendMockNotification(<String, dynamic>{
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodSubscriptionsAcknowledged,
+        'params': <String, dynamic>{
+          '_meta': <String, dynamic>{
+            McpProtocol.metaSubscriptionId: listenRequest['id'],
+          },
+          'notifications': <String, dynamic>{
+            'resourcesListChanged': true,
+          },
+        },
+      });
+      final subscription = await listening;
+
       connection.transport
         ..queueResponse(<String, dynamic>{
           'jsonrpc': McpProtocol.jsonRpcVersion,
-          'id': 2,
           'result': _cacheable(
             result: <String, dynamic>{'skill': manifest},
           ),
@@ -968,17 +994,12 @@ Map<String, dynamic> _readReply({
         ..queueResponse(_readReply(uri: _skillUri, text: markdown))
         ..queueResponse(<String, dynamic>{
           'jsonrpc': McpProtocol.jsonRpcVersion,
-          'id': 4,
           'result': _cacheable(
             result: <String, dynamic>{'skill': manifest},
           ),
         })
         ..queueResponse(_readReply(uri: _skillUri, text: markdown));
 
-      final adapter = McpSkillsExtension(
-        client: connection.client,
-        serverIdentity: 'host-server-label-1',
-      );
       final firstEntry = await adapter.getSkill(uri: _skillUri);
       final firstRead = await adapter.readSkillResource(
         snapshot: firstEntry.snapshot,
@@ -993,7 +1014,11 @@ Map<String, dynamic> _readReply({
       connection.transport.simulateMessage(<String, dynamic>{
         'jsonrpc': McpProtocol.jsonRpcVersion,
         'method': McpProtocol.methodResourceListChanged,
-        'params': <String, dynamic>{},
+        'params': <String, dynamic>{
+          '_meta': <String, dynamic>{
+            McpProtocol.metaSubscriptionId: subscription.id,
+          },
+        },
       });
       await Future<void>.delayed(Duration.zero);
       expect(legacyCallbackCount, 1);
@@ -1018,6 +1043,7 @@ Map<String, dynamic> _readReply({
             .length,
         2,
       );
+      subscription.cancel();
       await adapter.dispose();
       connection.client.dispose();
     });
