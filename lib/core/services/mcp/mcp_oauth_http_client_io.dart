@@ -49,7 +49,9 @@ Future<http.Client> createMcpSkillsPinnedHttpClient(
   final origin = _McpHttpsOrigin.fromUri(uri);
   final client = HttpClient()
     ..connectionTimeout = _networkTimeout
-    ..findProxy = (_) => 'DIRECT'
+    ..findProxy = (uri) {
+      return 'DIRECT';
+    }
     ..connectionFactory = (requestUri, proxyHost, proxyPort) {
       if (!_McpHttpsOrigin.fromUri(requestUri).sameAs(origin)) {
         throw SocketException(
