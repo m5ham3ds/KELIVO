@@ -1283,11 +1283,131 @@ class Client {
     }
   }
 
-  /// Send a JSON-RPC request
+  /// Send a request and process the stateless 2026 MRTR flow, if present.
   Future<dynamic> _sendRequest(
     String method,
     Map<String, dynamic> params,
   ) async {
+    final originalParams = Map<String, dynamic>.from(params)
+      ..remove('inputResponses')
+      ..remove('requestState');
+    var retryParams = Map<String, dynamic>.from(originalParams);
+
+    for (var round = 0; round < _maxMrtrRounds; round++) {
+      final response = await _sendSingleRequest(method, retryParams);
+      if (_statelessProtocolVersion == null) return response;
+      if (response is! Map) {
+        throw McpError('Stateless MCP result must be a JSON object');
+      }
+
+      final result = Map<String, dynamic>.from(response);
+      final resultType = result['resultType'];
+      if (resultType == 'complete') return result;
+      if (resultType != 'input_required') {
+        throw McpError('Stateless MCP result has an unsupported resultType');
+      }
+      if (!_mrtrEligibleMethods.contains(method)) {
+        throw McpError(
+          'InputRequiredResult is not permitted for MCP method: ' + method,
+        );
+      }
+      if (round + 1 >= _maxMrtrRounds) {
+        throw McpError('MCP MRTR exceeded the maximum round-trip count');
+      }
+
+      final rawRequests = result['inputRequests'];
+      final rawRequestState = result['requestState'];
+      if (rawRequests != null && rawRequests is! Map) {
+        throw McpError('MCP InputRequiredResult has invalid inputRequests');
+      }
+      if (rawRequestState != null && rawRequestState is! String) {
+        throw McpError('MCP InputRequiredResult has invalid requestState');
+      }
+      if (rawRequests == null && rawRequestState == null) {
+        throw McpError(
+          'MCP InputRequiredResult must include inputRequests or requestState',
+        );
+      }
+
+      final inputResponses = <String, dynamic>{};
+      if (rawRequests is Map) {
+        if (rawRequests.length > _maxMrtrRequestsPerRound) {
+          throw McpError('MCP InputRequiredResult contains too many requests');
+        }
+        for (final entry in rawRequests.entries) {
+          final requestKey = entry.key;
+          if (requestKey is! String ||
+              requestKey.trim().isEmpty ||
+              requestKey.length > 128) {
+            throw McpError('MCP InputRequiredResult has an invalid request key');
+          }
+          final inputRequest = entry.value;
+          if (inputRequest is! Map) {
+            throw McpError(
+              'MCP InputRequiredResult contains an invalid request object',
+            );
+          }
+          final requestedMethod = inputRequest['method'];
+          if (requestedMethod is! String ||
+              !_canHandleMrtrRequest(requestedMethod)) {
+            throw McpError(
+              'MCP InputRequiredResult requested an unsupported client method',
+            );
+          }
+          final rawParams = inputRequest['params'];
+          if (rawParams != null && rawParams is! Map) {
+            throw McpError(
+              'MCP InputRequiredResult contains invalid request parameters',
+            );
+          }
+          final handler = _requestHandlers[requestedMethod];
+          if (handler == null) {
+            throw McpError(
+              'No client handler is registered for MRTR method: ' + requestedMethod,
+            );
+          }
+          final inputResult = await handler(
+            rawParams == null
+                ? const <String, dynamic>{}
+                : Map<String, dynamic>.from(rawParams),
+          );
+          inputResponses[requestKey] = Map<String, dynamic>.from(inputResult);
+        }
+      }
+
+      // The MRTR fields belong only to this request and never leak to another.
+      retryParams = Map<String, dynamic>.from(originalParams);
+      if (rawRequests is Map) {
+        retryParams['inputResponses'] = inputResponses;
+      }
+      if (rawRequestState is String) {
+        // requestState is opaque; echo it exactly without inspection.
+        retryParams['requestState'] = rawRequestState;
+      }
+    }
+
+    throw McpError('MCP MRTR did not complete within the allowed rounds');
+  }
+
+  bool _canHandleMrtrRequest(String method) {
+    switch (method) {
+      case 'roots/list':
+        return capabilities.roots;
+      case 'sampling/createMessage':
+        return capabilities.sampling;
+      case 'elicitation/create':
+        return capabilities.elicitation;
+      default:
+        return false;
+    }
+  }
+
+  /// Send one JSON-RPC request without interpreting its result.
+  Future<dynamic> _sendSingleRequest(
+    String method,
+    Map<String, dynamic> params, {
+    bool allowLongLived = false,
+  }) async {
     if (!isConnected) {
       throw McpError('Client is not connected to a transport');
     }
@@ -1306,7 +1426,6 @@ class Client {
       safeParams['_meta'] = <String, dynamic>{
         if (existing is Map) ...Map<String, dynamic>.from(existing),
         ..._requestMetadata,
-        // Protocol version is reserved and cannot be overridden.
         McpProtocol.metaProtocolVersion:
             _negotiatedProtocolVersion ?? _statelessProtocolVersion,
       };
@@ -1330,19 +1449,21 @@ class Client {
     }
 
     try {
-      // Add timeout for requests
-      final result = await Future.any<dynamic>([
+      final pendingResponse = Future.any<dynamic>([
         completer.future,
         operation.done.then<dynamic>((_) => completer.future),
-      ]).timeout(
-        requestTimeout,
-        onTimeout: () {
-          _removeRequestCompleter(id);
-          final error = McpError('Request timed out: $method');
-          _errorStreamController.add(error);
-          throw error;
-        },
-      );
+      ]);
+      final result = allowLongLived
+          ? await pendingResponse
+          : await pendingResponse.timeout(
+              requestTimeout,
+              onTimeout: () {
+                _removeRequestCompleter(id);
+                final error = McpError('Request timed out: ' + method);
+                _errorStreamController.add(error);
+                throw error;
+              },
+            );
       return result;
     } catch (e) {
       _removeRequestCompleter(id);
@@ -1356,7 +1477,6 @@ class Client {
       operation.cancel();
     }
   }
-
   Completer<dynamic>? _removeRequestCompleter(int id) {
     final completer = _requestCompleters.remove(id);
     if (_requestCompleters.isEmpty) _completePendingRequestsDrain();
