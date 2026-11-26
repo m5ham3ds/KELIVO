@@ -125,6 +125,7 @@ void main() {
       expect(McpProtocol.supportsElicitation(McpProtocol.v2025_03_26), isFalse);
       expect(McpProtocol.supportsElicitation(McpProtocol.v2025_06_18), isTrue);
       expect(McpProtocol.supportsElicitation(McpProtocol.v2025_11_25), isTrue);
+      expect(McpProtocol.supportsElicitation(McpProtocol.v2026_07_28), isTrue);
     });
 
     test('MCP-Protocol-Version HTTP header required at 2025-06-18+', () {
@@ -142,6 +143,10 @@ void main() {
       );
       expect(
         McpProtocol.requiresProtocolHeader(McpProtocol.v2025_11_25),
+        isTrue,
+      );
+      expect(
+        McpProtocol.requiresProtocolHeader(McpProtocol.v2026_07_28),
         isTrue,
       );
     });

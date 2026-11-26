@@ -61,11 +61,21 @@ class Client {
   /// Map of notification handlers by method
   final _notificationHandlers = <String, Function(Map<String, dynamic>)>{};
 
-  /// Map of incoming-request handlers by method (server-initiated requests
-  /// per spec: `sampling/createMessage`, `roots/list`, `elicitation/create`).
-  /// Each handler returns the JSON-RPC `result` map.
+  /// Acknowledged notification filters keyed by subscriptions/listen request ID.
+  final _activeSubscriptionFilters = <int, Map<String, dynamic>>{};
+
+  /// Handlers used by legacy server-initiated requests and by 2026 MRTR
+  /// input requests. Stateless 2026 servers cannot send independent requests.
   final _requestHandlers =
       <String, Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{};
+
+  static const int _maxMrtrRounds = 5;
+  static const int _maxMrtrRequestsPerRound = 16;
+  static const Set<String> _mrtrEligibleMethods = <String>{
+    'prompts/get',
+    'resources/read',
+    'tools/call',
+  };
 
   /// Local roots advertised by this client. The server can fetch the
   /// list via the `roots/list` request — handled by the built-in
@@ -423,6 +433,9 @@ class Client {
   String? get negotiatedProtocolVersion => _negotiatedProtocolVersion;
   String? _negotiatedProtocolVersion;
 
+  /// Per-request log level used by MCP 2026-07-28.
+  String? _logLevel;
+
   String? get sessionId {
     final transport = _transport;
     return transport is StreamableHttpClientTransport
@@ -441,6 +454,9 @@ class Client {
 
   Future<void> ping() async {
     if (!_initialized) throw McpError('Client is not initialized');
+    if (_statelessProtocolVersion != null) {
+      throw UnsupportedError('ping is not part of MCP 2026-07-28');
+    }
     await _sendRequest('ping', const {});
   }
 
@@ -687,8 +703,16 @@ class Client {
     return await readResource(uri);
   }
 
-  /// Subscribe to a resource
+  /// Subscribe to a resource on legacy MCP revisions.
+  ///
+  /// MCP 2026-07-28 uses [listenForNotifications] instead.
   Future<void> subscribeResource(String uri) async {
+    if (_statelessProtocolVersion != null) {
+      throw UnsupportedError(
+        'resources/subscribe is not supported by MCP 2026-07-28; '
+        'use subscriptions/listen',
+      );
+    }
     if (!_initialized) {
       throw McpError('Client is not initialized');
     }
@@ -700,8 +724,17 @@ class Client {
     await _sendRequest('resources/subscribe', {'uri': uri});
   }
 
-  /// Unsubscribe from a resource
+  /// Unsubscribe from a resource on legacy MCP revisions.
+  ///
+  /// MCP 2026-07-28 uses [listenForNotifications] and closes the active
+  /// stream to cancel a subscription.
   Future<void> unsubscribeResource(String uri) async {
+    if (_statelessProtocolVersion != null) {
+      throw UnsupportedError(
+        'resources/unsubscribe is not supported by MCP 2026-07-28; '
+        'use subscriptions/listen',
+      );
+    }
     if (!_initialized) {
       throw McpError('Client is not initialized');
     }
@@ -711,6 +744,246 @@ class Client {
     }
 
     await _sendRequest('resources/unsubscribe', {'uri': uri});
+  }
+
+  /// Opens a long-lived notification stream using MCP 2026-07-28
+  /// `subscriptions/listen`. The Future resolves after the server
+  /// acknowledges the requested filter; keep the returned handle to observe
+  /// stream completion or cancel this subscription.
+  Future<McpSubscription> listenForNotifications({
+    bool toolsListChanged = false,
+    bool promptsListChanged = false,
+    bool resourcesListChanged = false,
+    List<String> resourceSubscriptions = const <String>[],
+  }) async {
+    if (!_initialized) {
+      throw McpError('Client is not initialized');
+    }
+    if (_statelessProtocolVersion != McpProtocol.v2026_07_28 ||
+        _negotiatedProtocolVersion != McpProtocol.v2026_07_28) {
+      throw UnsupportedError(
+        'subscriptions/listen requires MCP 2026-07-28 stateless mode',
+      );
+    }
+    if (_transport is SseClientTransport) {
+      throw UnsupportedError(
+        'MCP 2026-07-28 subscriptions do not support the legacy SSE transport',
+      );
+    }
+
+    const maxResourceSubscriptions = 256;
+    if (resourceSubscriptions.length > maxResourceSubscriptions) {
+      throw ArgumentError.value(
+        resourceSubscriptions.length,
+        'resourceSubscriptions',
+        'exceeds the local subscription URI limit',
+      );
+    }
+    final seenUris = <String>{};
+    for (final resourceUri in resourceSubscriptions) {
+      final parsed = Uri.tryParse(resourceUri);
+      if (resourceUri.isEmpty ||
+          resourceUri.length > 2048 ||
+          parsed == null ||
+          !parsed.hasScheme ||
+          !seenUris.add(resourceUri)) {
+        throw ArgumentError.value(
+          resourceUri,
+          'resourceSubscriptions',
+          'must contain unique absolute resource URIs no longer than 2048 characters',
+        );
+      }
+    }
+
+    final requestedFilter = <String, dynamic>{
+      if (toolsListChanged) 'toolsListChanged': true,
+      if (promptsListChanged) 'promptsListChanged': true,
+      if (resourcesListChanged) 'resourcesListChanged': true,
+      if (resourceSubscriptions.isNotEmpty)
+        'resourceSubscriptions': List<String>.unmodifiable(resourceSubscriptions),
+    };
+    if (requestedFilter.isEmpty) {
+      throw ArgumentError(
+        'At least one subscription notification type or resource URI is required',
+      );
+    }
+
+    // _sendSingleRequest allocates the current ID synchronously before its
+    // first await. Capturing it immediately lets us correlate the ack and
+    // every notification on this subscription stream.
+    final subscriptionId = _requestId;
+    final acknowledged = Completer<Map<String, dynamic>>();
+    var cancelRequested = false;
+    void Function()? cancelTransport;
+
+    final ackWatcher = _messageController.stream.listen((message) {
+      if (!message.isNotification ||
+          message.method != McpProtocol.methodSubscriptionsAcknowledged) {
+        return;
+      }
+      final params = message.params ?? const <String, dynamic>{};
+      final metadata = params['_meta'];
+      if (metadata is! Map ||
+          metadata[McpProtocol.metaSubscriptionId] != subscriptionId ||
+          acknowledged.isCompleted) {
+        return;
+      }
+      try {
+        final rawFilter = params['notifications'];
+        if (rawFilter is! Map) {
+          throw McpError(
+            'subscriptions/listen acknowledgement has no notification filter',
+          );
+        }
+        final acceptedFilter = _validateAcknowledgedSubscriptionFilter(
+          requestedFilter,
+          Map<String, dynamic>.from(rawFilter),
+        );
+        // Register synchronously inside the ack callback so a following SSE
+        // event cannot arrive before its subscription ID has been installed.
+        _activeSubscriptionFilters[subscriptionId] = acceptedFilter;
+        if (!acknowledged.isCompleted) acknowledged.complete(acceptedFilter);
+      } catch (error, stackTrace) {
+        if (!acknowledged.isCompleted) {
+          acknowledged.completeError(error, stackTrace);
+        }
+      }
+    });
+
+    final requestFuture = _sendSingleRequest(
+      McpProtocol.methodSubscriptionsListen,
+      {'notifications': requestedFilter},
+      allowLongLived: true,
+      onOperationCreated: (cancel) {
+        cancelTransport = () {
+          if (cancelRequested) return;
+          cancelRequested = true;
+          _activeSubscriptionFilters.remove(subscriptionId);
+          cancel();
+        };
+      },
+    );
+
+    final streamDone = requestFuture.then<void>((response) {
+      if (response is! Map || response['resultType'] != 'complete') {
+        throw McpError('subscriptions/listen returned an invalid result');
+      }
+      final metadata = response['_meta'];
+      if (metadata is! Map ||
+          metadata[McpProtocol.metaSubscriptionId] != subscriptionId) {
+        throw McpError(
+          'subscriptions/listen final response has a missing or mismatched subscription ID',
+        );
+      }
+      if (!acknowledged.isCompleted) {
+        throw McpError(
+          'subscriptions/listen ended without an acknowledgement notification',
+        );
+      }
+    }).catchError((Object error, StackTrace stackTrace) {
+      if (!acknowledged.isCompleted) {
+        // Before acknowledgement this is a setup error. Surface it through
+        // the Future awaited by listenForNotifications, not as a second
+        // unhandled error from the independently observed stream Future.
+        acknowledged.completeError(error, stackTrace);
+        return;
+      }
+      if (cancelRequested) return;
+      Error.throwWithStackTrace(error, stackTrace);
+    }).whenComplete(() async {
+      _activeSubscriptionFilters.remove(subscriptionId);
+      await ackWatcher.cancel();
+    });
+
+    try {
+      final acceptedFilter = await acknowledged.future.timeout(requestTimeout);
+      return McpSubscription(
+        id: subscriptionId,
+        requestedFilter: requestedFilter,
+        acceptedFilter: acceptedFilter,
+        done: streamDone,
+        cancel: () {
+          if (cancelRequested) return;
+          final cancel = cancelTransport;
+          try {
+            if (_transport is! StreamableHttpClientTransport) {
+              // Stdio uses one channel and requires a cancellation notification.
+              _sendNotification(
+                McpProtocol.methodCancelled,
+                {'requestId': subscriptionId},
+              );
+            }
+          } finally {
+            cancel?.call();
+          }
+        },
+      );
+    } catch (_) {
+      cancelTransport?.call();
+      _activeSubscriptionFilters.remove(subscriptionId);
+      await ackWatcher.cancel();
+      try {
+        await streamDone;
+      } catch (_) {
+        // The acknowledgement error is the primary result for this call.
+      }
+      rethrow;
+    }
+  }
+
+  Map<String, dynamic> _validateAcknowledgedSubscriptionFilter(
+    Map<String, dynamic> requested,
+    Map<String, dynamic> accepted,
+  ) {
+    const booleanFields = <String>{
+      'toolsListChanged',
+      'promptsListChanged',
+      'resourcesListChanged',
+    };
+    const allowedFields = <String>{
+      'toolsListChanged',
+      'promptsListChanged',
+      'resourcesListChanged',
+      'resourceSubscriptions',
+    };
+    for (final entry in accepted.entries) {
+      if (!allowedFields.contains(entry.key)) {
+        throw McpError(
+          'subscriptions/listen acknowledgement contains an unknown filter field',
+        );
+      }
+      if (booleanFields.contains(entry.key)) {
+        if (entry.value is! bool ||
+            (entry.value == true && requested[entry.key] != true)) {
+          throw McpError(
+            'subscriptions/listen acknowledgement exceeds the requested filter',
+          );
+        }
+      } else if (entry.key == 'resourceSubscriptions') {
+        final rawUris = entry.value;
+        final requestedUris = requested['resourceSubscriptions'];
+        if (rawUris is! List ||
+            (requestedUris != null && requestedUris is! List)) {
+          throw McpError(
+            'subscriptions/listen acknowledgement has invalid resourceSubscriptions',
+          );
+        }
+        final requestedSet = requestedUris is List
+            ? requestedUris.cast<String>().toSet()
+            : <String>{};
+        final acceptedSet = <String>{};
+        for (final uri in rawUris) {
+          if (uri is! String ||
+              !requestedSet.contains(uri) ||
+              !acceptedSet.add(uri)) {
+            throw McpError(
+              'subscriptions/listen acknowledgement exceeds the requested resource URIs',
+            );
+          }
+        }
+      }
+    }
+    return Map<String, dynamic>.unmodifiable(accepted);
   }
 
   /// List resource templates on the server
@@ -848,7 +1121,7 @@ class Client {
       throw McpError('Root with URI "${root.uri}" already exists');
     }
     _roots.add(root);
-    if (isConnected) {
+    if (isConnected && _statelessProtocolVersion == null) {
       _sendNotification('notifications/roots/list_changed', {});
     }
   }
@@ -868,7 +1141,7 @@ class Client {
     if (_roots.length == removed) {
       throw McpError('Root with URI "$uri" does not exist');
     }
-    if (isConnected) {
+    if (isConnected && _statelessProtocolVersion == null) {
       _sendNotification('notifications/roots/list_changed', {});
     }
   }
@@ -879,13 +1152,40 @@ class Client {
       throw McpError('Client is not initialized');
     }
 
-    // Spec method name is camelCase: `logging/setLevel`.
+    if (_statelessProtocolVersion != null) {
+      // MCP 2026-07-28 moved log-level selection into per-request metadata.
+      _logLevel = level.name;
+      return;
+    }
+
+    // Legacy revisions use logging/setLevel.
     await _sendRequest('logging/setLevel', {'level': level.name});
   }
 
   /// Register a notification handler
   void onNotification(String method, Function(Map<String, dynamic>) handler) {
     _notificationHandlers[method] = handler;
+  }
+
+  bool _subscriptionFilterAllows(
+    Map<String, dynamic> filter,
+    String? method,
+    Map<String, dynamic> params,
+  ) {
+    switch (method) {
+      case McpProtocol.methodToolListChanged:
+        return filter['toolsListChanged'] == true;
+      case McpProtocol.methodPromptListChanged:
+        return filter['promptsListChanged'] == true;
+      case McpProtocol.methodResourceListChanged:
+        return filter['resourcesListChanged'] == true;
+      case McpProtocol.methodResourceUpdated:
+        final uri = params['uri'];
+        final resources = filter['resourceSubscriptions'];
+        return uri is String && resources is List && resources.contains(uri);
+      default:
+        return false;
+    }
   }
 
   /// Handle tools list changed notification
@@ -1038,6 +1338,7 @@ class Client {
       }
     }
     _requestCompleters.clear();
+    _activeSubscriptionFilters.clear();
     _completePendingRequestsDrain();
   }
 
@@ -1061,7 +1362,13 @@ class Client {
     } else if (message.isNotification) {
       _handleNotification(message);
     } else if (message.isRequest) {
-      // Server-initiated request — sampling / elicitation / roots / etc.
+      if (_statelessProtocolVersion != null) {
+        throw McpError(
+          'Server-initiated JSON-RPC requests are not valid in stateless MCP; '
+          'the server must use an InputRequiredResult',
+        );
+      }
+      // Legacy revisions still support server-initiated request/response.
       await _handleIncomingRequest(message);
     } else {
       _logger.debug('Ignoring unexpected message type: ${message.toJson()}');
@@ -1153,6 +1460,30 @@ class Client {
     final method = notification.method;
     final params = notification.params ?? {};
 
+    final metadata = params['_meta'];
+    final requiresSubscription = _statelessProtocolVersion != null &&
+        (method == McpProtocol.methodToolListChanged ||
+            method == McpProtocol.methodPromptListChanged ||
+            method == McpProtocol.methodResourceListChanged ||
+            method == McpProtocol.methodResourceUpdated);
+    if (requiresSubscription || (metadata is Map &&
+        metadata.containsKey(McpProtocol.metaSubscriptionId))) {
+      if (metadata is! Map) return;
+      final subscriptionId = metadata[McpProtocol.metaSubscriptionId];
+      if (subscriptionId is! int) return;
+      final acceptedFilter = _activeSubscriptionFilters[subscriptionId];
+      if (acceptedFilter == null ||
+          !_subscriptionFilterAllows(acceptedFilter, method, params)) {
+        return;
+      }
+    }
+
+    // This notification is not part of the 2026-07-28 protocol.
+    if (_statelessProtocolVersion != null &&
+        method == McpProtocol.methodRootListChanged) {
+      return;
+    }
+
     if (method == McpProtocol.methodResourceListChanged &&
         !_resourcesListChangedController.isClosed) {
       _resourcesListChangedController.add(null);
@@ -1173,11 +1504,132 @@ class Client {
     }
   }
 
-  /// Send a JSON-RPC request
+  /// Send a request and process the stateless 2026 MRTR flow, if present.
   Future<dynamic> _sendRequest(
     String method,
     Map<String, dynamic> params,
   ) async {
+    final originalParams = Map<String, dynamic>.from(params)
+      ..remove('inputResponses')
+      ..remove('requestState');
+    var retryParams = Map<String, dynamic>.from(originalParams);
+
+    for (var round = 0; round < _maxMrtrRounds; round++) {
+      final response = await _sendSingleRequest(method, retryParams);
+      if (_statelessProtocolVersion == null) return response;
+      if (response is! Map) {
+        throw McpError('Stateless MCP result must be a JSON object');
+      }
+
+      final result = Map<String, dynamic>.from(response);
+      final resultType = result['resultType'];
+      if (resultType == 'complete') return result;
+      if (resultType != 'input_required') {
+        throw McpError('Stateless MCP result has an unsupported resultType');
+      }
+      if (!_mrtrEligibleMethods.contains(method)) {
+        throw McpError(
+          'InputRequiredResult is not permitted for MCP method: ' + method,
+        );
+      }
+      if (round + 1 >= _maxMrtrRounds) {
+        throw McpError('MCP MRTR exceeded the maximum round-trip count');
+      }
+
+      final rawRequests = result['inputRequests'];
+      final rawRequestState = result['requestState'];
+      if (rawRequests != null && rawRequests is! Map) {
+        throw McpError('MCP InputRequiredResult has invalid inputRequests');
+      }
+      if (rawRequestState != null && rawRequestState is! String) {
+        throw McpError('MCP InputRequiredResult has invalid requestState');
+      }
+      if (rawRequests == null && rawRequestState == null) {
+        throw McpError(
+          'MCP InputRequiredResult must include inputRequests or requestState',
+        );
+      }
+
+      final inputResponses = <String, dynamic>{};
+      if (rawRequests is Map) {
+        if (rawRequests.length > _maxMrtrRequestsPerRound) {
+          throw McpError('MCP InputRequiredResult contains too many requests');
+        }
+        for (final entry in rawRequests.entries) {
+          final requestKey = entry.key;
+          if (requestKey is! String ||
+              requestKey.trim().isEmpty ||
+              requestKey.length > 128) {
+            throw McpError('MCP InputRequiredResult has an invalid request key');
+          }
+          final inputRequest = entry.value;
+          if (inputRequest is! Map) {
+            throw McpError(
+              'MCP InputRequiredResult contains an invalid request object',
+            );
+          }
+          final requestedMethod = inputRequest['method'];
+          if (requestedMethod is! String ||
+              !_canHandleMrtrRequest(requestedMethod)) {
+            throw McpError(
+              'MCP InputRequiredResult requested an unsupported client method',
+            );
+          }
+          final rawParams = inputRequest['params'];
+          if (rawParams != null && rawParams is! Map) {
+            throw McpError(
+              'MCP InputRequiredResult contains invalid request parameters',
+            );
+          }
+          final handler = _requestHandlers[requestedMethod];
+          if (handler == null) {
+            throw McpError(
+              'No client handler is registered for MRTR method: ' + requestedMethod,
+            );
+          }
+          final inputResult = await handler(
+            rawParams == null
+                ? const <String, dynamic>{}
+                : Map<String, dynamic>.from(rawParams),
+          );
+          inputResponses[requestKey] = Map<String, dynamic>.from(inputResult);
+        }
+      }
+
+      // The MRTR fields belong only to this request and never leak to another.
+      retryParams = Map<String, dynamic>.from(originalParams);
+      if (rawRequests is Map) {
+        retryParams['inputResponses'] = inputResponses;
+      }
+      if (rawRequestState is String) {
+        // requestState is opaque; echo it exactly without inspection.
+        retryParams['requestState'] = rawRequestState;
+      }
+    }
+
+    throw McpError('MCP MRTR did not complete within the allowed rounds');
+  }
+
+  bool _canHandleMrtrRequest(String method) {
+    switch (method) {
+      case 'roots/list':
+        return capabilities.roots;
+      case 'sampling/createMessage':
+        return capabilities.sampling;
+      case 'elicitation/create':
+        return capabilities.elicitation;
+      default:
+        return false;
+    }
+  }
+
+  /// Send one JSON-RPC request without interpreting its result.
+  Future<dynamic> _sendSingleRequest(
+    String method,
+    Map<String, dynamic> params, {
+    bool allowLongLived = false,
+    void Function(void Function() cancel)? onOperationCreated,
+  }) async {
     if (!isConnected) {
       throw McpError('Client is not connected to a transport');
     }
@@ -1196,7 +1648,7 @@ class Client {
       safeParams['_meta'] = <String, dynamic>{
         if (existing is Map) ...Map<String, dynamic>.from(existing),
         ..._requestMetadata,
-        // Protocol version is reserved and cannot be overridden.
+        if (_logLevel != null) McpProtocol.metaLogLevel: _logLevel,
         McpProtocol.metaProtocolVersion:
             _negotiatedProtocolVersion ?? _statelessProtocolVersion,
       };
@@ -1212,6 +1664,12 @@ class Client {
     late final TransportSendOperation operation;
     try {
       operation = _transport!.send(request);
+      onOperationCreated?.call(() {
+        operation.cancel();
+        if (!completer.isCompleted) {
+          completer.completeError(McpError('Subscription request cancelled'));
+        }
+      });
     } catch (e) {
       _removeRequestCompleter(id);
       final error = McpError('Failed to send request: $e');
@@ -1220,19 +1678,21 @@ class Client {
     }
 
     try {
-      // Add timeout for requests
-      final result = await Future.any<dynamic>([
+      final pendingResponse = Future.any<dynamic>([
         completer.future,
         operation.done.then<dynamic>((_) => completer.future),
-      ]).timeout(
-        requestTimeout,
-        onTimeout: () {
-          _removeRequestCompleter(id);
-          final error = McpError('Request timed out: $method');
-          _errorStreamController.add(error);
-          throw error;
-        },
-      );
+      ]);
+      final result = allowLongLived
+          ? await pendingResponse
+          : await pendingResponse.timeout(
+              requestTimeout,
+              onTimeout: () {
+                _removeRequestCompleter(id);
+                final error = McpError('Request timed out: ' + method);
+                _errorStreamController.add(error);
+                throw error;
+              },
+            );
       return result;
     } catch (e) {
       _removeRequestCompleter(id);
@@ -1246,7 +1706,6 @@ class Client {
       operation.cancel();
     }
   }
-
   Completer<dynamic>? _removeRequestCompleter(int id) {
     final completer = _requestCompleters.remove(id);
     if (_requestCompleters.isEmpty) _completePendingRequestsDrain();
@@ -1271,6 +1730,7 @@ class Client {
       safeParams['_meta'] = <String, dynamic>{
         if (existing is Map) ...Map<String, dynamic>.from(existing),
         ..._requestMetadata,
+        if (_logLevel != null) McpProtocol.metaLogLevel: _logLevel,
         // Protocol version is reserved and cannot be overridden.
         McpProtocol.metaProtocolVersion:
             _negotiatedProtocolVersion ?? _statelessProtocolVersion,
@@ -1318,6 +1778,38 @@ enum DisconnectReason {
 
   /// Unknown reason
   unknown,
+}
+
+/// Handle for one MCP 2026-07-28 `subscriptions/listen` stream.
+///
+/// The acknowledgement is available immediately; [done] completes when the
+/// server closes the stream gracefully. [cancel] aborts only this request's
+/// response stream, without disconnecting other MCP requests.
+class McpSubscription {
+  final int id;
+  final Map<String, dynamic> requestedFilter;
+  final Map<String, dynamic> acceptedFilter;
+  final Future<void> done;
+  final void Function() _cancel;
+  bool _cancelled = false;
+
+  McpSubscription({
+    required this.id,
+    required Map<String, dynamic> requestedFilter,
+    required Map<String, dynamic> acceptedFilter,
+    required this.done,
+    required void Function() cancel,
+  }) : requestedFilter = Map<String, dynamic>.unmodifiable(requestedFilter),
+       acceptedFilter = Map<String, dynamic>.unmodifiable(acceptedFilter),
+       _cancel = cancel;
+
+  bool get isCancelled => _cancelled;
+
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    _cancel();
+  }
 }
 
 /// Class to hold result of a tracked tool call

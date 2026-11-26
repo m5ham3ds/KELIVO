@@ -42,13 +42,17 @@ class McpProtocol {
   /// Whether the negotiated [version] understands `elicitation/create`
   /// (introduced 2025-06-18).
   static bool supportsElicitation(String version) =>
-      version == v2025_06_18 || version == v2025_11_25;
+      version == v2025_06_18 ||
+      version == v2025_11_25 ||
+      version == v2026_07_28;
 
   /// Whether the negotiated [version] requires the
   /// `MCP-Protocol-Version` HTTP header on every post-handshake request
   /// (mandatory from 2025-06-18).
   static bool requiresProtocolHeader(String version) =>
-      version == v2025_06_18 || version == v2025_11_25;
+      version == v2025_06_18 ||
+      version == v2025_11_25 ||
+      version == v2026_07_28;
 
   /// Stateless protocol discovery and metadata keys.
   static const String methodServerDiscover = "server/discover";
@@ -56,6 +60,9 @@ class McpProtocol {
   static const String metaClientInfo = "io.modelcontextprotocol/clientInfo";
   static const String metaClientCapabilities = "io.modelcontextprotocol/clientCapabilities";
   static const String metaServerInfo = "io.modelcontextprotocol/serverInfo";
+  static const String metaSubscriptionId =
+      "io.modelcontextprotocol/subscriptionId";
+  static const String metaLogLevel = "io.modelcontextprotocol/logLevel";
   static const String skillsExtensionId = "io.modelcontextprotocol/skills";
   static const String methodListSkills = "skills/list";
   static const String methodGetSkill = "skills/get";
@@ -75,6 +82,9 @@ class McpProtocol {
   static const String methodReadResource = "resources/read";
   static const String methodSubscribeResource = "resources/subscribe";
   static const String methodUnsubscribeResource = "resources/unsubscribe";
+  static const String methodSubscriptionsListen = "subscriptions/listen";
+  static const String methodSubscriptionsAcknowledged =
+      "notifications/subscriptions/acknowledged";
   static const String methodListResourceTemplates = "resources/templates/list";
   static const String methodListPrompts = "prompts/list";
   static const String methodGetPrompt = "prompts/get";
