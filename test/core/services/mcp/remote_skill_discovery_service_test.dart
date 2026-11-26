@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:Kelivo/core/providers/mcp_provider.dart';
+import 'package:Kelivo/core/services/mcp/mcp_oauth_service.dart';
 import 'package:Kelivo/core/services/mcp/remote_skill_discovery_service.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -133,7 +134,6 @@ void main() {
 
     final session = await service.connect(server());
     addTearDown(session.dispose);
-    expect(session.serverInfo['name'], 'Example Skills');
     expect(
       requests.map((message) => message['method']),
       <String>[mcp.McpProtocol.methodServerDiscover],
@@ -150,6 +150,18 @@ void main() {
       ],
     );
     expect(requests.any((message) => message['method'] == 'resources/read'), isFalse);
+
+    expect(
+      () => session.readSkillResource(
+        snapshot: listing.snapshots.single,
+        uri: 'skill://remote-guide/references/other.md',
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      requests.where((message) => message['method'] == 'resources/read'),
+      isEmpty,
+    );
 
     final verified = await session.readSkillResource(
       snapshot: listing.snapshots.single,
@@ -230,46 +242,4 @@ void main() {
     expect(factoryCalls, 0);
   });
 
-  test('does not expose a read operation for resources other than SKILL.md', () async {
-    final mock = MockClient((request) async {
-      final message = jsonDecode(request.body) as Map<String, dynamic>;
-      final id = message['id'] as int;
-      return http.Response(
-        jsonEncode(
-          _reply(id, <String, dynamic>{
-            'resultType': 'complete',
-            'supportedVersions': <String>[mcp.McpProtocol.v2026_07_28],
-            'capabilities': <String, dynamic>{
-              'resources': <String, dynamic>{},
-              'extensions': <String, dynamic>{
-                mcp.McpProtocol.skillsExtensionId: <String, dynamic>{},
-              },
-            },
-            'ttlMs': 60000,
-            'cacheScope': 'private',
-          }),
-        ),
-        200,
-        headers: const <String, String>{'content-type': 'application/json'},
-      );
-    });
-    final service = RemoteSkillDiscoveryService(
-      httpClientFactory: (_) async => mock,
-    );
-    // Connect succeeds; the read facade refuses URI changes without sending
-    // any follow-up network request.
-    final session = await service.connect(server());
-    addTearDown(session.dispose);
-    final before = requestsCount;
-    expect(before, 0);
-    expect(
-      () => session.readSkillResource(
-        snapshot: mcp.McpSkillSnapshotTestingOnly,
-        uri: 'skill://remote-guide/references/other.md',
-      ),
-      throwsA(anything),
-    );
-  });
 }
-
-const int requestsCount = 0;

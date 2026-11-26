@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:Kelivo/core/services/haptics.dart';
 import 'package:Kelivo/core/services/skills/skills_service.dart';
 import 'package:Kelivo/features/workspace/pages/plugins_page.dart';
+import 'package:Kelivo/features/workspace/pages/remote_skills_page.dart';
 import 'package:Kelivo/features/workspace/widgets/skills/skill_detail.dart';
 import 'package:Kelivo/features/workspace/widgets/skills/skill_import.dart';
 import 'package:Kelivo/features/workspace/widgets/skills/skill_labels.dart';
@@ -511,6 +512,21 @@ class _SkillsPageActionsState extends State<SkillsPageActions> {
               ? null
               : () => unawaited(showSkillPackEditor(context)),
           icon: Icon(Lucide.FolderPlus, size: iconSize + 1),
+        ),
+        IconButton(
+          key: const ValueKey('skillsRemoteDiscovery'),
+          tooltip: Localizations.localeOf(context).languageCode == 'ar'
+              ? 'اكتشاف Skills بعيدة'
+              : 'Discover remote Skills',
+          visualDensity: widget.compact
+              ? VisualDensity.compact
+              : VisualDensity.standard,
+          onPressed: () => Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => const RemoteSkillsPage(),
+            ),
+          ),
+          icon: Icon(Icons.cloud_download_outlined, size: iconSize + 1),
         ),
         IconButton(
           tooltip: Localizations.localeOf(context).languageCode == 'ar'

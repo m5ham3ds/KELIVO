@@ -162,9 +162,6 @@ final class RemoteSkillDiscoverySession {
   final mcp.McpSkillsExtension _skills;
   bool _disposed = false;
 
-  Map<String, dynamic> get serverInfo =>
-      Map<String, dynamic>.unmodifiable(_client.serverInfo ?? const {});
-
   Future<mcp.McpSkillsListResult> listSkills({
     String? cursor,
   }) {
