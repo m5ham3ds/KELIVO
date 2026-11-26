@@ -61,11 +61,18 @@ class Client {
   /// Map of notification handlers by method
   final _notificationHandlers = <String, Function(Map<String, dynamic>)>{};
 
-  /// Map of incoming-request handlers by method (server-initiated requests
-  /// per spec: `sampling/createMessage`, `roots/list`, `elicitation/create`).
-  /// Each handler returns the JSON-RPC `result` map.
+  /// Handlers used by legacy server-initiated requests and by 2026 MRTR
+  /// input requests. Stateless 2026 servers cannot send independent requests.
   final _requestHandlers =
       <String, Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{};
+
+  static const int _maxMrtrRounds = 5;
+  static const int _maxMrtrRequestsPerRound = 16;
+  static const Set<String> _mrtrEligibleMethods = <String>{
+    'prompts/get',
+    'resources/read',
+    'tools/call',
+  };
 
   /// Local roots advertised by this client. The server can fetch the
   /// list via the `roots/list` request — handled by the built-in
@@ -687,8 +694,16 @@ class Client {
     return await readResource(uri);
   }
 
-  /// Subscribe to a resource
+  /// Subscribe to a resource on legacy MCP revisions.
+  ///
+  /// MCP 2026-07-28 uses [listenForNotifications] instead.
   Future<void> subscribeResource(String uri) async {
+    if (_statelessProtocolVersion != null) {
+      throw UnsupportedError(
+        'resources/subscribe is not supported by MCP 2026-07-28; '
+        'use subscriptions/listen',
+      );
+    }
     if (!_initialized) {
       throw McpError('Client is not initialized');
     }
@@ -700,8 +715,17 @@ class Client {
     await _sendRequest('resources/subscribe', {'uri': uri});
   }
 
-  /// Unsubscribe from a resource
+  /// Unsubscribe from a resource on legacy MCP revisions.
+  ///
+  /// MCP 2026-07-28 uses [listenForNotifications] and closes the active
+  /// stream to cancel a subscription.
   Future<void> unsubscribeResource(String uri) async {
+    if (_statelessProtocolVersion != null) {
+      throw UnsupportedError(
+        'resources/unsubscribe is not supported by MCP 2026-07-28; '
+        'use subscriptions/listen',
+      );
+    }
     if (!_initialized) {
       throw McpError('Client is not initialized');
     }
@@ -711,6 +735,86 @@ class Client {
     }
 
     await _sendRequest('resources/unsubscribe', {'uri': uri});
+  }
+
+  /// Opens a long-lived notification stream using MCP 2026-07-28
+  /// `subscriptions/listen`.
+  ///
+  /// The Future remains pending until the server closes the stream or the
+  /// client disconnects. Notifications are dispatched through the registered
+  /// [onNotification] handlers. Resumable streams are not supported.
+  Future<void> listenForNotifications({
+    required List<String> notifications,
+  }) async {
+    if (!_initialized) {
+      throw McpError('Client is not initialized');
+    }
+    if (_statelessProtocolVersion != McpProtocol.v2026_07_28 ||
+        _negotiatedProtocolVersion != McpProtocol.v2026_07_28) {
+      throw UnsupportedError(
+        'subscriptions/listen requires MCP 2026-07-28 stateless mode',
+      );
+    }
+    if (notifications.isEmpty || notifications.length > 32) {
+      throw ArgumentError.value(
+        notifications,
+        'notifications',
+        'must contain between 1 and 32 notification methods',
+      );
+    }
+
+    final seen = <String>{};
+    final methods = <String>[];
+    const prefix = 'notifications/';
+    for (final method in notifications) {
+      var valid = method.startsWith(prefix) &&
+          method.length > prefix.length &&
+          method.length <= prefix.length + 120;
+      for (final code in method.codeUnits) {
+        final alphanumeric =
+            (code >= 48 && code <= 57) ||
+            (code >= 65 && code <= 90) ||
+            (code >= 97 && code <= 122);
+        if (!alphanumeric && code != 45 && code != 46 &&
+            code != 47 && code != 95) {
+          valid = false;
+          break;
+        }
+      }
+      if (!valid || !seen.add(method)) {
+        throw ArgumentError.value(
+          method,
+          'notifications',
+          'must contain unique, valid notification method names',
+        );
+      }
+      methods.add(method);
+    }
+
+    var acknowledged = false;
+    final acknowledgementWatcher = _messageController.stream.listen((message) {
+      if (message.isNotification &&
+          message.method == McpProtocol.methodSubscriptionsAcknowledged) {
+        acknowledged = true;
+      }
+    });
+    try {
+      final response = await _sendSingleRequest(
+        McpProtocol.methodSubscriptionsListen,
+        {'notifications': methods},
+        allowLongLived: true,
+      );
+      if (!acknowledged) {
+        throw McpError(
+          'subscriptions/listen ended without an acknowledgement notification',
+        );
+      }
+      if (response is! Map || response['resultType'] != 'complete') {
+        throw McpError('subscriptions/listen returned an invalid result');
+      }
+    } finally {
+      await acknowledgementWatcher.cancel();
+    }
   }
 
   /// List resource templates on the server
@@ -1061,7 +1165,13 @@ class Client {
     } else if (message.isNotification) {
       _handleNotification(message);
     } else if (message.isRequest) {
-      // Server-initiated request — sampling / elicitation / roots / etc.
+      if (_statelessProtocolVersion != null) {
+        throw McpError(
+          'Server-initiated JSON-RPC requests are not valid in stateless MCP; '
+          'the server must use an InputRequiredResult',
+        );
+      }
+      // Legacy revisions still support server-initiated request/response.
       await _handleIncomingRequest(message);
     } else {
       _logger.debug('Ignoring unexpected message type: ${message.toJson()}');
