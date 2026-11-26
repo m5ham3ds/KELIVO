@@ -1,0 +1,320 @@
+import 'dart:async';
+
+import 'package:mcp_client/mcp_client.dart';
+import 'package:test/test.dart';
+
+import 'mock_transport.dart';
+
+Map<String, dynamic> discoveryResult() => {
+  'supportedVersions': [McpProtocol.v2026_07_28],
+  'capabilities': {
+    'tools': {},
+    'resources': {},
+    'prompts': {},
+  },
+  '_meta': {
+    McpProtocol.metaServerInfo: {'name': 'stateless-test-server', 'version': '1'},
+  },
+  'resultType': 'complete',
+  'ttlMs': 1000,
+  'cacheScope': 'private',
+};
+
+Future<void> connectStateless(
+  Client client,
+  MockTransport transport,
+) async {
+  transport.queueResponse({
+    'jsonrpc': McpProtocol.jsonRpcVersion,
+    'result': discoveryResult(),
+  });
+  await client.connect(transport);
+}
+
+void main() {
+  group('MCP 2026-07-28 MRTR', () {
+    late Client client;
+    late MockTransport transport;
+
+    setUp(() {
+      client = Client(
+        name: 'kelivo-test',
+        version: '1.0.0',
+        protocolVersion: McpProtocol.v2026_07_28,
+        capabilities: const ClientCapabilities(
+          roots: true,
+          sampling: true,
+          elicitation: true,
+        ),
+      );
+      transport = MockTransport();
+    });
+
+    tearDown(() {
+      client.dispose();
+    });
+
+    test('elicitation input is fulfilled and original request is retried', () async {
+      await connectStateless(client, transport);
+      client.onElicitationRequest((params) async {
+        expect(params['message'], 'Enter project name');
+        return {
+          'action': 'accept',
+          'content': {'name': 'KELIVO'},
+        };
+      });
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {
+          'resultType': 'input_required',
+          'inputRequests': {
+            'project_name': {
+              'method': 'elicitation/create',
+              'params': {'mode': 'form', 'message': 'Enter project name'},
+            },
+          },
+          'requestState': 'opaque-server-state:do-not-parse',
+        },
+      });
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {
+          'resultType': 'complete',
+          'content': [
+            {'type': 'text', 'text': 'done'},
+          ],
+        },
+      });
+
+      final result = await client.callTool('create_project', const {});
+      expect(result.content, hasLength(1));
+
+      final requests = transport.sentMessages
+          .where((message) => message['method'] == 'tools/call')
+          .toList();
+      expect(requests, hasLength(2));
+      expect(requests[0]['id'], isNot(requests[1]['id']));
+      final retryParams = requests[1]['params'] as Map<String, dynamic>;
+      expect(retryParams['name'], 'create_project');
+      expect(retryParams['arguments'], isEmpty);
+      expect(retryParams['inputResponses'], {
+        'project_name': {
+          'action': 'accept',
+          'content': {'name': 'KELIVO'},
+        },
+      });
+      expect(
+        retryParams['requestState'],
+        'opaque-server-state:do-not-parse',
+      );
+      expect(
+        (retryParams['_meta'] as Map)[McpProtocol.metaProtocolVersion],
+        McpProtocol.v2026_07_28,
+      );
+    });
+
+    test('requestState without inputRequests is echoed unchanged', () async {
+      await connectStateless(client, transport);
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {
+          'resultType': 'input_required',
+          'requestState': 'opaque-state-+/=',
+        },
+      });
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {'resultType': 'complete', 'content': []},
+      });
+
+      await client.callTool('continue_work', const {});
+      final requests = transport.sentMessages
+          .where((message) => message['method'] == 'tools/call')
+          .toList();
+      expect(requests, hasLength(2));
+      final retryParams = requests.last['params'] as Map<String, dynamic>;
+      expect(retryParams['requestState'], 'opaque-state-+/=');
+      expect(retryParams.containsKey('inputResponses'), isFalse);
+    });
+
+    test('rejects unsupported MRTR capabilities without retrying', () async {
+      final unsupportedClient = Client(
+        name: 'kelivo-test',
+        version: '1.0.0',
+        protocolVersion: McpProtocol.v2026_07_28,
+      );
+      addTearDown(unsupportedClient.dispose);
+      await connectStateless(unsupportedClient, transport);
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {
+          'resultType': 'input_required',
+          'inputRequests': {
+            'ask_user': {
+              'method': 'elicitation/create',
+              'params': {'message': 'This capability was not declared'},
+            },
+          },
+        },
+      });
+
+      await expectLater(
+        unsupportedClient.callTool('restricted', const {}),
+        throwsA(isA<McpError>()),
+      );
+      expect(
+        transport.sentMessages.where((message) => message['method'] == 'tools/call'),
+        hasLength(1),
+      );
+    });
+
+    test('rejects malformed InputRequiredResult and unsupported resultType', () async {
+      await connectStateless(client, transport);
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {'resultType': 'input_required'},
+      });
+      await expectLater(
+        client.callTool('malformed', const {}),
+        throwsA(isA<McpError>()),
+      );
+
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {'resultType': 'partial'},
+      });
+      await expectLater(
+        client.callTool('unsupported', const {}),
+        throwsA(isA<McpError>()),
+      );
+    });
+
+    test('rejects server-initiated requests in stateless mode', () async {
+      await connectStateless(client, transport);
+      var handlerCalled = false;
+      client.onElicitationRequest((params) async {
+        handlerCalled = true;
+        return {'action': 'decline'};
+      });
+      final sentBefore = transport.sentMessages.length;
+
+      transport.simulateMessage({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'id': 900,
+        'method': 'elicitation/create',
+        'params': {'message': 'must use MRTR'},
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(handlerCalled, isFalse);
+      expect(transport.sentMessages, hasLength(sentBefore));
+    });
+  });
+
+  group('MCP 2026-07-28 notification subscriptions', () {
+    late Client client;
+    late MockTransport transport;
+
+    setUp(() {
+      client = Client(
+        name: 'kelivo-test',
+        version: '1.0.0',
+        protocolVersion: McpProtocol.v2026_07_28,
+      );
+      transport = MockTransport();
+    });
+
+    tearDown(() {
+      client.dispose();
+    });
+
+    test('listens for acknowledged change notifications without request timeout', () async {
+      await connectStateless(client, transport);
+      client.setRequestTimeout(const Duration(milliseconds: 2));
+      var changed = 0;
+      client.onToolsListChanged(() => changed++);
+
+      final listening = client.listenForNotifications(
+        notifications: [McpProtocol.methodToolListChanged],
+      );
+      await Future<void>.delayed(Duration.zero);
+      final request = transport.sentMessages.singleWhere(
+        (message) => message['method'] == McpProtocol.methodSubscriptionsListen,
+      );
+      final params = request['params'] as Map<String, dynamic>;
+      expect(params['notifications'], [McpProtocol.methodToolListChanged]);
+      expect(
+        (params['_meta'] as Map)[McpProtocol.metaProtocolVersion],
+        McpProtocol.v2026_07_28,
+      );
+
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodSubscriptionsAcknowledged,
+        'params': {'notifications': [McpProtocol.methodToolListChanged]},
+      });
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'method': McpProtocol.methodToolListChanged,
+        'params': const {},
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      transport.sendMockNotification({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'id': request['id'],
+        'result': {'resultType': 'complete'},
+      });
+
+      await expectLater(listening, completes);
+      expect(changed, 1);
+    });
+
+    test('rejects duplicate or invalid notification filters', () async {
+      await connectStateless(client, transport);
+      await expectLater(
+        client.listenForNotifications(
+          notifications: [
+            McpProtocol.methodToolListChanged,
+            McpProtocol.methodToolListChanged,
+          ],
+        ),
+        throwsArgumentError,
+      );
+      await expectLater(
+        client.listenForNotifications(notifications: ['tools/list']),
+        throwsArgumentError,
+      );
+      expect(
+        transport.sentMessages.where(
+          (message) => message['method'] == McpProtocol.methodSubscriptionsListen,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('legacy resource subscription API is not sent in stateless mode', () async {
+      await connectStateless(client, transport);
+      await expectLater(
+        client.subscribeResource('file:///tmp/example'),
+        throwsUnsupportedError,
+      );
+      await expectLater(
+        client.unsubscribeResource('file:///tmp/example'),
+        throwsUnsupportedError,
+      );
+      expect(
+        transport.sentMessages.where(
+          (message) =>
+              message['method'] == 'resources/subscribe' ||
+              message['method'] == 'resources/unsubscribe',
+        ),
+        isEmpty,
+      );
+    });
+  });
+
+  test('2026-07-28 advertises Elicitation and requires protocol header', () {
+    expect(McpProtocol.supportsElicitation(McpProtocol.v2026_07_28), isTrue);
+    expect(McpProtocol.requiresProtocolHeader(McpProtocol.v2026_07_28), isTrue);
+  });
+}
