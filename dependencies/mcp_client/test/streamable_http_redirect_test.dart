@@ -175,6 +175,285 @@ void main() {
     }
   });
 
+
+  test('stateless subscriptions use a real HTTP SSE stream through acknowledgement and completion', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final methods = <String>[];
+    final observations = <Map<String, String?>>[];
+    final ackSent = Completer<void>();
+    final notificationReceived = Completer<void>();
+    final finishSubscription = Completer<void>();
+    final finalResponseSent = Completer<void>();
+
+    final serving = () async {
+      await for (final request in server) {
+        final message = await _readMessage(request);
+        final method = message['method'] as String;
+        methods.add(request.method);
+        observations.add({
+          'method': method,
+          'methodHeader': request.headers.value('Mcp-Method'),
+          'protocolVersion': request.headers.value('MCP-Protocol-Version'),
+          'session': request.headers.value('MCP-Session-Id'),
+          'lastEventId': request.headers.value('Last-Event-ID'),
+        });
+
+        if (method == McpProtocol.methodServerDiscover) {
+          _writeJson(request.response, {
+            'jsonrpc': McpProtocol.jsonRpcVersion,
+            'id': message['id'],
+            'result': {
+              'resultType': 'complete',
+              'supportedVersions': [McpProtocol.v2026_07_28],
+              'capabilities': {'tools': {}, 'resources': {}, 'prompts': {}},
+              '_meta': {
+                McpProtocol.metaServerInfo: {
+                  'name': 'subscription-http-test',
+                  'version': '1.0.0',
+                },
+              },
+              'ttlMs': 60000,
+              'cacheScope': 'private',
+            },
+          });
+          await request.response.close();
+          continue;
+        }
+
+        expect(method, McpProtocol.methodSubscriptionsListen);
+        final id = message['id'] as int;
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..bufferOutput = false
+          ..headers.contentType = ContentType('text', 'event-stream');
+
+        request.response.write(
+          'event: message\\n'
+          'data: ${jsonEncode({
+            'jsonrpc': McpProtocol.jsonRpcVersion,
+            'method': McpProtocol.methodSubscriptionsAcknowledged,
+            'params': {
+              '_meta': {McpProtocol.metaSubscriptionId: id},
+              'notifications': {'toolsListChanged': true},
+            },
+          })}\\n\\n',
+        );
+        await request.response.flush();
+        if (!ackSent.isCompleted) ackSent.complete();
+
+        request.response.write(
+          'event: message\\n'
+          'data: ${jsonEncode({
+            'jsonrpc': McpProtocol.jsonRpcVersion,
+            'method': McpProtocol.methodToolListChanged,
+            'params': {
+              '_meta': {McpProtocol.metaSubscriptionId: id},
+            },
+          })}\\n\\n',
+        );
+        await request.response.flush();
+
+        await finishSubscription.future.timeout(const Duration(seconds: 3));
+        request.response.write(
+          'event: message\\n'
+          'data: ${jsonEncode({
+            'jsonrpc': McpProtocol.jsonRpcVersion,
+            'id': id,
+            'result': {
+              'resultType': 'complete',
+              '_meta': {McpProtocol.metaSubscriptionId: id},
+            },
+          })}\\n\\n',
+        );
+        await request.response.close();
+        if (!finalResponseSent.isCompleted) finalResponseSent.complete();
+      }
+    }();
+
+    final transport = await StreamableHttpClientTransport.create(
+      baseUrl: 'http://${server.address.host}:${server.port}/mcp',
+      timeout: const Duration(seconds: 3),
+      terminateOnClose: false,
+    );
+    final client = Client(
+      name: 'subscription-http-client',
+      version: '1.0.0',
+      protocolVersion: McpProtocol.v2026_07_28,
+      requestTimeout: const Duration(seconds: 3),
+    );
+    client.onToolsListChanged(() {
+      if (!notificationReceived.isCompleted) notificationReceived.complete();
+    });
+
+    try {
+      await client.connect(transport);
+      final listening = client.listenForNotifications(toolsListChanged: true);
+      await ackSent.future.timeout(const Duration(seconds: 3));
+      final subscription = await listening;
+      expect(subscription.acceptedFilter, {'toolsListChanged': true});
+      await notificationReceived.future.timeout(const Duration(seconds: 3));
+
+      expect(methods, ['POST', 'POST']);
+      expect(observations[1]['methodHeader'], McpProtocol.methodSubscriptionsListen);
+      expect(observations[1]['protocolVersion'], McpProtocol.v2026_07_28);
+      expect(observations[1]['session'], isNull);
+      expect(observations[1]['lastEventId'], isNull);
+
+      finishSubscription.complete();
+      await subscription.done.timeout(const Duration(seconds: 3));
+      await finalResponseSent.future.timeout(const Duration(seconds: 3));
+      expect(methods, everyElement('POST'));
+    } finally {
+      if (!finishSubscription.isCompleted) finishSubscription.complete();
+      client.dispose();
+      await server.close(force: true);
+      await serving;
+    }
+  });
+
+  test('cancelling a stateless HTTP subscription aborts only its POST and preserves the client', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final methods = <String>[];
+    final ackSent = Completer<void>();
+    final subscriptionCancelled = Completer<void>();
+    final toolCallReceived = Completer<void>();
+    final tasks = <Future<void>>[];
+
+    Future<void> handle(HttpRequest request) async {
+      final message = await _readMessage(request);
+      final method = message['method'] as String;
+      methods.add(request.method);
+
+      if (method == McpProtocol.methodServerDiscover) {
+        _writeJson(request.response, {
+          'jsonrpc': McpProtocol.jsonRpcVersion,
+          'id': message['id'],
+          'result': {
+            'resultType': 'complete',
+            'supportedVersions': [McpProtocol.v2026_07_28],
+            'capabilities': {'tools': {}},
+            '_meta': {
+              McpProtocol.metaServerInfo: {
+                'name': 'subscription-cancel-http-test',
+                'version': '1.0.0',
+              },
+            },
+            'ttlMs': 60000,
+            'cacheScope': 'private',
+          },
+        });
+        await request.response.close();
+        return;
+      }
+
+      if (method == McpProtocol.methodSubscriptionsListen) {
+        final id = message['id'] as int;
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..bufferOutput = false
+          ..headers.contentType = ContentType('text', 'event-stream');
+        request.response.write(
+          'event: message\\n'
+          'data: ${jsonEncode({
+            'jsonrpc': McpProtocol.jsonRpcVersion,
+            'method': McpProtocol.methodSubscriptionsAcknowledged,
+            'params': {
+              '_meta': {McpProtocol.metaSubscriptionId: id},
+              'notifications': {'toolsListChanged': true},
+            },
+          })}\\n\\n',
+        );
+        await request.response.flush();
+        if (!ackSent.isCompleted) ackSent.complete();
+
+        // Keep this response alive until the client aborts only this POST.
+        for (var attempt = 0; attempt < 200; attempt++) {
+          try {
+            request.response.write(': subscription heartbeat\\n\\n');
+            await request.response.flush();
+          } catch (_) {
+            if (!subscriptionCancelled.isCompleted) {
+              subscriptionCancelled.complete();
+            }
+            return;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        if (!subscriptionCancelled.isCompleted) {
+          subscriptionCancelled.completeError(
+            StateError('The subscription POST was not aborted by the client'),
+          );
+        }
+        return;
+      }
+
+      if (method == McpProtocol.methodCallTool) {
+        if (!toolCallReceived.isCompleted) toolCallReceived.complete();
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(jsonEncode({
+            'jsonrpc': McpProtocol.jsonRpcVersion,
+            'id': message['id'],
+            'result': {
+              'resultType': 'complete',
+              'content': [
+                {'type': 'text', 'text': 'client-still-connected'},
+              ],
+              'isError': false,
+            },
+          }));
+        await request.response.close();
+        return;
+      }
+
+      request.response
+        ..statusCode = HttpStatus.notFound
+        ..write('Unexpected MCP method: $method');
+      await request.response.close();
+    }
+
+    final serving = () async {
+      await for (final request in server) {
+        tasks.add(handle(request));
+      }
+      await Future.wait(tasks);
+    }();
+
+    final transport = await StreamableHttpClientTransport.create(
+      baseUrl: 'http://${server.address.host}:${server.port}/mcp',
+      timeout: const Duration(seconds: 3),
+      terminateOnClose: false,
+    );
+    final client = Client(
+      name: 'subscription-cancel-http-client',
+      version: '1.0.0',
+      protocolVersion: McpProtocol.v2026_07_28,
+      requestTimeout: const Duration(seconds: 3),
+    );
+
+    try {
+      await client.connect(transport);
+      final listening = client.listenForNotifications(toolsListChanged: true);
+      await ackSent.future.timeout(const Duration(seconds: 3));
+      final subscription = await listening;
+
+      subscription.cancel();
+      await subscriptionCancelled.future.timeout(const Duration(seconds: 3));
+      await subscription.done.timeout(const Duration(seconds: 3));
+      expect(client.isConnected, isTrue);
+
+      final result = await client.callTool('still-connected', const {});
+      expect((result.content.single as TextContent).text, 'client-still-connected');
+      await toolCallReceived.future.timeout(const Duration(seconds: 3));
+      expect(methods, ['POST', 'POST', 'POST']);
+    } finally {
+      client.dispose();
+      await server.close(force: true);
+      await serving;
+    }
+  });
+
   test('rejects oversized chunked JSON responses before decoding', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final serving = _serveOversizedStatelessResponse(server, useSse: false);
