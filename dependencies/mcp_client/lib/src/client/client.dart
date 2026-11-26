@@ -765,10 +765,9 @@ class Client {
         'subscriptions/listen requires MCP 2026-07-28 stateless mode',
       );
     }
-    if (_transport is! StreamableHttpClientTransport &&
-        _transport is! StdioClientTransport) {
+    if (_transport is SseClientTransport) {
       throw UnsupportedError(
-        'MCP 2026-07-28 subscriptions require Streamable HTTP or STDIO',
+        'MCP 2026-07-28 subscriptions do not support the legacy SSE transport',
       );
     }
 
