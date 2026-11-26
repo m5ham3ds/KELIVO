@@ -765,6 +765,12 @@ class Client {
         'subscriptions/listen requires MCP 2026-07-28 stateless mode',
       );
     }
+    if (_transport is! StreamableHttpClientTransport &&
+        _transport is! StdioClientTransport) {
+      throw UnsupportedError(
+        'MCP 2026-07-28 subscriptions require Streamable HTTP or STDIO',
+      );
+    }
 
     const maxResourceSubscriptions = 256;
     if (resourceSubscriptions.length > maxResourceSubscriptions) {
@@ -1452,8 +1458,14 @@ class Client {
     final params = notification.params ?? {};
 
     final metadata = params['_meta'];
-    if (metadata is Map &&
-        metadata.containsKey(McpProtocol.metaSubscriptionId)) {
+    final requiresSubscription = _statelessProtocolVersion != null &&
+        (method == McpProtocol.methodToolListChanged ||
+            method == McpProtocol.methodPromptListChanged ||
+            method == McpProtocol.methodResourceListChanged ||
+            method == McpProtocol.methodResourceUpdated);
+    if (requiresSubscription || (metadata is Map &&
+        metadata.containsKey(McpProtocol.metaSubscriptionId))) {
+      if (metadata is! Map) return;
       final subscriptionId = metadata[McpProtocol.metaSubscriptionId];
       if (subscriptionId is! int) return;
       final acceptedFilter = _activeSubscriptionFilters[subscriptionId];
@@ -1461,6 +1473,12 @@ class Client {
           !_subscriptionFilterAllows(acceptedFilter, method, params)) {
         return;
       }
+    }
+
+    // This notification is not part of the 2026-07-28 protocol.
+    if (_statelessProtocolVersion != null &&
+        method == McpProtocol.methodRootListChanged) {
+      return;
     }
 
     if (method == McpProtocol.methodResourceListChanged &&
