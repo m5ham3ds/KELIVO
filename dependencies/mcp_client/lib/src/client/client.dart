@@ -1434,11 +1434,6 @@ class Client {
     final method = notification.method;
     final params = notification.params ?? {};
 
-    if (method == McpProtocol.methodResourceListChanged &&
-        !_resourcesListChangedController.isClosed) {
-      _resourcesListChangedController.add(null);
-    }
-
     final metadata = params['_meta'];
     if (metadata is Map &&
         metadata.containsKey(McpProtocol.metaSubscriptionId)) {
@@ -1449,6 +1444,11 @@ class Client {
           !_subscriptionFilterAllows(acceptedFilter, method, params)) {
         return;
       }
+    }
+
+    if (method == McpProtocol.methodResourceListChanged &&
+        !_resourcesListChangedController.isClosed) {
+      _resourcesListChangedController.add(null);
     }
 
     final handler = _notificationHandlers[method];
