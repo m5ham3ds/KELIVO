@@ -433,6 +433,9 @@ class Client {
   String? get negotiatedProtocolVersion => _negotiatedProtocolVersion;
   String? _negotiatedProtocolVersion;
 
+  /// Per-request log level used by MCP 2026-07-28.
+  String? _logLevel;
+
   String? get sessionId {
     final transport = _transport;
     return transport is StreamableHttpClientTransport
@@ -451,6 +454,9 @@ class Client {
 
   Future<void> ping() async {
     if (!_initialized) throw McpError('Client is not initialized');
+    if (_statelessProtocolVersion != null) {
+      throw UnsupportedError('ping is not part of MCP 2026-07-28');
+    }
     await _sendRequest('ping', const {});
   }
 
@@ -857,11 +863,10 @@ class Client {
         throw McpError('subscriptions/listen returned an invalid result');
       }
       final metadata = response['_meta'];
-      if (metadata is Map &&
-          metadata[McpProtocol.metaSubscriptionId] != null &&
+      if (metadata is! Map ||
           metadata[McpProtocol.metaSubscriptionId] != subscriptionId) {
         throw McpError(
-          'subscriptions/listen final response has a mismatched subscription ID',
+          'subscriptions/listen final response has a missing or mismatched subscription ID',
         );
       }
       if (!acknowledged.isCompleted) {
@@ -889,6 +894,14 @@ class Client {
         done: streamDone,
         cancel: () {
           if (cancelRequested) return;
+          if (_transport is! StreamableHttpClientTransport) {
+            // Stdio uses one channel and must receive an explicit cancellation
+            // notification. HTTP cancellation is the aborted response stream.
+            _sendNotification(
+              McpProtocol.methodCancelled,
+              {'requestId': subscriptionId},
+            );
+          }
           final cancel = cancelTransport;
           if (cancel == null) {
             cancelRequested = true;
@@ -1101,7 +1114,7 @@ class Client {
       throw McpError('Root with URI "${root.uri}" already exists');
     }
     _roots.add(root);
-    if (isConnected) {
+    if (isConnected && _statelessProtocolVersion == null) {
       _sendNotification('notifications/roots/list_changed', {});
     }
   }
@@ -1121,7 +1134,7 @@ class Client {
     if (_roots.length == removed) {
       throw McpError('Root with URI "$uri" does not exist');
     }
-    if (isConnected) {
+    if (isConnected && _statelessProtocolVersion == null) {
       _sendNotification('notifications/roots/list_changed', {});
     }
   }
@@ -1132,7 +1145,13 @@ class Client {
       throw McpError('Client is not initialized');
     }
 
-    // Spec method name is camelCase: `logging/setLevel`.
+    if (_statelessProtocolVersion != null) {
+      // MCP 2026-07-28 moved log-level selection into per-request metadata.
+      _logLevel = level.name;
+      return;
+    }
+
+    // Legacy revisions use logging/setLevel.
     await _sendRequest('logging/setLevel', {'level': level.name});
   }
 
@@ -1610,6 +1629,7 @@ class Client {
       safeParams['_meta'] = <String, dynamic>{
         if (existing is Map) ...Map<String, dynamic>.from(existing),
         ..._requestMetadata,
+        if (_logLevel != null) McpProtocol.metaLogLevel: _logLevel,
         McpProtocol.metaProtocolVersion:
             _negotiatedProtocolVersion ?? _statelessProtocolVersion,
       };
@@ -1691,6 +1711,7 @@ class Client {
       safeParams['_meta'] = <String, dynamic>{
         if (existing is Map) ...Map<String, dynamic>.from(existing),
         ..._requestMetadata,
+        if (_logLevel != null) McpProtocol.metaLogLevel: _logLevel,
         // Protocol version is reserved and cannot be overridden.
         McpProtocol.metaProtocolVersion:
             _negotiatedProtocolVersion ?? _statelessProtocolVersion,
