@@ -60,6 +60,8 @@ class McpProtocol {
   static const String metaClientInfo = "io.modelcontextprotocol/clientInfo";
   static const String metaClientCapabilities = "io.modelcontextprotocol/clientCapabilities";
   static const String metaServerInfo = "io.modelcontextprotocol/serverInfo";
+  static const String metaSubscriptionId =
+      "io.modelcontextprotocol/subscriptionId";
   static const String skillsExtensionId = "io.modelcontextprotocol/skills";
   static const String methodListSkills = "skills/list";
   static const String methodGetSkill = "skills/get";
