@@ -9,13 +9,23 @@ pluginManagement {
 
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
+    // Resolve the Kotlin plugin implementation directly from Maven Central.
+    // Its marker lives on the Plugin Portal, whose artifact redirects can hit
+    // Maven Central's shared HTTP 429 limit even when the mirror is available.
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.namespace == "org.jetbrains.kotlin") {
+                useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:${requested.version}")
+            }
+        }
+    }
+
     repositories {
         google()
-        // Flutter/AGP/Kotlin plugin artifacts should use the hosted Maven Central
-        // mirror first to avoid transient 429 responses from repo.maven.apache.org.
+        // Prefer the hosted Maven Central mirror for Kotlin and its transitive
+        // dependencies; keep canonical Central as a fallback.
         maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
         mavenCentral()
-        gradlePluginPortal()
     }
 }
 
