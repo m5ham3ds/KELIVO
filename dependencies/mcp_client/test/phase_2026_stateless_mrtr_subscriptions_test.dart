@@ -168,6 +168,53 @@ void main() {
       );
     });
 
+    test('rejects an unhandled MRTR method and more than 16 input requests', () async {
+      await connectStateless(client, transport);
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {
+          'resultType': 'input_required',
+          'inputRequests': {
+            'unsupported': {
+              'method': 'secrets/read',
+              'params': const {},
+            },
+          },
+        },
+      });
+      await expectLater(
+        client.callTool('unsupported_input', const {}),
+        throwsA(isA<McpError>()),
+      );
+      expect(
+        transport.sentMessages.where((message) => message['method'] == 'tools/call'),
+        hasLength(1),
+      );
+
+      final manyRequests = <String, dynamic>{
+        for (var i = 0; i < 17; i++)
+          'roots_$i': {
+            'method': 'roots/list',
+            'params': const {},
+          },
+      };
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {
+          'resultType': 'input_required',
+          'inputRequests': manyRequests,
+        },
+      });
+      await expectLater(
+        client.callTool('too_many_inputs', const {}),
+        throwsA(isA<McpError>()),
+      );
+      expect(
+        transport.sentMessages.where((message) => message['method'] == 'tools/call'),
+        hasLength(2),
+      );
+    });
+
     test('rejects malformed InputRequiredResult and unsupported resultType', () async {
       await connectStateless(client, transport);
       transport.queueResponse({
@@ -185,6 +232,15 @@ void main() {
       });
       await expectLater(
         client.callTool('unsupported', const {}),
+        throwsA(isA<McpError>()),
+      );
+
+      transport.queueResponse({
+        'jsonrpc': McpProtocol.jsonRpcVersion,
+        'result': {'content': const []},
+      });
+      await expectLater(
+        client.callTool('missing_result_type', const {}),
         throwsA(isA<McpError>()),
       );
     });
