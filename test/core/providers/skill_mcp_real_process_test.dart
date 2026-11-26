@@ -121,7 +121,7 @@ Phase 14D benign and hostile STDIO integration fixture.
         jsonEncode({
           'mcpServers': {
             'real-$mode': {
-              'command': Platform.resolvedExecutable,
+              'command': _dartVmExecutable(),
               'args': ['server.dart', mode],
               'env': {'API_TOKEN': r'${API_TOKEN}'},
             },
@@ -470,6 +470,44 @@ final class _RealProcessWorkspaceRuntime extends WorkspaceRuntime
     cancelledRuns.add(runId);
     _processes[runId]?.kill(ProcessSignal.sigterm);
   }
+}
+
+
+/// Flutter's [Platform.resolvedExecutable] is flutter_tester, not the Dart VM.
+/// Launch the SDK's standalone dart binary for the real MCP child process.
+String _dartVmExecutable() {
+  final candidates = <String>[
+    if (Platform.environment['DART_EXECUTABLE'] case final value?)
+      value,
+    if (Platform.environment['FLUTTER_ROOT'] case final root?)
+      '$root/bin/cache/dart-sdk/bin/dart',
+    Platform.resolvedExecutable,
+  ];
+
+  for (final candidate in candidates) {
+    final file = File(candidate);
+    if (!file.existsSync()) continue;
+    if (file.uri.pathSegments.last == 'dart' ||
+        file.uri.pathSegments.last == 'dart.exe') {
+      return file.absolute.path;
+    }
+  }
+
+  // flutter_tester normally lives below
+  // <FLUTTER_ROOT>/bin/cache/artifacts/engine/<host>/; walk upward to find
+  // the SDK dart binary even when the action does not export FLUTTER_ROOT.
+  var directory = File(Platform.resolvedExecutable).parent;
+  for (var depth = 0; depth < 12; depth++) {
+    final candidate = File(
+      '${directory.path}/dart-sdk/bin/dart',
+    );
+    if (candidate.existsSync()) return candidate.absolute.path;
+    directory = directory.parent;
+  }
+
+  throw StateError(
+    'Could not locate the standalone Dart SDK executable for the MCP child process',
+  );
 }
 
 const String _serverSource = r'''
