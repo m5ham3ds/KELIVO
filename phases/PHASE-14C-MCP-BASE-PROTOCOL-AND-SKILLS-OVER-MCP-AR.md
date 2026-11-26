@@ -1,8 +1,8 @@
 # PHASE 14C — MCP Base Protocol Compatibility & Skills over MCP
 
-**الحالة:** 14C.1 transport-hardening slice و14C.2 typed Skills adapter و14C.3 lazy resource integrity اجتازت بوابات CI حتى #187. Phase 14C.4 Secure Remote Skills discovery integration قيد التنفيذ. هذا لا يعني اكتمال full MCP 2026-07-28؛ MRTR وsubscriptions/listen semantics ما زالت خارج الدعم الكامل.
+**الحالة:** 14C.1 و14C.2 و14C.3 slices اجتازت بواباتها السابقة. Phase 14C.4 Secure Remote Skills discovery integration اجتازت اختبارات CI #193 (19 اختباراً) وهي موصولة بواجهة Skills. Phase 14C.5 لمعالجة MRTR و`subscriptions/listen` قيد التنفيذ على فرع `phase-14c5-mrtr-subscriptions`؛ Phase 14C ككل ما زالت مفتوحة حتى نجاح CI لهذا الاستكمال ومراجعة أي فجوات بروتوكول متبقية. لا يُدعى full MCP 2026-07-28 compliance قبل ذلك.
 **تاريخ البدء:** 25 نوفمبر 2026.
-**آخر تحقق شامل:** CI #187 على `main` commit `cfd749429083b42b9228f594ed9992c5fd68507a`.
+**آخر تحقق شامل على main:** CI #193 على commit `924ea5a2bfcfd1f18c62b56e4e165836cb592095`.
 **المرحلة السابقة:** Phase 14B مقبولة في CI #164.
 **المبدأ:** توسيع عميل MCP المحلي تدريجياً مع إبقاء النقل والإصدارات القديمة؛ لا ترقية قسرية ولا تشغيل خادم أو Skill تلقائياً. Remote discovery منفصل عن Skill-owned local MCP lifecycle في 14D.
 
@@ -42,6 +42,23 @@
 كما تؤكد مواصفة Skills Beta الحالية أن `skills/list` قد يرجع قائمة فارغة أو جزئية، وأن skill URI يمكن أن يقرأ مباشرة عبر `resources/read` حتى إذا لم يرد في القائمة، وأن `skills/get` يعيد metadata/digests لمهارة واحدة، و`resources/directory/read` اختياري. وعليه، discovery لا يجوز أن يعتمد على استنفاد القائمة وحدها، ولا أن يحمّل كل الموارد مبكراً.
 
 المراجع في القسم 7 هي مصدر الحقيقة؛ أما SEP التاريخي فيوثق التصميم وليس بديلاً عن النص المستقر الحالي.
+
+## 2.2 CI #193 — اعتماد واجهة Remote Skills (14C.4)
+
+اجتاز GitHub Actions #193 (run `45734199313`) على رأس `main` المطابق للالتزام `924ea5a2bfcfd1f18c62b56e4e165836cb592095`. اكتملت وظيفة البناء ذات 41 خطوة ووظيفة التقرير بنجاح، بما في ذلك Flutter Analyze وEnvironment lifecycle و14A/14B وGemini/OAuth واختبارات الحزم المحلية وAndroid JVM/Robolectric وPhase 13P Emulator E2E وبناء ورفع ARM64 APK.
+
+اجتازت مجموعة اختبارات Remote Skills المخصصة 19 اختباراً، وتثبت أن شاشة الاكتشاف تستخدم مصادر MCP HTTPS المفعلة والمعدة مسبقاً، وأن فحص metadata وقراءة كل resource موافقتان منفصلتان، وأن الاتصالات لا تستخدم DNS غير عام أو proxy غير مضبوط أو redirect عابر للنطاق، وأن النص البعيد يبقى غير موثوق ولا يُثبت أو يُنفذ تلقائياً. تم التحقق من نقطة الوصول داخل SkillsPane.
+
+**APK — CI #193**
+- الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
+- الحجم الفعلي: 41,928,799 bytes.
+- ABI: `arm64-v8a` فقط.
+- SHA-256: `faeee49e9ddb52c53f252aca9bb59499f0569c04b73f26ae862fe162ad66e039`.
+- APK artifact: [15078658903](https://github.com/m5ham3ds/KELIVO/actions/runs/45734199313/artifacts/15078658903).
+- Build report: [15078988516](https://github.com/m5ham3ds/KELIVO/actions/runs/45734199313/artifacts/15078988516).
+- Raw diagnostics: [15078748783](https://github.com/m5ham3ds/KELIVO/actions/runs/45734199313/artifacts/15078748783).
+
+**حدود القبول:** #193 يقبل تكامل 14C.4 واختباراته، لكنه لا يغلق فجوات MCP 2026-07-28 protocol semantics المتعلقة بـMRTR و`subscriptions/listen`. ولا يشغّل Flutter root unit/widget suite كاملة أو اختبارات Phase 13E–13O التاريخية، ولا يمثل اختبار هاتف ARM64 فعلياً.
 
 ## 2.1 CI #187 — اعتماد طبقة النقل والـSkills integrity
 
@@ -154,7 +171,29 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - response-byte caps تطبق قبل buffering على JSON وSSE، وعلى أجسام 202 وredirect التي يجري تصريفها.
 - اختبارات هذه الطبقة اجتازت ضمن الحزمة المحلية في CI #187. لا يعني ذلك أن النص remote content صار موثوقاً أو قابلاً للتنفيذ.
 
-### 14C.4 — Secure Remote Skills discovery integration — قيد التنفيذ
+### 14C.4 — Secure Remote Skills discovery integration — مقبولة في CI #193
+- تم دمج `RemoteSkillsPage` في إجراء داخل `SkillsPane`؛ ليست شاشة غير مستخدمة.
+- مصدر الاكتشاف يقتصر على MCP Streamable HTTP HTTPS المصادر المعدة والمفعلة مسبقاً؛ لا URL حر ولا اتصال عند فتح الشاشة وحدها.
+- HTTPS فقط، رفض userinfo/fragments/unsupported schemes، DNS resolve + رفض أي عنوان non-public، وتثبيت الاتصال على IP الذي اجتاز الفحص مع TLS hostname verification على اسم المضيف.
+- منع proxy وcross-origin redirects؛ body/time/redirect limits مطبقة.
+- الموافقة الأولى منفصلة قبل `server/discover` و`skills/list` لعرض metadata فقط.
+- موافقة ثانية صريحة لكل URI/resource قبل `resources/read`؛ الموافقة مرتبطة بهوية الخادم وURI ومجموعة digests الكاملة.
+- المحتوى المسترجع يظهر كنص plain untrusted (لا Markdown rendering، ولا prompt execution، ولا shell/MCP tool calls).
+- dynamic resources بلا digest ثابت لا تُقرأ كموارد موثوقة.
+- لا تثبيت في Skills registry المحلي تلقائياً؛ import صريح مستقل مع provenance يأتي لاحقاً.
+- 19 اختباراً مخصصاً اجتازت CI #193. قبول هذه الشريحة لا يعني أن كامل base protocol 2026 قد اكتمل.
+
+### 14C.5 — MRTR and stateless notification subscriptions — قيد التنفيذ
+- إضافة `InputRequiredResult` / MRTR loop محدود إلى الطلبات الثلاثة المسموح بها فقط: `prompts/get` و`resources/read` و`tools/call`.
+- معالجة `inputRequests` عبر handlers المعلنة في client capabilities فقط: `roots/list` و`sampling/createMessage` و`elicitation/create`; رفض الطريقة غير المعلنة أو غير المدعومة fail-closed.
+- retry للطلب الأصلي بمعرّف JSON-RPC جديد، وإرفاق `inputResponses` المقابلة؛ تمرير `requestState` كقيمة opaque دون تحليل أو تعديل أو تخزين جانبي.
+- حد محلي أقصى 5 جولات و16 input request في الجولة، مع رفض shapes غير الصالحة، resultType المفقود أو غير المعروف، InputRequiredResult على method غير مسموح.
+- في 2026 stateless، رفض server-initiated JSON-RPC requests؛ الإصدارات القديمة تحتفظ بسلوكها.
+- دعم `subscriptions/listen` كطلب Streamable HTTP طويل العمر يستقبل acknowledgment ثم notifications المختارة، دون GET stream أو Last-Event-ID resumption. إغلاق transport هو cancellation.
+- تعطيل `resources/subscribe` و`resources/unsubscribe` القديمة عند استخدام 2026، مع إبقاء APIs للإصدارات التاريخية.
+- اختبارات مطلوبة: MRTR success وno-input state وmissing state وcapability denial وunknown method وround cap وstateless server-request rejection؛ subscription ack/filter/cancel/long-lived timeout؛ ومصفوفة legacy regression.
+
+
 - اختيار مصدر من ملفات MCP HTTP التي أعدّها المستخدم مسبقاً؛ لا URL حر أو اتصال تلقائي عند فتح الصفحة.
 - HTTPS فقط، رفض userinfo/fragments/unsupported schemes، DNS resolve + رفض أي عنوان non-public، وتثبيت الاتصال على عنوان IP الذي اجتاز الفحص مع بقاء TLS hostname verification على اسم المضيف.
 - منع proxy/redirect غير المنضبطين ومنع cross-origin credential forwarding؛ جميع استجابات discovery/resource تخضع لحدود body/time/redirect.
@@ -177,6 +216,9 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 7. إثبات عدم الاتصال/التحميل أثناء import أو inspect أو مجرد list محلي.
 8. اختبار Android JVM/Robolectric وFlutter Analyze وARM64 APK مع سجل CI.
 9. عدم تفعيل Skills أو منحها صلاحيات تنفيذ بمجرد تنزيل الملفات.
+10. MRTR: السماح فقط بالطلبات الثلاثة المحددة؛ رفض الطلبات التي تتطلب capability غير معلنة أو handler غير موجود؛ round-trip cap؛ replay للطلب الأصلي بمعرّف جديد؛ echo حرفي لـrequestState؛ قبول legacy results دون resultType؛ ورفض stateless results ذات resultType المفقود/غير المعروف.
+11. subscriptions/listen: اختبار request metadata/headers وfilter validation وacknowledgement وnotification delivery وlong-lived response وdisconnect cancellation، مع عدم استخدام GET أو Last-Event-ID.
+12. اختبار أن server-initiated JSON-RPC request لا يتم تنفيذه في stateless 2026، مع المحافظة على السلوك التاريخي لكل revision قديم.
 
 ## 7. الأدلة والمراجع
 
@@ -191,6 +233,7 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - تراخيص الكود الخارجي يجب مراجعتها منفصلاً قبل أي نسخ.
 
 ## 8. القرار
-- CI #187 يقبل 14C.3 lazy resource integrity وresponse-size hardening على main commit `cfd74942`.
-- Phase 14C ما زالت مفتوحة حتى دمج Secure Remote Skills UI (14C.4) واستكمال دعم base-protocol gaps المعلنة؛ لا يُدعى full MCP 2026-07-28 compliance.
-- التنفيذ التالي هو 14C.4 فقط، مع عدم تعديل مسار اتصال MCP القديم وعدم إدخال Skill-owned server lifecycle من 14D.
+- CI #187 يقبل 14C.3 lazy resource integrity وresponse-size hardening؛ وظل سجلاً تاريخياً لنجاح تلك الشريحة.
+- CI #193 يقبل تكامل واجهة 14C.4 واختباراتها المخصصة (19 اختباراً)، على main commit `924ea5a2`.
+- Phase 14C ما زالت مفتوحة؛ استكمال MRTR و`subscriptions/listen` مسجل في الشريحة 14C.5 على فرع `phase-14c5-mrtr-subscriptions`.
+- لا يبدأ Phase 14D قبل اجتياز 14C.5 والبوابات المتبقية على CI، ولا يُعلن full MCP 2026-07-28 compliance لمجرد نجاح هذا slice.
