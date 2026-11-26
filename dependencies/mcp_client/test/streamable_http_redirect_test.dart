@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:mcp_client/mcp_client.dart';
 import 'package:test/test.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   test('stateless HTTP advertises metadata on the first request and uses routed headers', () async {
@@ -315,9 +316,10 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final methods = <String>[];
     final ackSent = Completer<void>();
-    final subscriptionCancelled = Completer<void>();
+    final releaseSubscription = Completer<void>();
     final toolCallReceived = Completer<void>();
     final tasks = <Future<void>>[];
+    final trackedHttp = _AbortTrackingHttpClient(http.Client());
 
     Future<void> handle(HttpRequest request) async {
       final message = await _readMessage(request);
@@ -366,23 +368,14 @@ void main() {
         await request.response.flush();
         if (!ackSent.isCompleted) ackSent.complete();
 
-        // Keep this response alive until the client aborts only this POST.
-        for (var attempt = 0; attempt < 200; attempt++) {
-          try {
-            request.response.write(': subscription heartbeat\n\n');
-            await request.response.flush();
-          } catch (_) {
-            if (!subscriptionCancelled.isCompleted) {
-              subscriptionCancelled.complete();
-            }
-            return;
-          }
-          await Future<void>.delayed(const Duration(milliseconds: 10));
-        }
-        if (!subscriptionCancelled.isCompleted) {
-          subscriptionCancelled.completeError(
-            StateError('The subscription POST was not aborted by the client'),
-          );
+        // Keep the request-scoped response open while another request runs.
+        // The tracker verifies that cancellation reaches this POST's
+        // AbortableRequest instead of closing the shared MCP client.
+        await releaseSubscription.future;
+        try {
+          await request.response.close();
+        } catch (_) {
+          // The client may already have aborted this response stream.
         }
         return;
       }
@@ -424,6 +417,7 @@ void main() {
       baseUrl: 'http://${server.address.host}:${server.port}/mcp',
       timeout: const Duration(seconds: 3),
       terminateOnClose: false,
+      httpClient: trackedHttp,
     );
     final client = Client(
       name: 'subscription-cancel-http-client',
@@ -438,8 +432,13 @@ void main() {
       await ackSent.future.timeout(const Duration(seconds: 3));
       final subscription = await listening;
 
+      final abortSignals = trackedHttp.abortSignalsFor(
+        McpProtocol.methodSubscriptionsListen,
+      );
+      expect(abortSignals, hasLength(1));
+
       subscription.cancel();
-      await subscriptionCancelled.future.timeout(const Duration(seconds: 3));
+      await abortSignals.single.timeout(const Duration(seconds: 3));
       await subscription.done.timeout(const Duration(seconds: 3));
       expect(client.isConnected, isTrue);
 
@@ -448,6 +447,7 @@ void main() {
       await toolCallReceived.future.timeout(const Duration(seconds: 3));
       expect(methods, ['POST', 'POST', 'POST']);
     } finally {
+      if (!releaseSubscription.isCompleted) releaseSubscription.complete();
       client.dispose();
       await server.close(force: true);
       await serving;
@@ -1445,4 +1445,39 @@ Future<void> _serveRedirectingMcp(
       );
     await request.response.close();
   }
+}
+
+final class _AbortTrackingHttpClient extends http.BaseClient {
+  _AbortTrackingHttpClient(this._inner);
+
+  final http.Client _inner;
+  final Map<String, List<Future<void>>> _abortSignals =
+      <String, List<Future<void>>>{};
+
+  List<Future<void>> abortSignalsFor(String method) =>
+      List<Future<void>>.unmodifiable(
+        _abortSignals[method] ?? const <Future<void>>[],
+      );
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    String? methodHeader;
+    for (final entry in request.headers.entries) {
+      if (entry.key.toLowerCase() == 'mcp-method') {
+        methodHeader = entry.value;
+        break;
+      }
+    }
+    if (request is http.AbortableRequest &&
+        methodHeader != null &&
+        request.abortTrigger != null) {
+      _abortSignals
+          .putIfAbsent(methodHeader, () => <Future<void>>[])
+          .add(request.abortTrigger!);
+    }
+    return _inner.send(request);
+  }
+
+  @override
+  void close() => _inner.close();
 }
