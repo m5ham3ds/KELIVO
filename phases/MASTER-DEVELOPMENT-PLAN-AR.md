@@ -1,7 +1,7 @@
 # KELIVO — الخطة الهندسية الرئيسية v2
 ## منصة وكيل إنتاج فيديو مفتوحة وقابلة للتركيب من خلال المحادثة فقط
 
-**الحالة:** الخطة المعتمدة لمسار التطوير الحالي. Phase 14B مقبولة عبر CI #164، وPhase 14C بدأ كـMCP compatibility checkpoint موثق؛ تفاصيل قبول CI #165 تُضاف بعد اكتمال التشغيل. اجتازت Phase 2 بوابات Android CI وبناء Release وفق تقرير التشغيل `42424318897`. Phase 3 وPhase 4 لديهما تغييرات مصدر وتقارير تنفيذ، لكنهما ما زالتا تنتظران اعتماد GitHub Actions ومعايير القبول المتبقية. بناءً على طلب المستخدم بالاستمرار مباشرة، بدأ تنفيذ Phase 7 ثم Phase 8 ثم Phase 9 وPhase 10 ثم Phase 11 وPhase 12 بتوجيه المستخدم، مع إبقاء بوابات قبول المراحل السابقة معلقة حتى تحققها الفعلي.
+**الحالة المرجعية — 26 نوفمبر 2026:** Phase 14A مقبولة عبر CI #162، Phase 14B مقبولة عبر CI #164، وPhase 14C مقبولة بالكامل على `main` عبر CI #199 (`1b5bbbee69d51e96d1fda1526bac141f6ea5a33c`). Phase 14D — Skill-owned MCP Lifecycle قيد التنفيذ مباشرة على `main`، مع إضافة اختبارات خادم STDIO حقيقي وحالات عدائية وإغلاق العمليات وتنظيف جلسات Skills. لا يبدأ Phase 14E قبل اجتياز بوابة 14D. آخر APK موثق: CI #199، ARM64 فقط، 40,735,865 bytes، SHA-256 `1df6812133b68a55a262331b9dc37615c78ba8cb635352923cf4aae86823d7ca`.
 
 **سجل تاريخي — 23 نوفمبر 2026 (قبل CI #162):**
 - آخر بناء كامل ناجح قبل إصلاح دورة تثبيت البيئة: [CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038)، commit 85e4653674916ecc65e3d30daa417e29547245a6. اجتاز Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وAndroid JVM/Robolectric وPhase 13P Android Emulator E2E وبناء ARM64 ورفع Artifact.

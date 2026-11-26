@@ -2,29 +2,37 @@
 
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
-## أحدث بناء ناجح — CI #193
+## أحدث بناء ناجح — CI #199
 
-[GitHub Actions #193](https://github.com/m5ham3ds/KELIVO/actions/runs/45734199313) اكتمل بنجاح على commit `924ea5a2bfcfd1f18c62b56e4e165836cb592095`، وهو مطابق لرأس `main` وقت التشغيل.
+[GitHub Actions #199](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571) اكتمل بنجاح على `main` commit `1b5bbbee69d51e96d1fda1526bac141f6ea5a33c`.
 
-- وظيفة البناء: 41 خطوة ناجحة؛ وظيفة التقرير: نجاح.
-- Flutter Analyze وEnvironment lifecycle وPhase 14A و14B وGemini/OAuth وPhase 13Q: نجاح.
-- اختبارات Remote Skills المخصصة 14C.4: 19 اختباراً ناجحاً، بما فيها فحص DNS/IP pinning ورفض المضيف/العنوان غير العام وredirects غير المسموحة وموافقتي metadata/resource.
-- اختبارات الحزم المحلية المستقلة، بما فيها `mcp_client`: نجاح.
+- اجتازت وظيفة البناء جميع الخطوات المطلوبة، واجتازت وظيفة التقرير عملية إنشاء ورفع تقرير Markdown.
+- Flutter Analyze وEnvironment lifecycle وPhase 14A و14B وGemini/OAuth وPhase 14C.4 وPhase 13Q: نجاح.
+- اختبارات الحزم المحلية، بما فيها `mcp_client`: نجاح؛ شملت HTTP/SSE subscription acknowledgement/notification/completion وإلغاء POST منفرد مع استمرار استخدام عميل MCP.
 - Android JVM/Robolectric: نجاح.
 - Phase 13P Android Emulator Skill lifecycle E2E: نجاح.
-- بناء Release ARM64، فحص ABI، احتساب SHA-256، رفع APK، توليد التقرير ورفعه: نجاح.
+- Android ARM64 Release build وABI verification وSHA-256 ورفع APK وملفات التشخيص والتقرير: نجاح.
 
-**APK — CI #193**
+**APK — CI #199**
 - الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
-- الحجم الفعلي: 41,928,799 bytes.
+- الحجم الفعلي: 40,735,865 bytes.
 - ABI المتحقق: `arm64-v8a` فقط.
-- SHA-256: `faeee49e9ddb52c53f252aca9bb59499f0569c04b73f26ae862fe162ad66e039`.
-- Artifact ID: `15078658903`.
-- [APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45734199313/artifacts/15078658903).
-- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45734199313/artifacts/15078988516).
-- [Raw diagnostics](https://github.com/m5ham3ds/KELIVO/actions/runs/45734199313/artifacts/15078748783).
+- SHA-256: `1df6812133b68a55a262331b9dc37615c78ba8cb635352923cf4aae86823d7ca`.
+- APK Artifact ID: `15136693255`.
+- Build report Artifact ID: `15136908110`.
+- Raw diagnostics Artifact ID: `15136908031`.
+- [APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571/artifacts/15136693255).
+- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571/artifacts/15136908110).
+- [Raw diagnostics](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571/artifacts/15136908031).
 
-**ملاحظة نطاق:** workflow لا يشغّل Flutter root unit/widget suite كاملة ولا اختبارات Phase 13E–13O المركزة. كما أن اختبار محاكي Android لا يثبت التشغيل على هاتف ARM64 فعلي. عند غياب `android/key.properties` يستخدم Release مفتاح Debug الافتراضي؛ هذا artifact اختباري وليس توقيع نشر Google Play.
+**حدود التحقق:** لا يشغّل workflow كامل Flutter root unit/widget suite أو كل اختبارات Phase 13E–13O التاريخية. نجاح Android Emulator لا يثبت اختبار Force Stop على جهاز المستخدم ولا يعادل عزل kernel. عند غياب `android/key.properties` يكون إصدار CI اختبارياً بمفتاح debug، وليس توقيع نشر متجر.
+
+## الحالة الحالية للمراحل
+
+- **Phase 14C مقبولة:** اجتازت 14C.1–14C.5 بواباتها، وآخر تحقق كامل هو CI #199 على `main`.
+- **Phase 14D قيد التنفيذ على main:** استكمال دليل التكامل الفعلي لخوادم Skill-owned MCP عبر STDIO، مع اختبارات عملية حقيقية وحالات خادم عدائي وإغلاق العملية وتنظيف الجلسة.
+- لا يتم إنشاء أو تفعيل خوادم MCP أو مهاراتها تلقائياً عند الاستيراد أو الفحص؛ تبقى الموافقات المنفصلة وقيود المالك والبصمة فعالة.
+
 
 ## سجل بناء سابق — CI #175
 
@@ -99,10 +107,10 @@
 - [Phase 14B — تقرير تنفيذ Plugin Manifest & Component Registry](PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md)\n- [Phase 14C — MCP Base Protocol Compatibility & Skills over MCP](PHASE-14C-MCP-BASE-PROTOCOL-AND-SKILLS-OVER-MCP-AR.md)
 - [Phase 14 — فهرس كل مسارات Git عند baseline](PHASE-14-REPOSITORY-TREE-MANIFEST-2026-11-24.json)
 
-**حالة التنفيذ — 25 نوفمبر 2026:**
+**حالة التنفيذ — 26 نوفمبر 2026 (بعد CI #199):**
 - **14A مقبولة:** اجتازت اختبارات Progressive Skill discovery في CI #162، إلى جانب Flutter Analyze واختبارات البناء Android ARM64 الكاملة.
-- **14B مقبولة:** نجحت اختبارات Plugin manifest/component registry في CI #164، مع Analyze وRobolectric وAndroid Emulator وبناء APK ARM64. التفاصيل في PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md.\n- **14C.1 hardening مقبولة في CI #177:** stateless HTTP/SSE/headers/extension capabilities passed؛ 14C.2 typed Skills adapter قيد التنفيذ.
-- لا تشغل هذه المرحلة Commands أو Hooks أو Scripts أو MCP servers؛ جميع descriptors تبقى metadata-only، والخدمات غير المدعومة تظهر بتحذير.
+- **14B مقبولة:** نجحت اختبارات Plugin manifest/component registry في CI #164، مع Analyze وRobolectric وAndroid Emulator وبناء APK ARM64. التفاصيل في PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md.\n- **14C مقبولة بالكامل في CI #199:** 14C.1–14C.5، بما في ذلك MRTR و`subscriptions/listen` وHTTP request-scoped cancellation.
+- Phase 14D هي المرحلة النشطة حالياً: استكمال تكامل Skill-owned MCP الفعلي عبر STDIO؛ لا يعاد بناء خدمات الملكية والموافقة القائمة.
 - اختبارات الهاتف الفعلي ليست مستنتجة من نجاح محاكي Android.
 
 ## تشخيص فشل CI السابق

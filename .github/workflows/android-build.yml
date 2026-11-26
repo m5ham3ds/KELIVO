@@ -217,13 +217,13 @@ jobs:
               test/core/services/mcp/mcp_oauth_pinned_http_client_test.dart \
               test/core/services/mcp/remote_skill_discovery_service_test.dart
 
-      - name: Run Phase 13Q Skill MCP configuration discovery tests
+      - name: Run Skill-owned MCP lifecycle and Phase 14D real STDIO tests
         id: phase13q_mcp_config_tests
         if: success()
         timeout-minutes: 10
         shell: bash
         run: |
-          bash .github/scripts/capture_step.sh phase13q_mcp_config_tests "Phase 13Q read-only Skill MCP configuration discovery" -- \
+          bash .github/scripts/capture_step.sh phase13q_mcp_config_tests "Phase 13Q owner lifecycle plus Phase 14D real child-process STDIO integration" -- \
             bash .github/scripts/run_phase13q_tests.sh
 
       # Local path dependencies have independent pubspecs and test suites.

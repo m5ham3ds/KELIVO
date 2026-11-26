@@ -1,8 +1,8 @@
 # PHASE 14C — MCP Base Protocol Compatibility & Skills over MCP
 
-**الحالة:** 14C.1 و14C.2 و14C.3 slices اجتازت بواباتها السابقة. Phase 14C.4 Secure Remote Skills discovery integration اجتازت اختبارات CI #193 (19 اختباراً) وهي موصولة بواجهة Skills. Phase 14C.5 لمعالجة MRTR و`subscriptions/listen` قيد التنفيذ على فرع `phase-14c5-mrtr-subscriptions`؛ Phase 14C ككل ما زالت مفتوحة حتى نجاح CI لهذا الاستكمال ومراجعة أي فجوات بروتوكول متبقية. لا يُدعى full MCP 2026-07-28 compliance قبل ذلك.
+**الحالة:** **مقبولة بالكامل** — اجتازت Phase 14C.1–14C.5 بوابات القبول في CI #199 على `main`. يشمل ذلك transport hardening، typed Skills adapter، resource integrity/lazy fetch، Secure Remote Skills UI، MRTR وstateless `subscriptions/listen`، واختبارات HTTP request-scoped cancellation.
 **تاريخ البدء:** 25 نوفمبر 2026.
-**آخر تحقق شامل على main:** CI #193 على commit `924ea5a2bfcfd1f18c62b56e4e165836cb592095`.
+**آخر تحقق شامل:** CI #199 على commit `1b5bbbee69d51e96d1fda1526bac141f6ea5a33c`.
 **المرحلة السابقة:** Phase 14B مقبولة في CI #164.
 **المبدأ:** توسيع عميل MCP المحلي تدريجياً مع إبقاء النقل والإصدارات القديمة؛ لا ترقية قسرية ولا تشغيل خادم أو Skill تلقائياً. Remote discovery منفصل عن Skill-owned local MCP lifecycle في 14D.
 
@@ -183,7 +183,7 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - لا تثبيت في Skills registry المحلي تلقائياً؛ import صريح مستقل مع provenance يأتي لاحقاً.
 - 19 اختباراً مخصصاً اجتازت CI #193. قبول هذه الشريحة لا يعني أن كامل base protocol 2026 قد اكتمل.
 
-### 14C.5 — MRTR and stateless notification subscriptions — قيد التنفيذ
+### 14C.5 — MRTR and stateless notification subscriptions — مقبولة في CI #199
 - إضافة `InputRequiredResult` / MRTR loop محدود إلى الطلبات الثلاثة المسموح بها فقط: `prompts/get` و`resources/read` و`tools/call`.
 - معالجة `inputRequests` عبر handlers المعلنة في client capabilities فقط: `roots/list` و`sampling/createMessage` و`elicitation/create`; رفض الطريقة غير المعلنة أو غير المدعومة fail-closed.
 - retry للطلب الأصلي بمعرّف JSON-RPC جديد، وإرفاق `inputResponses` المقابلة؛ تمرير `requestState` كقيمة opaque دون تحليل أو تعديل أو تخزين جانبي.
@@ -235,8 +235,18 @@ CI #175 نجح على commit `821744e04fbf6ef525a42a80a2a220aa5a4f4f2b`، مع 1
 - تم تثبيت المصدر الرسمي: base protocol 2026-07-28 وBeta Skills extension المبني عليه. يجب توليد DTOs واختبارها من النصين الرسميين، وعدم الاستناد إلى SEP التاريخي وحده.
 - تراخيص الكود الخارجي يجب مراجعتها منفصلاً قبل أي نسخ.
 
-## 8. القرار
-- CI #187 يقبل 14C.3 lazy resource integrity وresponse-size hardening؛ وظل سجلاً تاريخياً لنجاح تلك الشريحة.
-- CI #193 يقبل تكامل واجهة 14C.4 واختباراتها المخصصة (19 اختباراً)، على main commit `924ea5a2`.
-- Phase 14C ما زالت مفتوحة؛ استكمال MRTR و`subscriptions/listen` مسجل في الشريحة 14C.5 على فرع `phase-14c5-mrtr-subscriptions`، ويشمل دعم فلتر الاشتراك المقيّد، وsubscription ID demultiplexing، وHTTP/STDIO cancellation، وحدود RPCs المحذوفة في 2026. لم يجتز CI بعد.
-- لا يبدأ Phase 14D قبل اجتياز 14C.5 والبوابات المتبقية على CI، ولا يُعلن full MCP 2026-07-28 compliance لمجرد نجاح هذا slice.
+## 8. القرار النهائي — CI #199
+
+**Phase 14C مقبولة بالكامل على `main`.** اجتاز التشغيل [CI #199](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571) على commit `1b5bbbee69d51e96d1fda1526bac141f6ea5a33c` جميع بوابات البناء والتقرير:
+
+- Flutter Analyze وEnvironment lifecycle و14A و14B وGemini/OAuth و14C.4 و13Q: نجاح.
+- جميع اختبارات الحزم المحلية، بما فيها `mcp_client`: نجاح.
+- اختبارات HTTP subscription integration: real request-scoped SSE acknowledgement/notification/completion، وإلغاء POST subscription منفرداً مع الحفاظ على عميل MCP صالحاً لطلب آخر.
+- Android JVM/Robolectric وPhase 13P Android Emulator E2E: نجاح.
+- بناء APK ARM64، فحص ABI، SHA-256، رفع APK والتقرير والتشخيص: نجاح.
+
+APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`; الحجم `40,735,865` bytes؛ ABI `arm64-v8a` فقط؛ SHA-256 `1df6812133b68a55a262331b9dc37615c78ba8cb635352923cf4aae86823d7ca`؛ APK Artifact `15136693255`.
+
+**قرار التسلسل:** Phase 14C مغلقة. المرحلة التالية هي Phase 14D — Skill-owned MCP Lifecycle. لا يبدأ Phase 14E قبل إغلاق بوابة 14D الخاصة بالخوادم الفعلية، والعمليات والموارد، والاختبارات العدائية.
+
+**حدود الادعاء:** هذا التشغيل لا يدعي عزل PRoot على مستوى kernel أو اختبار Force Stop على جهاز المستخدم؛ Android Emulator يثبت تدفق E2E في بيئة المحاكي فقط.

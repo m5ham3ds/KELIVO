@@ -1,6 +1,6 @@
 # PHASE 14 — Universal Skills, Plugins, Tools & Agent Orchestration
 
-**الحالة — 26 نوفمبر 2026:** Phase 14A مقبولة بعد CI #162 وPhase 14B مقبولة بعد CI #164. Phase 14C.4 Secure Remote Skills discovery UI اجتازت 19 اختباراً مخصصاً في CI #193 على main commit `924ea5a2`. ما زالت Phase 14C مفتوحة لاستكمال MRTR و`subscriptions/listen` في slice 14C.5 على الفرع `phase-14c5-mrtr-subscriptions`. لا يبدأ 14D قبل قبول 14C على CI؛ ولا تعني هذه الحالة قبول Phase 13 أو تشغيل مكونات Plugin.
+**الحالة — 26 نوفمبر 2026:** Phase 14A مقبولة بعد CI #162 وPhase 14B مقبولة بعد CI #164 وPhase 14C مقبولة بالكامل بعد CI #199 على `main` commit `1b5bbbee`. Phase 14D — Skill-owned MCP Lifecycle قيد التنفيذ مباشرة على `main`؛ توسع التحقق من خدمات الملكية والموافقات القائمة إلى خادم STDIO حقيقي وحالات عدائية وإثبات إنهاء العملية وتنظيف الجلسة. لا يبدأ 14E قبل قبول 14D.
 **خط الأساس:** 9abb9dcc40881b005902265fdbd86d93248cb906 — KELIVO 1.3.4+84، Flutter 3.47.6، Android ARM64.
 **المبدأ:** تطوير الأنظمة القائمة وإضافة adapters مستقلة؛ لا استبدال النواة ولا إدخال Runtime إلزامي غير مناسب لـAndroid.
 
@@ -98,21 +98,24 @@
 
 **بوابة القبول:** compatibility matrix لكل إصدار؛ mock servers مطابقة للمواصفة؛ pagination/partial lists/cache invalidation؛ stale digest/frontmatter mismatch؛ URI collision بين خادمين؛ nested skills؛ رفض الموارد الزائدة؛ no connection/list/read without explicit consent؛ SSRF/DNS rebinding/redirect/cross-origin credential tests؛ no automatic install or execution؛ MRTR positive/negative and retry-state tests؛ subscriptions/listen ack/filter/stream/cancel tests؛ legacy revision regression suite.
 
-### PHASE 14D — Skill-owned MCP Lifecycle (إغلاق 13Q.2–13Q.5)
+### PHASE 14D — Skill-owned MCP Lifecycle (تكامل STDIO الحقيقي وإغلاق 13Q.2–13Q.5)
 
-هذه المرحلة تكمل الفجوة القائمة في Phase 13Q، ولا تعيد كتابة MCP Provider.
+**الحالة — قيد التنفيذ على `main`:** Phase 13Q.2–13Q.5 backend/lifecycle tests اجتازت CI #199. هذه المرحلة لا تعيد كتابة `McpProvider` أو `SkillMcpConnectionService` أو `SkillMcpOwnerRegistry`؛ بل تضيف دليلاً تكاملياً مستقلاً عبر عملية STDIO حقيقية واختبارات خادم عدائي.
 
 النطاق:
-1. server owner = skill ID + source digest + capability ID + server ID.
-2. server disabled افتراضياً؛ تسجيل credentials في secure store فقط، ولا تستورد env literals/headers/tokens من manifest.
-3. اتصال stdio أولاً عبر Workspace/PRoot بعد موافقة؛ remote HTTP يحتاج SSRF/DNS/IP policy وموافقة host منفصلة.
-4. tools/list ضمن count/schema/time bounds، وحفظ route namespaced تحت هوية المالك.
-5. tools/call يحتاج approval مرتبط بهوية skill/server/tool/schema/digest لكل استدعاء حساس، حتى في Full Access.
-6. إعادة التحقق من owner/digest/schema قبل وبعد async gaps.
-7. إلغاء الاتصال وإيقاف العملية عند حذف Skill/تعطيلها/تحديثها/تغير digest أو revoke.
-8. no orphan servers؛ لا تتصل خوادم Skills ببعضها تلقائياً.
+1. تثبيت owner identity = Skill ID + source digest + capability ID + server ID، وبقاء التسجيلات disabled افتراضياً.
+2. اختبار الموافقة قبل إنشاء عملية الخادم، وموافقة مستقلة لكل tool call، والتحقق من عدم إرسال أي طلب عند الرفض.
+3. تشغيل خادم MCP benign كعملية child process عبر `WorkspaceStdioRuntime`، والتحقق من initialize و`tools/list` و`tools/call` وبيئة التشغيل المصغرة.
+4. إثبات عدم تمرير Environment العامة أو الأسرار غير المصرح بها، وتنقيح القيم السرية من مخرجات الأدوات.
+5. خادم عدائي يعيد أسماء أدوات مكررة، وخادم يعيد JSON Schema يحتوي remote `$ref`؛ يجب رفضهما قبل التعريض أو التنفيذ.
+6. عند حذف Skill أو disconnect/revoke، يجب إنهاء العملية فعلياً، وإغلاق جلسة MCP، وحذف مجلد نسخة الجلسة وإبطال بيانات الدخول التابعة لها.
+7. لا خادم HTTP بعيد مملوك لـSkill في هذه الشريحة؛ يبقى مرفوضاً حتى مراجعة DNS pinning/SSRF/redirect/host approval مستقلة.
 
-**بوابة القبول:** integration test server حقيقي benign عبر stdio، plus hostile server cases؛ tools/list/call؛ approval/denial؛ update invalidates grant؛ delete cancels; process closed; secret redaction.
+**اختبارات التكامل المضافة إلى بوابة CI:** `test/core/providers/skill_mcp_real_process_test.dart`، ويجري تشغيلها مع اختبارات ملكية Skill MCP عبر `.github/scripts/run_phase13q_tests.sh`.
+
+**حدود اختبار المضيف:** مشغل الاختبار يحاكي عقد `/workspace` mount على مضيف Linux ويشغّل child process حقيقياً ويتحقق من STDIO وPID/exit/cleanup. هذا إثبات IPC ودورة حياة على المضيف، وليس ادعاء sandbox kernel أو اختبار PRoot على هاتف فعلي.
+
+**بوابة القبول:** نجاح الخادم benign و`tools/list/call` والموافقة/الرفض وتنقيح الأسرار؛ رفض duplicate tools وremote references؛ إثبات أن العملية ماتت وأن الجلسة حُذفت بعد delete/disconnect؛ Flutter Analyze وPhase 13Q وRobolectric ومحاكي Android وبناء ARM64. لا يبدأ 14E قبل إغلاق هذه البوابة.
 
 ### PHASE 14E — Universal Tool Registry, Toolsets & Deferred Tool Exposure
 
