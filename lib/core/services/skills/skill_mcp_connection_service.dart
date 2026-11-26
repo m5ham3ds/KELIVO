@@ -341,11 +341,12 @@ final class SkillMcpConnectionService {
       final afterToolDiscovery = await _findRegistration(skillId, ownerServerId);
       _requireSameSnapshot(registration, afterToolDiscovery);
       _ensureSkillEnabled(skillId);
-      final config = mcp.getById(providerServerId);
-      if (config == null || !mcp.isConnected(providerServerId)) {
-        throw StateError('skill_mcp_connected_server_disappeared');
-      }
-      _activeSessions[ownerServerId] = _ActiveSkillMcpSession(
+
+      // Validate every discovered schema before making this owner session
+      // active or exposing any tool descriptor to callers. In particular,
+      // remote $ref variants must fail closed during initial connection,
+      // not only when the user later opens the tool list.
+      final pendingSession = _ActiveSkillMcpSession(
         skillId: skillId,
         ownerServerId: ownerServerId,
         sourceDigest: registration.sourceDigest,
@@ -353,6 +354,15 @@ final class SkillMcpConnectionService {
         directory: sessionDirectory,
         registration: registration,
       );
+      for (final tool in discoveredTools) {
+        _describeTool(pendingSession, tool);
+      }
+
+      final config = mcp.getById(providerServerId);
+      if (config == null || !mcp.isConnected(providerServerId)) {
+        throw StateError('skill_mcp_connected_server_disappeared');
+      }
+      _activeSessions[ownerServerId] = pendingSession;
       return SkillMcpConnectedServer(
         skillId: skillId,
         ownerServerId: ownerServerId,
