@@ -6,6 +6,10 @@ import 'package:http/io_client.dart';
 
 const _networkTimeout = Duration(seconds: 5);
 
+typedef McpSkillsDnsLookup = Future<List<InternetAddress>> Function(String host);
+typedef McpSkillsSocketConnector =
+    Future<ConnectionTask<Socket>> Function(InternetAddress address, int port);
+
 http.Client createMcpOAuthDiscoveryHttpClient() {
   final client = HttpClient();
   client.connectionTimeout = _networkTimeout;
@@ -16,15 +20,111 @@ Future<void> validateMcpOAuthPublicUri(Uri uri) async {
   await _publicAddresses(uri.host);
 }
 
-Future<List<InternetAddress>> _publicAddresses(String host) async {
+/// Resolves a strict public address set for a Remote Skills HTTPS origin.
+///
+/// Unlike the OAuth metadata helper, this path does not allow proxy fake-IP
+/// ranges and pins the eventual TCP connection to one address from this
+/// validated DNS snapshot. The URI hostname remains unchanged for TLS/SNI and
+/// certificate verification.
+Future<List<InternetAddress>> resolveMcpSkillsPinnedAddresses(
+  Uri uri, {
+  McpSkillsDnsLookup? lookup,
+}) async {
+  _validateMcpSkillsUri(uri);
+  return _publicAddresses(
+    uri.host,
+    allowProxyFakeIpForHostnames: false,
+    lookup: lookup,
+  );
+}
+
+Future<http.Client> createMcpSkillsPinnedHttpClient(
+  Uri uri, {
+  McpSkillsDnsLookup? lookup,
+  McpSkillsSocketConnector? socketConnector,
+}) async {
+  final addresses = await resolveMcpSkillsPinnedAddresses(uri, lookup: lookup);
+  final pinnedAddress = addresses.first;
+  final connector = socketConnector ?? Socket.startConnect;
+  final origin = _McpHttpsOrigin(uri);
+  final client = HttpClient()
+    ..connectionTimeout = _networkTimeout
+    ..findProxy = (_) => 'DIRECT'
+    ..connectionFactory = (requestUri, proxyHost, proxyPort) {
+      if (!_McpHttpsOrigin(requestUri).sameAs(origin)) {
+        throw SocketException(
+          'Remote Skills client refused a cross-origin request',
+          address: requestUri.host,
+        );
+      }
+      if (proxyHost != null || proxyPort != null) {
+        throw const SocketException(
+          'Remote Skills client refuses proxy-routed connections',
+        );
+      }
+      return connector(pinnedAddress, requestUri.port);
+    };
+  return _NoRedirectHttpClient(IOClient(client));
+}
+
+void _validateMcpSkillsUri(Uri uri) {
+  if (uri.scheme != 'https' ||
+      !uri.hasAuthority ||
+      uri.host.trim().isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasFragment ||
+      uri.port < 1) {
+    throw const FormatException(
+      'remote_skills_endpoint_requires_public_https_without_userinfo_or_fragment',
+    );
+  }
+}
+
+class _McpHttpsOrigin {
+  const _McpHttpsOrigin(this.scheme, this.host, this.port);
+
+  factory _McpHttpsOrigin(Uri uri) =>
+      _McpHttpsOrigin(uri.scheme.toLowerCase(), uri.host.toLowerCase(), uri.port);
+
+  final String scheme;
+  final String host;
+  final int port;
+
+  bool sameAs(_McpHttpsOrigin other) =>
+      scheme == other.scheme && host == other.host && port == other.port;
+}
+
+class _NoRedirectHttpClient extends http.BaseClient {
+  _NoRedirectHttpClient(this._inner);
+
+  final http.Client _inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    request.followRedirects = false;
+    request.maxRedirects = 0;
+    return _inner.send(request);
+  }
+
+  @override
+  void close() => _inner.close();
+}
+
+Future<List<InternetAddress>> _publicAddresses(
+  String host, {
+  bool allowProxyFakeIpForHostnames = true,
+  McpSkillsDnsLookup? lookup,
+}) async {
   final parsed = InternetAddress.tryParse(host);
   final addresses = parsed == null
-      ? await InternetAddress.lookup(host).timeout(_networkTimeout)
+      ? await (lookup ?? InternetAddress.lookup)(host).timeout(_networkTimeout)
       : <InternetAddress>[parsed];
   if (addresses.isEmpty ||
       addresses.any(
-        (address) =>
-            !isPublicMcpOAuthAddress(address, allowProxyFakeIp: parsed == null),
+        (address) => !isPublicMcpOAuthAddress(
+          address,
+          allowProxyFakeIp: parsed == null && allowProxyFakeIpForHostnames,
+        ),
       )) {
     throw SocketException(
       'OAuth discovery host does not resolve exclusively to public addresses',

@@ -9,3 +9,8 @@ http.Client createMcpOAuthDiscoveryHttpClient() =>
 
 Future<void> validateMcpOAuthPublicUri(Uri uri) =>
     implementation.validateMcpOAuthPublicUri(uri);
+
+/// Creates an HTTPS-only HTTP client pinned to the vetted DNS address set for
+/// the selected Remote Skills endpoint.
+Future<http.Client> createMcpSkillsPinnedHttpClient(Uri uri) =>
+    implementation.createMcpSkillsPinnedHttpClient(uri);
