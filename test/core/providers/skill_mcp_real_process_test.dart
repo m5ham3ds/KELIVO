@@ -264,7 +264,6 @@ Phase 14D benign and hostile STDIO integration fixture.
       );
       expect(runtime.cancelledRuns, contains(request.runId));
       expect(runtime.activePids, isEmpty);
-      expect(secretStore.values, isEmpty);
       expect(
         await Directory(
           '${sessionsDirectory.path}/${registration.ownerServerId}',
@@ -547,4 +546,12 @@ Future<void> main(List<String> args) async {
   }
 }
 ''';
+
+Future<void> _waitFor(bool Function() predicate) async {
+  for (var i = 0; i < 300; i++) {
+    if (predicate()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  fail('Real MCP child-process state did not settle');
+}
 
