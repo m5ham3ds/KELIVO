@@ -598,8 +598,17 @@ class StreamableHttpClientTransport implements ClientTransport {
     return uri.scheme.toLowerCase() == 'https' ? 443 : 80;
   }
 
-  Future<void> _drainResponse(http.StreamedResponse response) =>
-      response.stream.drain<void>().timeout(_requestTimeout);
+  Future<void> _drainResponse(http.StreamedResponse response) async {
+    await _ensureResponseWithinLimit(response);
+    await response.stream
+        .fold<int>(0, (receivedBytes, chunk) {
+          if (chunk.length > config.maxResponseBytes - receivedBytes) {
+            throw McpResponseTooLargeException(config.maxResponseBytes);
+          }
+          return receivedBytes + chunk.length;
+        })
+        .timeout(_requestTimeout);
+  }
 
   Future<void> _ensureResponseWithinLimit(
     http.StreamedResponse response,
