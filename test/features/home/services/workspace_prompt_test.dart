@@ -20,6 +20,7 @@ import 'package:Kelivo/core/services/logging/context_logger.dart';
 import 'package:Kelivo/core/services/workspace/workspace_paths.dart';
 import 'package:Kelivo/core/services/workspace/workspace_runtime.dart';
 import 'package:Kelivo/core/services/workspace/workspace_tools_service.dart';
+import 'package:Kelivo/core/services/tools/tool_registry.dart';
 import 'package:Kelivo/core/utils/multimodal_input_utils.dart';
 import 'package:Kelivo/features/home/controllers/generation_controller.dart';
 import 'package:Kelivo/features/home/controllers/stream_controller.dart'
@@ -384,6 +385,10 @@ void main() {
           packed: UnprocessedRequestContext(
             apiMessages: apiMessages,
             toolDefs: tools,
+            toolRegistrySession:
+                ToolRegistrySnapshot.fromProviderDefinitions(
+                  tools,
+                ).createSession(),
             hasBuiltInSearch: false,
             workspaceContext: workspace,
             mcpRouteSnapshot: null,
