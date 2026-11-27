@@ -19,7 +19,9 @@ void main() {
         ..register(ToolRegistryEntry(namespace: 'kelivo', name: 'search', definition: _definition('search'), toolsetIds: const <String>{'core'}))
         ..register(ToolRegistryEntry(namespace: 'workspace', name: 'read_document', definition: _definition('read_document'), exposure: ToolExposure.deferred, toolsetIds: const <String>{'documents'}))
         ..register(ToolRegistryEntry(namespace: 'internal', name: 'debug_state', definition: _definition('debug_state'), exposure: ToolExposure.hidden));
-      final session = builder.build().createSession();
+      final session = builder.build().createSession(
+        selectedToolsets: const <String>{'core', 'documents'},
+      );
       expect(session.directDefinitions, hasLength(1));
       expect(session.directDefinitions.single['function']['name'], 'search');
       expect(session.canExecute('search'), isTrue);
