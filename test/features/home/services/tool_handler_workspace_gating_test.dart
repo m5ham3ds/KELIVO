@@ -19,6 +19,7 @@ import 'package:Kelivo/core/services/workspace/workspace_runtime.dart';
 import 'package:Kelivo/core/services/workspace/workspace_tools_service.dart';
 import 'package:Kelivo/features/home/services/built_in_tool_names.dart';
 import 'package:Kelivo/features/home/services/tool_handler_service.dart';
+import 'package:Kelivo/core/services/tools/tool_registry.dart';
 
 import '../../../support/business_test_harness.dart';
 
@@ -133,6 +134,28 @@ void main() {
     );
     expect(textOnly.map(nameOf), isNot(contains('view_image')));
     expect(textOnly.map(nameOf), contains('read_file'));
+
+    final registrySession = service.buildToolRegistrySession(
+      settings,
+      assistant,
+      'openai',
+      'gpt-4.1',
+      false,
+      isToolModel: (_, __) => true,
+      workspaceContext: context(),
+    );
+    final directNames = registrySession.directDefinitions
+        .map(nameOf)
+        .toSet();
+    expect(directNames, contains(ToolRegistrySession.loadDeferredToolName));
+    expect(directNames, isNot(contains('video_engine')));
+    expect(
+      registrySession.deferredToolIndex.map((entry) => entry['exposedName']),
+      containsAll([
+        'video_engine',
+        'video_production',
+      ]),
+    );
 
     final noTools = service.buildToolDefinitions(
       settings,
