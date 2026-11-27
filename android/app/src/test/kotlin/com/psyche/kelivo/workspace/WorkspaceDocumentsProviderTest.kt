@@ -75,10 +75,16 @@ class WorkspaceDocumentsProviderTest {
         return File(appData, "workspaces/$id/files").also { if (WorkspaceDocumentPaths.validId(id)) it.mkdirs() }
     }
 
-    private fun Cursor.strings(column: String): List<String> = use {
-        val values = mutableListOf<String>()
-        while (moveToNext()) values += getString(getColumnIndexOrThrow(column))
-        values
+    private fun Cursor.strings(column: String): List<String> {
+        // Android Cursor's Closeable bridge differs across Robolectric/API stubs.
+        // Close explicitly instead of relying on Kotlin's Closeable.use cast.
+        try {
+            val values = mutableListOf<String>()
+            while (moveToNext()) values += getString(getColumnIndexOrThrow(column))
+            return values
+        } finally {
+            close()
+        }
     }
 
     @Test
