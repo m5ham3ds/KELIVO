@@ -161,6 +161,44 @@ void main() {
       );
     });
 
+    test('loading deferred schemas enforces the estimated token budget', () {
+      final builder = ToolRegistryBuilder()
+        ..registerToolset(const ToolsetDescriptor(id: 'video', title: 'Video', enabledByDefault: true))
+        ..register(ToolRegistryEntry(
+          namespace: 'kelivo.video',
+          name: 'video_engine',
+          definition: _definition(
+            'video_engine',
+            schema: <String, dynamic>{
+              'type': 'object',
+              'properties': {
+                for (var i = 0; i < 50; i++)
+                  'field_$i': {'type': 'string', 'description': 'Field $i payload'},
+              },
+            },
+          ),
+          exposure: ToolExposure.deferred,
+          toolsetIds: const <String>{'video'},
+        ));
+      final snapshot = builder.build();
+      final initial = snapshot.createSession();
+      final limited = snapshot.createSession(
+        maxDirectTokens: initial.directDefinitionTokens,
+      );
+
+      expect(
+        () => limited.loadDeferredTool('video_engine'),
+        throwsA(
+          isA<ToolRegistryException>().having(
+            (error) => error.code,
+            'code',
+            'direct_tool_token_budget_exceeded',
+          ),
+        ),
+      );
+      expect(limited.canExecute('video_engine'), isFalse);
+    });
+
     test('deferred loader refuses an unselected or hidden tool', () async {
       final builder = ToolRegistryBuilder()
         ..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core', enabledByDefault: true))

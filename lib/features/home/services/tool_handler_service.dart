@@ -589,7 +589,12 @@ class ToolHandlerService {
       toolsetByToolName: toolsetByToolName,
       exposureByToolName: exposureByToolName,
     );
-    return registry.createSession();
+    // The existing assistant/workspace/Skill/MCP gates have already filtered
+    // definitions above. Select exactly the source Toolsets represented in
+    // this turn so the snapshot cannot accidentally enable unrelated groups.
+    return registry.createSession(
+      selectedToolsets: toolsetByToolName.values.toSet(),
+    );
   }
 
   /// Compatibility view for callers that only need provider definitions.

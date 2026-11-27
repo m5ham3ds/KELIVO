@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import '../../utils/token_estimator.dart';
+
 enum ToolExposure { direct, deferred, hidden }
 
 enum ToolPermissionPolicy { inheritConversation, requireApproval, alwaysRequireApproval, denied }
@@ -232,8 +234,8 @@ class ToolRegistrySnapshot {
 
   ToolRegistryEntry? entryFor(String exposedName) => _byExposedName[exposedName];
 
-  ToolRegistrySession createSession({Set<String>? selectedToolsets, int maxDirectTools = 512, int maxDirectSchemaBytes = 2 * 1024 * 1024, int maxDeferredMetadataBytes = 64 * 1024}) {
-    if (maxDirectTools < 0 || maxDirectSchemaBytes < 0 || maxDeferredMetadataBytes < 0) {
+  ToolRegistrySession createSession({Set<String>? selectedToolsets, int maxDirectTools = 512, int maxDirectSchemaBytes = 2 * 1024 * 1024, int maxDeferredMetadataBytes = 64 * 1024, int maxDirectTokens = 32 * 1024}) {
+    if (maxDirectTools < 0 || maxDirectSchemaBytes < 0 || maxDeferredMetadataBytes < 0 || maxDirectTokens < 0) {
       throw const ToolRegistryException('invalid_tool_budget', 'Tool budgets cannot be negative.');
     }
     final enabled = selectedToolsets == null
@@ -284,6 +286,16 @@ class ToolRegistrySnapshot {
         'Deferred tool metadata exceeds the configured byte budget.',
       );
     }
+    final initialDefinitions = <Map<String, dynamic>>[
+      for (final entry in direct) entry.definition,
+      if (deferred.isNotEmpty) _deferredLoaderDefinition(deferred),
+    ];
+    if (estimateToolsTokens(initialDefinitions) > maxDirectTokens) {
+      throw const ToolRegistryException(
+        'direct_tool_token_budget_exceeded',
+        'Direct tool definitions and deferred loader exceed the estimated token budget.',
+      );
+    }
     return ToolRegistrySession._(
       snapshot: this,
       selectedToolsets: enabled,
@@ -292,6 +304,7 @@ class ToolRegistrySnapshot {
       directSchemaBytes: directBytes,
       maxDirectTools: maxDirectTools,
       maxDirectSchemaBytes: maxDirectSchemaBytes,
+      maxDirectTokens: maxDirectTokens,
     );
   }
 
@@ -349,6 +362,7 @@ class ToolRegistrySession {
   final int _directSchemaBytes;
   final int maxDirectTools;
   final int maxDirectSchemaBytes;
+  final int maxDirectTokens;
   int _loadedDeferredBytes = 0;
   List<Map<String, dynamic>>? _directDefinitionsCache;
 
@@ -373,6 +387,8 @@ class ToolRegistrySession {
     return _directDefinitionsCache =
         List<Map<String, dynamic>>.unmodifiable(definitions);
   }
+
+  int get directDefinitionTokens => estimateToolsTokens(directDefinitions);
 
   int get directDefinitionBytes {
     final pending = _pendingDeferredEntries;
@@ -444,6 +460,19 @@ class ToolRegistrySession {
       throw const ToolRegistryException(
         'direct_tool_schema_budget_exceeded',
         'Loading this deferred tool would exceed the direct schema byte budget.',
+      );
+    }
+    final nextDefinitions = <Map<String, dynamic>>[
+      for (final directEntry in _directEntries) directEntry.definition,
+      for (final loadedName in _loadedDeferredNames)
+        _deferredEntries[loadedName]!.definition,
+      entry.definition,
+      if (remaining.isNotEmpty) _deferredLoaderDefinition(remaining),
+    ];
+    if (estimateToolsTokens(nextDefinitions) > maxDirectTokens) {
+      throw const ToolRegistryException(
+        'direct_tool_token_budget_exceeded',
+        'Loading this deferred tool would exceed the estimated token budget.',
       );
     }
 

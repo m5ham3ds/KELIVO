@@ -156,6 +156,22 @@ void main() {
         'video_production',
       ]),
     );
+    expect(
+      registrySession.selectedToolsets,
+      containsAll({'workspace', 'video'}),
+    );
+    expect(registrySession.selectedToolsets, isNot(contains('mcp')));
+
+    final noWorkspaceSession = service.buildToolRegistrySession(
+      settings,
+      assistant,
+      'openai',
+      'gpt-4.1',
+      false,
+      isToolModel: (_, __) => true,
+    );
+    expect(noWorkspaceSession.selectedToolsets, isNot(contains('workspace')));
+    expect(noWorkspaceSession.selectedToolsets, isNot(contains('video')));
 
     final noTools = service.buildToolDefinitions(
       settings,

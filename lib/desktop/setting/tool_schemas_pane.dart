@@ -163,6 +163,7 @@ class _DesktopToolSchemasPaneState extends State<DesktopToolSchemasPane> {
       BuiltInToolGroup.memory => l10n.toolSchemaSettingsGroupMemory,
       BuiltInToolGroup.local => l10n.toolSchemaSettingsGroupLocal,
       BuiltInToolGroup.workspace => l10n.workspacesTitle,
+      BuiltInToolGroup.video => l10n.modelSpecFormVideoMode,
     };
     return [
       Padding(
