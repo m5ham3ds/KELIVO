@@ -366,7 +366,7 @@ class MessageGenerationService {
       workspaceContext: workspaceContext,
       conversationId: currentConversation?.id,
     );
-    final toolDefs = toolRegistrySession.directDefinitions;
+    final toolDefs = toolRegistrySession.providerDefinitions;
     return UnprocessedRequestContext(
       apiMessages: apiMessages,
       toolDefs: toolDefs,

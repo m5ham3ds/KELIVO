@@ -9,11 +9,13 @@ import '../extensions/skill_composition_tools.dart';
 import '../extensions/skill_execution_tools.dart';
 import '../packages/package_manager_tools.dart';
 import '../sandbox/environment_status_tool.dart';
+import '../video_engines/video_engine_tools.dart';
+import '../video_production/video_production_tools.dart';
 import '../video_providers/video_provider_tools.dart';
 import '../video_hybrid/video_hybrid_workflow_tools.dart';
 import '../video_quality/video_quality_tools.dart';
 
-enum BuiltInToolGroup { search, memory, local, workspace }
+enum BuiltInToolGroup { search, memory, local, workspace, video }
 
 class BuiltInToolCatalogEntry {
   const BuiltInToolCatalogEntry({
@@ -127,12 +129,30 @@ abstract final class BuiltInToolCatalog {
         ),
       );
     }
+    for (final definition in VideoEngineToolCatalog.definitions()) {
+      out.add(
+        BuiltInToolCatalogEntry(
+          name: _toolName(definition)!,
+          defaultDefinition: definition,
+          group: BuiltInToolGroup.video,
+        ),
+      );
+    }
+    for (final definition in VideoProductionToolCatalog.definitions()) {
+      out.add(
+        BuiltInToolCatalogEntry(
+          name: _toolName(definition)!,
+          defaultDefinition: definition,
+          group: BuiltInToolGroup.video,
+        ),
+      );
+    }
     for (final definition in VideoProviderToolCatalog.definitions()) {
       out.add(
         BuiltInToolCatalogEntry(
           name: _toolName(definition)!,
           defaultDefinition: definition,
-          group: BuiltInToolGroup.local,
+          group: BuiltInToolGroup.video,
         ),
       );
     }
@@ -141,7 +161,7 @@ abstract final class BuiltInToolCatalog {
         BuiltInToolCatalogEntry(
           name: _toolName(definition)!,
           defaultDefinition: definition,
-          group: BuiltInToolGroup.local,
+          group: BuiltInToolGroup.video,
         ),
       );
     }
@@ -150,7 +170,7 @@ abstract final class BuiltInToolCatalog {
         BuiltInToolCatalogEntry(
           name: _toolName(definition)!,
           defaultDefinition: definition,
-          group: BuiltInToolGroup.local,
+          group: BuiltInToolGroup.video,
         ),
       );
     }

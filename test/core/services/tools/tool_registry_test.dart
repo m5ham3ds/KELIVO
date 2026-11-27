@@ -115,6 +115,108 @@ void main() {
       );
     });
 
+    test('loads deferred schemas through the gateway and updates the live provider list', () async {
+      final builder = ToolRegistryBuilder()
+        ..registerToolset(const ToolsetDescriptor(id: 'video', title: 'Video', enabledByDefault: true))
+        ..register(ToolRegistryEntry(
+          namespace: 'kelivo.video',
+          name: 'video_engine',
+          definition: _definition('video_engine'),
+          exposure: ToolExposure.deferred,
+          toolsetIds: const <String>{'video'},
+        ));
+      final session = builder.build().createSession();
+      final liveDefinitions = session.providerDefinitions;
+      expect(liveDefinitions, hasLength(1));
+      expect(
+        liveDefinitions.single['function']['name'],
+        ToolRegistrySession.loadDeferredToolName,
+      );
+      expect(session.deferredToolIndex.single['exposedName'], 'video_engine');
+
+      var delegated = false;
+      final gateway = ToolRegistryCallGateway(
+        session: session,
+        expectedAdapterSnapshot: null,
+        delegate: (_, __, {toolCallId}) async {
+          delegated = true;
+          return 'unexpected';
+        },
+      );
+      final result = await gateway.call(
+        ToolRegistrySession.loadDeferredToolName,
+        const <String, dynamic>{'tool_name': 'video_engine'},
+        toolCallId: 'call-load-1',
+      );
+
+      expect(result, contains('"status":"loaded"'));
+      expect(delegated, isFalse);
+      expect(session.canExecute('video_engine'), isTrue);
+      expect(session.deferredToolIndex, isEmpty);
+      expect(liveDefinitions, hasLength(1));
+      expect(liveDefinitions.single['function']['name'], 'video_engine');
+      expect(
+        () => liveDefinitions.add(_definition('mutation')),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
+
+    test('deferred loader refuses an unselected or hidden tool', () async {
+      final builder = ToolRegistryBuilder()
+        ..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core', enabledByDefault: true))
+        ..registerToolset(const ToolsetDescriptor(id: 'video', title: 'Video'))
+        ..register(ToolRegistryEntry(
+          namespace: 'kelivo.video',
+          name: 'video_engine',
+          definition: _definition('video_engine'),
+          exposure: ToolExposure.deferred,
+          toolsetIds: const <String>{'video'},
+        ))
+        ..register(ToolRegistryEntry(
+          namespace: 'internal',
+          name: 'internal_state',
+          definition: _definition('internal_state'),
+          exposure: ToolExposure.hidden,
+          toolsetIds: const <String>{'core'},
+        ));
+      final session = builder.build().createSession();
+      expect(session.deferredToolIndex, isEmpty);
+      expect(
+        () => session.loadDeferredTool('video_engine'),
+        throwsA(isA<ToolRegistryException>()),
+      );
+      expect(
+        () => session.loadDeferredTool('internal_state'),
+        throwsA(isA<ToolRegistryException>()),
+      );
+    });
+
+    test('loading a deferred schema enforces the direct schema byte budget', () {
+      final builder = ToolRegistryBuilder()
+        ..registerToolset(const ToolsetDescriptor(id: 'video', title: 'Video', enabledByDefault: true))
+        ..register(ToolRegistryEntry(
+          namespace: 'kelivo.video',
+          name: 'video_engine',
+          definition: _definition(
+            'video_engine',
+            schema: <String, dynamic>{
+              'type': 'object',
+              'properties': {
+                'payload': {'type': 'string', 'maxLength': 12000},
+              },
+            },
+          ),
+          exposure: ToolExposure.deferred,
+          toolsetIds: const <String>{'video'},
+        ));
+      final session = builder.build().createSession(maxDirectSchemaBytes: 500);
+      expect(
+        () => session.loadDeferredTool('video_engine'),
+        throwsA(isA<ToolRegistryException>()),
+      );
+      expect(session.canExecute('video_engine'), isFalse);
+    });
+
     test('rejects duplicate names and invalid schemas before exposure', () {
       expect(() => ToolRegistrySnapshot.fromProviderDefinitions(<Map<String, dynamic>>[_definition('duplicate'), _definition('duplicate')]), throwsA(isA<ToolRegistryException>()));
       expect(() => ToolRegistrySnapshot.fromProviderDefinitions(<Map<String, dynamic>>[<String, dynamic>{'type': 'function', 'function': <String, dynamic>{'name': 'broken', 'parameters': 'not-a-schema'}}]), throwsA(isA<ToolRegistryException>()));

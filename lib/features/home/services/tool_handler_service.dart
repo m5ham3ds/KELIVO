@@ -510,6 +510,7 @@ class ToolHandlerService {
         .toSet();
     final namespaceByToolName = <String, String>{};
     final toolsetByToolName = <String, String>{};
+    final exposureByToolName = <String, ToolExposure>{};
     for (final definition in resolvedDefinitions) {
       final name = toolNameOf(definition);
       if (name == null) continue;
@@ -521,6 +522,10 @@ class ToolHandlerService {
           group == BuiltInToolGroup.workspace) {
         namespaceByToolName[name] = 'workspace';
         toolsetByToolName[name] = 'workspace';
+      } else if (group == BuiltInToolGroup.video) {
+        namespaceByToolName[name] = 'kelivo.video';
+        toolsetByToolName[name] = 'video';
+        exposureByToolName[name] = ToolExposure.deferred;
       } else if (group != null) {
         namespaceByToolName[name] = 'kelivo.${group.name}';
         toolsetByToolName[name] = group.name;
@@ -564,6 +569,12 @@ class ToolHandlerService {
         description: 'Tools routed through the captured MCP server snapshot.',
         enabledByDefault: true,
       ),
+      ToolsetDescriptor(
+        id: 'video',
+        title: 'Video production',
+        description: 'Optional video engines, provider connectors, workflows, and quality tools loaded only when needed.',
+        enabledByDefault: true,
+      ),
     ];
 
     // Freeze one validated registry snapshot after the existing provider-
@@ -576,6 +587,7 @@ class ToolHandlerService {
       additionalToolsets: sourceToolsets,
       namespaceByToolName: namespaceByToolName,
       toolsetByToolName: toolsetByToolName,
+      exposureByToolName: exposureByToolName,
     );
     return registry.createSession();
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 enum ToolExposure { direct, deferred, hidden }
@@ -137,6 +138,9 @@ class ToolRegistryBuilder {
     if (_entries.containsKey(entry.qualifiedId)) {
       throw ToolRegistryException('duplicate_tool_identity', 'Tool identity is already registered: ${entry.qualifiedId}');
     }
+    if (entry.exposedName == ToolRegistrySession.loadDeferredToolName) {
+      throw const ToolRegistryException('reserved_tool_name', 'The deferred loader name is reserved by the registry.');
+    }
     final existing = _exposedNames[entry.exposedName];
     if (existing != null) {
       throw ToolRegistryException('tool_name_collision', 'Exposed name ${entry.exposedName} is already owned by $existing.');
@@ -192,6 +196,7 @@ class ToolRegistrySnapshot {
     Iterable<ToolsetDescriptor> additionalToolsets = const <ToolsetDescriptor>[],
     Map<String, String> namespaceByToolName = const <String, String>{},
     Map<String, String> toolsetByToolName = const <String, String>{},
+    Map<String, ToolExposure> exposureByToolName = const <String, ToolExposure>{},
   }) {
     final builder = ToolRegistryBuilder()
       ..registerToolset(
@@ -218,6 +223,7 @@ class ToolRegistrySnapshot {
           exposedName: name,
           definition: definition,
           toolsetIds: <String>{toolsetByToolName[name] ?? 'core'},
+          exposure: exposureByToolName[name] ?? ToolExposure.direct,
         ),
       );
     }
@@ -257,16 +263,36 @@ class ToolRegistrySnapshot {
           break;
       }
     }
-    if (direct.length > maxDirectTools) {
-      throw ToolRegistryException('direct_tool_count_budget_exceeded', 'Direct tool count ${direct.length} exceeds limit $maxDirectTools.');
+    final loaderBytes = deferred.isEmpty
+        ? 0
+        : utf8.encode(jsonEncode(_deferredLoaderDefinition(deferred))).length;
+    if (direct.length + (deferred.isEmpty ? 0 : 1) > maxDirectTools) {
+      throw ToolRegistryException(
+        'direct_tool_count_budget_exceeded',
+        'Direct tool count including the deferred loader exceeds limit $maxDirectTools.',
+      );
     }
-    if (directBytes > maxDirectSchemaBytes) {
-      throw const ToolRegistryException('direct_tool_schema_budget_exceeded', 'Direct tool definitions exceed the configured byte budget.');
+    if (directBytes + loaderBytes > maxDirectSchemaBytes) {
+      throw const ToolRegistryException(
+        'direct_tool_schema_budget_exceeded',
+        'Direct tool definitions and deferred loader exceed the configured byte budget.',
+      );
     }
     if (deferredBytes > maxDeferredMetadataBytes) {
-      throw const ToolRegistryException('deferred_metadata_budget_exceeded', 'Deferred tool metadata exceeds the configured byte budget.');
+      throw const ToolRegistryException(
+        'deferred_metadata_budget_exceeded',
+        'Deferred tool metadata exceeds the configured byte budget.',
+      );
     }
-    return ToolRegistrySession._(snapshot: this, selectedToolsets: enabled, directEntries: direct, deferredEntries: deferred, directDefinitionBytes: directBytes);
+    return ToolRegistrySession._(
+      snapshot: this,
+      selectedToolsets: enabled,
+      directEntries: direct,
+      deferredEntries: deferred,
+      directSchemaBytes: directBytes,
+      maxDirectTools: maxDirectTools,
+      maxDirectSchemaBytes: maxDirectSchemaBytes,
+    );
   }
 
   Future<ToolExecutionResult> execute(ToolRegistrySession session, ToolExecutionInvocation invocation) async {
@@ -296,41 +322,199 @@ class ToolRegistrySnapshot {
 }
 
 class ToolRegistrySession {
-  ToolRegistrySession._({required ToolRegistrySnapshot snapshot, required Set<String> selectedToolsets, required List<ToolRegistryEntry> directEntries, required List<ToolRegistryEntry> deferredEntries, required this.directDefinitionBytes})
-    : _snapshot = snapshot,
-      selectedToolsets = Set<String>.unmodifiable(selectedToolsets),
-      _directNames = directEntries.map((entry) => entry.exposedName).toSet(),
-      _deferredEntries = Map<String, ToolRegistryEntry>.unmodifiable({for (final entry in deferredEntries) entry.exposedName: entry}),
-      directDefinitions = List<Map<String, dynamic>>.unmodifiable(directEntries.map((entry) => entry.definition));
+  static const String loadDeferredToolName = 'kelivo_load_deferred_tool';
+
+  ToolRegistrySession._({
+    required ToolRegistrySnapshot snapshot,
+    required Set<String> selectedToolsets,
+    required List<ToolRegistryEntry> directEntries,
+    required List<ToolRegistryEntry> deferredEntries,
+    required this.maxDirectTools,
+    required this.maxDirectSchemaBytes,
+    required int directSchemaBytes,
+  }) : _snapshot = snapshot,
+       selectedToolsets = Set<String>.unmodifiable(selectedToolsets),
+       _directEntries = List<ToolRegistryEntry>.unmodifiable(directEntries),
+       _deferredEntries = Map<String, ToolRegistryEntry>.unmodifiable({
+         for (final entry in deferredEntries) entry.exposedName: entry,
+       }),
+       _directSchemaBytes = directSchemaBytes,
+       providerDefinitions = ToolRegistryDefinitionsView._(null);
 
   final ToolRegistrySnapshot _snapshot;
   Object? get adapterSnapshot => _snapshot.adapterSnapshot;
   final Set<String> selectedToolsets;
-  final Set<String> _directNames;
+  final List<ToolRegistryEntry> _directEntries;
   final Map<String, ToolRegistryEntry> _deferredEntries;
   final Set<String> _loadedDeferredNames = <String>{};
-  final List<Map<String, dynamic>> directDefinitions;
-  final int directDefinitionBytes;
+  final int _directSchemaBytes;
+  final int maxDirectTools;
+  final int maxDirectSchemaBytes;
+  int _loadedDeferredBytes = 0;
 
-  List<Map<String, Object?>> get deferredToolIndex => List<Map<String, Object?>>.unmodifiable(
-    _deferredEntries.values.map((entry) => Map<String, Object?>.unmodifiable(entry.deferredMetadata())),
-  );
+  /// A live, read-only List view. Provider adapters re-read it for each HTTP
+  /// round, so a deferred schema loaded between rounds appears on the next
+  /// request without rebuilding the turn or mutating provider-owned payloads.
+  late final List<Map<String, dynamic>> providerDefinitions =
+      ToolRegistryDefinitionsView._(this);
 
-  bool canExecute(String exposedName) => _directNames.contains(exposedName) || _loadedDeferredNames.contains(exposedName);
+  List<Map<String, dynamic>> get directDefinitions {
+    final definitions = <Map<String, dynamic>>[
+      for (final entry in _directEntries) entry.definition,
+      for (final name in _loadedDeferredNames)
+        _deferredEntries[name]!.definition,
+    ];
+    final pending = _pendingDeferredEntries;
+    if (pending.isNotEmpty) {
+      definitions.add(_deferredLoaderDefinition(pending));
+    }
+    return List<Map<String, dynamic>>.unmodifiable(definitions);
+  }
+
+  int get directDefinitionBytes {
+    final pending = _pendingDeferredEntries;
+    final loaderBytes = pending.isEmpty
+        ? 0
+        : utf8.encode(jsonEncode(_deferredLoaderDefinition(pending))).length;
+    return _directSchemaBytes + _loadedDeferredBytes + loaderBytes;
+  }
+
+  int get directDefinitionCount =>
+      _directEntries.length +
+      _loadedDeferredNames.length +
+      (_pendingDeferredEntries.isEmpty ? 0 : 1);
+
+  List<ToolRegistryEntry> get _pendingDeferredEntries =>
+      _deferredEntries.values
+          .where((entry) => !_loadedDeferredNames.contains(entry.exposedName))
+          .toList(growable: false);
+
+  List<Map<String, Object?>> get deferredToolIndex =>
+      List<Map<String, Object?>>.unmodifiable(
+        _pendingDeferredEntries.map(
+          (entry) => Map<String, Object?>.unmodifiable(
+            entry.deferredMetadata(),
+          ),
+        ),
+      );
+
+  bool canExecute(String exposedName) =>
+      _directEntries.any((entry) => entry.exposedName == exposedName) ||
+      _loadedDeferredNames.contains(exposedName);
 
   Map<String, dynamic> loadDeferredTool(String exposedName) {
     final entry = _deferredEntries[exposedName];
     if (entry == null) {
-      throw const ToolRegistryException('deferred_tool_not_found', 'The tool is not available in the selected toolsets.');
+      throw const ToolRegistryException(
+        'deferred_tool_not_found',
+        'The tool is not available in the selected toolsets.',
+      );
     }
+    if (_loadedDeferredNames.contains(exposedName)) {
+      return entry.definition;
+    }
+
+    final nextLoadedBytes =
+        _loadedDeferredBytes +
+        utf8.encode(jsonEncode(entry.definition)).length;
+    final remaining = _pendingDeferredEntries
+        .where((candidate) => candidate.exposedName != exposedName)
+        .toList(growable: false);
+    final nextLoaderBytes = remaining.isEmpty
+        ? 0
+        : utf8.encode(jsonEncode(_deferredLoaderDefinition(remaining))).length;
+    final nextDirectBytes =
+        _directSchemaBytes + nextLoadedBytes + nextLoaderBytes;
+    final nextDirectCount =
+        _directEntries.length +
+        _loadedDeferredNames.length +
+        1 +
+        (remaining.isEmpty ? 0 : 1);
+
+    if (nextDirectCount > maxDirectTools) {
+      throw const ToolRegistryException(
+        'direct_tool_count_budget_exceeded',
+        'Loading this deferred tool would exceed the direct tool count budget.',
+      );
+    }
+    if (nextDirectBytes > maxDirectSchemaBytes) {
+      throw const ToolRegistryException(
+        'direct_tool_schema_budget_exceeded',
+        'Loading this deferred tool would exceed the direct schema byte budget.',
+      );
+    }
+
+    _loadedDeferredBytes = nextLoadedBytes;
     _loadedDeferredNames.add(exposedName);
     return entry.definition;
   }
 
   bool isToolsetEnabled(String id) => selectedToolsets.contains(id);
-  ToolRegistryEntry? entryFor(String exposedName) => _snapshot.entryFor(exposedName);
+  ToolRegistryEntry? entryFor(String exposedName) =>
+      _snapshot.entryFor(exposedName);
 }
 
+class ToolRegistryDefinitionsView extends ListBase<Map<String, dynamic>> {
+  ToolRegistryDefinitionsView._(this._session);
+
+  final ToolRegistrySession? _session;
+
+  @override
+  int get length => _session?.directDefinitionCount ?? 0;
+
+  @override
+  set length(int value) {
+    throw UnsupportedError('Tool registry provider definitions are read-only.');
+  }
+
+  @override
+  Map<String, dynamic> operator [](int index) {
+    final session = _session;
+    if (session == null) {
+      throw StateError('Tool registry definitions view is not attached.');
+    }
+    return session.directDefinitions[index];
+  }
+
+  @override
+  void operator []=(int index, Map<String, dynamic> value) {
+    throw UnsupportedError('Tool registry provider definitions are read-only.');
+  }
+}
+
+Map<String, dynamic> _deferredLoaderDefinition(
+  List<ToolRegistryEntry> deferredEntries,
+) {
+  final names = deferredEntries.map((entry) => entry.exposedName).toList();
+  final catalog = deferredEntries
+      .map((entry) => '- ${entry.exposedName}: ${entry.description}')
+      .join('\n');
+  return <String, dynamic>{
+    'type': 'function',
+    'function': <String, dynamic>{
+      'name': ToolRegistrySession.loadDeferredToolName,
+      'description': [
+        'Load a deferred KELIVO tool schema for this conversation turn. ',
+        'The load operation only reveals the schema; it does not execute the tool. ',
+        'After loading, the tool becomes available on the next model request. ',
+        'Available deferred tools:\n',
+        catalog,
+      ].join(),
+      'parameters': <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'tool_name': <String, dynamic>{
+            'type': 'string',
+            'enum': names,
+            'description': 'Exact exposed name of the deferred tool to load.',
+          },
+        },
+        'required': <String>['tool_name'],
+        'additionalProperties': false,
+      },
+    },
+  };
+}
 
 typedef ToolRegistryCallDelegate = Future<Object?> Function(
   String name,
@@ -367,6 +551,23 @@ class ToolRegistryCallGateway {
     Map<String, dynamic> arguments, {
     String? toolCallId,
   }) async {
+    if (name == ToolRegistrySession.loadDeferredToolName) {
+      if (arguments.length != 1 || arguments['tool_name'] is! String) {
+        throw const ToolRegistryException(
+          'invalid_deferred_tool_request',
+          'Deferred loading requires exactly one string tool_name argument.',
+        );
+      }
+      final requestedName = arguments['tool_name'] as String;
+      session.loadDeferredTool(requestedName);
+      return jsonEncode(<String, Object?>{
+        'status': 'loaded',
+        'tool_name': requestedName,
+        'instruction':
+            'The tool schema is now available. Use it in the next model request.',
+      });
+    }
+
     final entry = session.entryFor(name);
     if (entry == null || !session.canExecute(name)) {
       throw const ToolRegistryException(

@@ -25,6 +25,7 @@ abstract final class BuiltInToolNames {
     WebFetchToolService.toolName,
     'builtin_search',
     'read_chat_image',
+    'kelivo_load_deferred_tool',
     ...MemoryTools.allToolNames,
     ...MemoryTools.legacyToolNames,
     ...LocalToolNames.all,

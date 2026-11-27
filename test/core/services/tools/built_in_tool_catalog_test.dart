@@ -6,6 +6,11 @@ import 'package:Kelivo/core/services/tools/built_in_tool_catalog.dart';
 import 'package:Kelivo/core/services/tools/tool_schema_overrides.dart';
 import 'package:Kelivo/core/models/tool_schema_override.dart';
 import 'package:Kelivo/core/services/workspace/workspace_tools_service.dart';
+import 'package:Kelivo/core/services/video_engines/video_engine_tools.dart';
+import 'package:Kelivo/core/services/video_production/video_production_tools.dart';
+import 'package:Kelivo/core/services/video_providers/video_provider_tools.dart';
+import 'package:Kelivo/core/services/video_hybrid/video_hybrid_workflow_tools.dart';
+import 'package:Kelivo/core/services/video_quality/video_quality_tools.dart';
 import 'package:Kelivo/features/home/services/local_tools_service.dart';
 
 void main() {
@@ -46,6 +51,25 @@ void main() {
   tearDown(() {
     DeviceLocalTools.debugResetIosCapabilities();
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  test('video tools are registered in the deferred video toolset', () {
+    final entries = BuiltInToolCatalog.entries(
+      lang: MemoryPromptLang.en,
+      legacyMemoryMode: false,
+    ).where((entry) => entry.group == BuiltInToolGroup.video).toList();
+
+    String nameOf(Map<String, dynamic> definition) =>
+        (definition['function'] as Map)['name'] as String;
+
+    final expected = <String>{
+      ...VideoEngineToolCatalog.definitions().map(nameOf),
+      ...VideoProductionToolCatalog.definitions().map(nameOf),
+      ...VideoProviderToolCatalog.definitions().map(nameOf),
+      ...VideoHybridWorkflowToolCatalog.definitions().map(nameOf),
+      ...VideoQualityToolCatalog.definitions().map(nameOf),
+    };
+    expect(entries.map((entry) => entry.name).toSet(), expected);
   });
 
   test(
