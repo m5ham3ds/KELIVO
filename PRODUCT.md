@@ -12,8 +12,13 @@ The current repository and supported release target are Android only. Linux comm
 - Prefer recoverable, user-owned data flows with explicit outcomes.
 - Preserve Android accessibility, localization, scalable text, keyboard/touch support and light/dark themes.
 
-## Current boundaries
-- Skill-local Python/Bash/Node execution uses an approved Android PRoot path; PRoot is not a kernel sandbox.
-- Skill-declared MCP configuration is discovered and preserved, but the Skill-owned activation and tool-dispatch adapter is still in progress.
-- HTTP/API connectors, generic workflows and native Kelivo tools are not executable merely because their descriptors were imported.
+## Current capabilities and boundaries
+- Skill-local Python/Bash/Node execution uses the approved Android PRoot path. PRoot is not a kernel sandbox; the active RootFS is shared and writable, and guest network access is not fully restricted.
+- Skill-owned MCP ownership, approval, `tools/list`/`tools/call`, lifecycle invalidation and secret redaction have backend/lifecycle acceptance evidence in CI #199, with real STDIO child-process and hostile-server acceptance in Phase 14D / CI #204.
+- CI #208 revalidated the Skill-owned MCP/STDIO test group. This does not prove the complete visible approval UX on a real device or Force Stop recovery.
+- Native Kelivo tools execute through the existing ToolCallHandler and permission gateway. The universal Tool Registry/Toolsets integration is being completed in Phase 14E; descriptors do not by themselves grant execution.
+- Generic HTTP/API connector adapters and generic Skill workflow execution are not yet accepted as universal capabilities. A manifest or descriptor alone never authorizes network access or execution.
 - Without private signing configuration, a successful CI APK is debug-signed and is not a Play Store publishing credential.
+
+## Current development state
+The active phase is Phase 14E. Phase 14A–14D are accepted; Phase 14E.1 targeted tests passed in CI #206 and Phase 14E.2 turn-scoped integration tests passed in CI #208. Phase 14E remains open until native tool parity, real Toolset selection, direct/deferred/hidden exposure and the remaining budget/approval/cancellation gates pass.

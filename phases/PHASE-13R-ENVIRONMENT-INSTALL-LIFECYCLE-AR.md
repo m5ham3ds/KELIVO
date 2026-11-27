@@ -1,7 +1,7 @@
 # PHASE 13R — موثوقية دورة تثبيت Environment Image وPresets وMedia tools
 
 **الفرع:** main فقط؛ لا تُنشأ فروع اختبار موازية.
-**الحالة قبل CI:** التعديلات والاختبارات المركزة مضافة إلى main. القبول النهائي ينتظر CI على commit الإصلاح واختبار الجهاز.
+**الحالة المحدثة — 27 نوفمبر 2026:** اجتازت اختبارات Environment install lifecycle في CI #208، ونجحت Flutter Analyze وAndroid JVM/Robolectric وPhase 13P Emulator E2E وبناء APK ARM64 ونشر التقرير. بوابة CI الحالية ناجحة؛ يبقى اختبار الهاتف الفعلي عند مغادرة التطبيق/Recents ومرحلة Stop بعد commit point قبل إغلاق قبول الجهاز.
 
 ## الهدف
 

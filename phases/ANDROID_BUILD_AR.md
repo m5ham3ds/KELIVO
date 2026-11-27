@@ -97,7 +97,30 @@ APK 41,825,267 bytes · 18 .so ضمن arm64-v8a فقط · SHA-256 a6271844472413
 CI #120 لا يحتوي بعد على Regression tests التي أضيفت في Phase 13R. كما أن workflow لا يشغّل كامل Flutter root unit/widget suite أو مجموعات 13E–13O التاريخية.
 
 
-## أحدث تحقق شامل — CI #204 (27 نوفمبر 2026)
+## أحدث تحقق شامل — CI #208 (27 نوفمبر 2026)
+
+- التشغيل: https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283
+- commit: `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`؛ مطابق لرأس `main` وقت التشغيل.
+- Android-only/Release audit وFlutter 3.47.6 وArabic parity وgen-l10n وFlutter Analyze: نجاح.
+- Environment install lifecycle وPhase 14A و14B و14E.2 وGemini/OAuth و14C.4 وPhase 13Q/14D real STDIO: نجاح.
+- اختبارات الحزم المحلية الخمس: نجاح.
+- Android JVM/Robolectric: نجاح.
+- Phase 13P Android Emulator E2E: نجاح.
+- Android ARM64 Release build، التحقق من ABI الفعلي، SHA-256 والرفع: نجاح.
+- وظيفة جمع السجلات وتوليد تقرير Markdown ورفعه: نجاح.
+- APK: `Kelivo-Android-arm64-v8a-release.apk`، 41,943,583 bytes.
+- ABI: `arm64-v8a` فقط.
+- SHA-256: `29fa1b9db0223dd0b9c6d8f170af3b86f6d44f2f5dd88a992843bd09f907f6fa`.
+- APK artifact: `15167472926`.
+- Build report artifact: `15167378117`.
+- Raw diagnostics artifact: `15167717401`.
+
+[APK ARM64](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283/artifacts/15167472926) · [تقرير البناء](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283/artifacts/15167378117) · [السجلات الخام](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283/artifacts/15167717401).
+
+**حدود:** لا يشغّل workflow كامل Flutter root unit/widget suite أو جميع مجموعات Phase 13E–13O التاريخية. Android Emulator لا يثبت Force Stop على هاتف المستخدم ولا عزل PRoot على مستوى Kernel. غياب `android/key.properties` يعني استخدام debug key في CI Release APK، وليس توقيع متجر.
+
+**التحقق السابق — CI #204:** البيانات التالية سجل تاريخي صحيح لذلك التشغيل، ولا تمثل أحدث APK بعد CI #208.
+
 
 - التشغيل: https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988
 - commit: `e1e543d77f38c6de15ad16aea972afa6bd06e8aa`؛ مطابق لرأس `main`.

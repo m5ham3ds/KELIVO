@@ -1,7 +1,7 @@
 # KELIVO — الخطة الهندسية الرئيسية v2
 ## منصة وكيل إنتاج فيديو مفتوحة وقابلة للتركيب من خلال المحادثة فقط
 
-**الحالة المرجعية — 27 نوفمبر 2026:** Phase 14A مقبولة عبر CI #162، Phase 14B عبر CI #164، Phase 14C عبر CI #199، وPhase 14D مقبولة بالكامل عبر CI #204 على `main` commit `e1e543d77f38c6de15ad16aea972afa6bd06e8aa`. بدأت Phase 14E.1 — Universal Tool Registry foundation على `main`؛ قبول 14E الكامل ينتظر parity/collision/deferred budgets/route snapshot/approval/cancellation gates. أحدث APK: CI #204، ARM64 فقط، 41,930,839 bytes، SHA-256 `4f38e0c520386f43427eee822811dd02c42393de4f4037a7ae32a6bc995ae8dd`، Artifact ID `15156492027`.
+**الحالة المرجعية — 27 نوفمبر 2026 بعد CI #208:** Phase 14A (#162) و14B (#164) و14C (#199) و14D (#204) مقبولة. اختبارات Phase 14E.1 اجتازت CI #206، واختبارات تكامل المحادثة Phase 14E.2 اجتازت CI #208 على `main` commit `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`. Phase 14E ككل ما زالت قيد التنفيذ؛ لم تبدأ 14F–14H. أحدث APK: CI #208، ARM64 فقط، 41,943,583 bytes، SHA-256 `29fa1b9db0223dd0b9c6d8f170af3b86f6d44f2f5dd88a992843bd09f907f6fa`، Artifact ID `15167472926`.
 
 **سجل تاريخي — 23 نوفمبر 2026 (قبل CI #162):**
 - آخر بناء كامل ناجح قبل إصلاح دورة تثبيت البيئة: [CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038)، commit 85e4653674916ecc65e3d30daa417e29547245a6. اجتاز Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وAndroid JVM/Robolectric وPhase 13P Android Emulator E2E وبناء ARM64 ورفع Artifact.
@@ -37,6 +37,10 @@
 
 
 ## حالة التنفيذ الحالية
+
+**تحديث مرجعي — 27 نوفمبر 2026 / CI #208:** أحدث رأس `main` هو `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`. اكتمل Flutter Analyze وEnvironment lifecycle و14A و14B و14E.2 وGemini/OAuth و14C.4 و13Q/14D real STDIO والحزم المحلية وAndroid JVM/Robolectric وPhase 13P Emulator وبناء ARM64 ورفع APK. وظيفة نشر التقرير نجحت أيضاً. انظر [CI #208](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283) و[سجل Phase 14E](PHASE-14E-IMPLEMENTATION-STATUS-AR.md).
+
+**حالة القبول لا تتبع نجاح البناء وحده:** مراحل 03–12 و13A–13O لا تُغلق رجعياً ما لم يثبت كل runner أو اختبار جهاز خاص بها. الـworkflow الحالي لا يشغّل كامل Flutter root unit/widget suite ولا كل اختبارات 13E–13O التاريخية. PRoot ليس Kernel Sandbox، واختبار Emulator لا يثبت Force Stop على هاتف فعلي.
 
 - **Phase 0:** خط الأساس محفوظ.
 - **Phase 1:** سجل الإضافات والنواة المعيارية منفذ وفق تقرير المرحلة.
@@ -1015,7 +1019,7 @@ MCP tools نفسها يجب أن تبقى مرئية للمستخدم مع إم�
 
 **التصميم الأولي لتنظيم اختبارات CI (2026-11-10) — تاريخي:** استخدم التصميم الأول GTK/GLib وRust/C وLinux Native Asset preflight قبل مجموعات A–D الكاملة. خُفّضت الاختبارات لاحقًا إلى Fast Smoke، لكن run `42929627194` أثبت أن Flutter يشغّل Native Asset hooks لمنصة Linux أثناء كل `flutter test` حتى عندما لا يستورد الاختبار الحافظة مباشرة. لذلك أصبحت حزم GTK/GLib المضيفة مطلوبة في المسار السريع قبل 13A، بينما يظل تحليل Dart الشامل واختبار Native Asset المنفصل ومجموعات الانحدار الكاملة اختيارية عبر `run_extended_phase13_tests`. يبقى ترتيب A→B→C→D وعلامة نجاح كل مرحلة إلزاميين. التفاصيل في `../build-report/PHASE-13B-CI-HOST-DEPENDENCIES-FAST-LANE-FIX.md`.
 
-**الحالة:** Phase 13A و13B و13C و13D لديها checkpoints مصدرية فقط؛ القبول لجميعها معلق حتى CI وبناء ARM64 وتجارب الهاتف. Adapter MCP الصريح لدورة `tools/list`/`tools/call` ما زال مفتوحًا في 13B. بناءً على طلب المستخدم المباشر أُعد checkpoint مصدر لـ13D يفرض موافقة يدوية لكل تشغيل حتى عند Full Access، ويضيف مراجعة حرجة لصلاحية الكتابة على RootFS، ويحجب متغيرات Runtime Profile المخصصة عن سكربتات Skills، وينقح مخرجات stdout/stderr، ويعرض تحذيرًا أمنيًا واضحًا في بطاقة الموافقة. يظل RootFS النشط مشتركًا وقابلًا للكتابة، والشبكة غير مقيّدة، وPRoot ليس sandbox على مستوى النواة؛ لذلك لا يُدّعى تحقيق عزل كامل أو قبول المرحلة. تجهيز 13D قبل إغلاق بوابات 13A–13C تم بناءً على توجيه المستخدم وهو checkpoint فقط، ولا يعني قبول أي مرحلة سابقة. راجع تقارير `PHASE-13A-IMPLEMENTATION-REPORT.md` إلى `PHASE-13D-IMPLEMENTATION-REPORT.md` وملفات `../build-report/`. الخطة: `PHASE-13-SKILLS-WORKSPACE-ARCHITECTURE-AND-IMPLEMENTATION-PLAN.md`.
+**الحالة المرجعية المحدثة — 27 نوفمبر 2026:** تقارير 13A–13D الأصلية ما زالت تسجل بوابات قبول تاريخية غير مغلقة بالكامل، ولا يمنحها CI #208 قبولاً رجعياً. فجوة Skill-owned MCP التي كانت مفتوحة في 13B عولجت لاحقاً عبر 13Q، ثم أثبتت Phase 14D دورة STDIO الفعلية والعدائية في CI #204. 13P Emulator E2E أعيد التحقق منها في #208. اختبارات 13Q Backend/lifecycle اجتازت #199 و14D real STDIO اجتازت #204 و#208. اختبارات Environment lifecycle لـ13R اجتازت #208، لكن اختبار الهاتف الفعلي لا يزال مطلوباً. 13E–13O لا تُعد مقبولة لمجرد Analyze أو بناء ARM64؛ الـworkflow الحالي لا يشغّل جميع runners التاريخية. تبقى حدود PRoot كما هي: RootFS مشترك وقابل للكتابة، والشبكة غير مقيدة بالكامل، ولا يوجد Kernel Sandbox.
 
 **الهدف:** تحويل منظومة Skills من الاستيراد والتخطيط إلى دورة حياة كاملة: اكتشاف قدرات المهارة وحفظ شجرتها ومواردها، ثم تنفيذ الأدوات والسكربتات بموافقات واضحة، وربطها ببيئة Workspace/PRoot وRuntime Profiles، والتحقق من مخرجاتها.
 
@@ -1033,7 +1037,7 @@ MCP tools نفسها يجب أن تبقى مرئية للمستخدم مع إم�
 
 - بناء منفّذ Typed يربط خطط `skill_compose` بنقاط دخول معلنة وموافقات وRuntime Profile ومدخلات/مخرجات محددة.
 - نُفّذ مبدئيًا dispatch لملفات Python/Bash/Node المعلنة فقط، مع Runtime Profile تابع للمهارة وموافقة لكل تشغيل ونسخة مصدر موثقة وسجل artifacts للتحقق من مراحل DAG.
-- القبول ما زال معلقًا: يلزم CI وتجربة PRoot فعلية، كما أن adapter MCP الصريح ودورة `tools/list`/`tools/call` لم يُنفّذا بعد. لا يُشغّل مجلد `tools/` تلقائيًا، ولا يوجد dispatch لـHTTP/API أو native tools في هذا checkpoint.
+- **تحديث لاحق:** موائم Skill-owned MCP و`tools/list`/`tools/call` نُفذ ضمن Phase 13Q، ثم اجتازت دورة الخادم الفعلي والعدائي عبر STDIO بوابة 14D في CI #204. لا يحول ذلك هذا التقرير التاريخي إلى قبول تلقائي لكل معايير Phase 13B؛ راجع PHASE-13Q وPHASE-14D.
 - التحقق من المسارات والصلاحيات والنتائج وعدم اعتبار نص JSON عادي Tool Call.
 
 ### Phase 13C — Workspace & Environment Runtime Integration
@@ -1358,12 +1362,12 @@ KELIVO يجب أن يكون **نواة محادثة ووكلاء وإدارة إ
 
 ## Phase 13Q — Skill-owned MCP Adapter
 
-بدأت 13Q.1 بمحلل read-only لإعداد MCP المعلن داخل Skill. لا تعتبر هذه القطعة موائم تشغيل. يتطلب الإكمال ربط الملكية والموافقة ثم tools/list وtools/call، مع إيقاف الاتصال عند تغير بصمة المصدر. راجع PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md.
+**الحالة — 27 نوفمبر 2026:** اجتازت 13Q.1–13Q.5 بوابات backend/lifecycle في CI #199، ثم اجتازت Phase 14D دورة STDIO الحقيقية والعدائية في CI #204. أعاد CI #208 التحقق من اختبارات 13Q/14D. تبقى تجربة الموافقة المرئية على الهاتف واختبار Force Stop/الجهاز خارج نطاق دليل CI الحالي. راجع PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md وPHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md.
 
 
 ## Phase 14 — Universal Skills, Plugins, Tools & Agent Orchestration
 
-**تحديث التنفيذ — 27 نوفمبر 2026:** أُغلقت Phase 14D ببوابة CI #204 على main؛ تقرير القبول في `phases/PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md`. المرحلة النشطة الآن 14E.1: Registry/Toolset foundation فوق `BuiltInToolCatalog` و`ToolHandlerService` الحاليين، دون استبدال dispatcher أو approval gateway. CI #205 هو بوابة التحقق الأولى لهذه الشريحة؛ لا تعتبر 14E مقبولة بعد.
+**تحديث التنفيذ — 27 نوفمبر 2026 بعد CI #208:** Phase 14A–14D مقبولة. 14E.1 اجتازت الاختبارات في CI #206، و14E.2 (جلسة Registry المرتبطة بدورة المحادثة وGateway) اجتازت الاختبارات وبوابات المشروع في CI #208 على `main` commit `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`. Phase 14E ما زالت قيد التنفيذ لأن تكامل Toolsets الإنتاجية وتكافؤ جميع الأدوات الأصلية والتعريض المؤجل والميزانيات يحتاج استكمالاً. لا تبدأ 14F قبل قبول 14E بالكامل. انظر `PHASE-14E-IMPLEMENTATION-STATUS-AR.md`.
 
 
 تم تدقيق المستودع على commit 9abb9dcc40881b005902265fdbd86d93248cb906، وفهرسة 4,237 ملفاً و634 مجلداً في manifest كامل، ومراجعة بنية Skills/Extensions/MCP/Runtime/Workspace/Browser/CI ومقارنة مشاريع OpenCode وCodex وClaude Plugins وAgent Skills وMCP وVercel وPydanticAI وsmolagents.

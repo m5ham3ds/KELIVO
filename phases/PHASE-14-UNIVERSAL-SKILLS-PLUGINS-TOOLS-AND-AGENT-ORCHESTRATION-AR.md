@@ -1,6 +1,6 @@
 # PHASE 14 — Universal Skills, Plugins, Tools & Agent Orchestration
 
-**الحالة المرجعية — 27 نوفمبر 2026:** Phase 14A مقبولة بعد CI #162، Phase 14B بعد CI #164، Phase 14C بعد CI #199، وPhase 14D مقبولة بالكامل بعد CI #204 على `main` commit `e1e543d77f38c6de15ad16aea972afa6bd06e8aa`. بدأت Phase 14E.1 — Universal Tool Registry foundation على `main`؛ لا تعتبر 14E مكتملة قبل اجتياز كل بوابات القبول.
+**الحالة المرجعية — 27 نوفمبر 2026 بعد CI #208:** Phase 14A (#162) و14B (#164) و14C (#199) و14D (#204) مقبولة. اجتازت اختبارات 14E.1 في CI #206، واجتازت اختبارات تكامل المحادثة 14E.2 في CI #208 على `main` commit `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`. Phase 14E ككل ما زالت قيد التنفيذ؛ لا تبدأ 14F قبل استكمال تكافؤ الأدوات الأصلية وتكامل Toolsets والتعريض المؤجل والميزانيات وبوابات القبول المتبقية.
 **خط الأساس:** 9abb9dcc40881b005902265fdbd86d93248cb906 — KELIVO 1.3.4+84، Flutter 3.47.6، Android ARM64.
 **المبدأ:** تطوير الأنظمة القائمة وإضافة adapters مستقلة؛ لا استبدال النواة ولا إدخال Runtime إلزامي غير مناسب لـAndroid.
 
@@ -115,11 +115,27 @@
 
 **حدود اختبار المضيف:** مشغل الاختبار يحاكي عقد `/workspace` mount على مضيف Linux ويشغّل child process حقيقياً ويتحقق من STDIO وPID/exit/cleanup. هذا إثبات IPC ودورة حياة على المضيف، وليس ادعاء sandbox kernel أو اختبار PRoot على هاتف فعلي.
 
-**بوابة القبول:** نجاح الخادم benign و`tools/list/call` والموافقة/الرفض وتنقيح الأسرار؛ رفض duplicate tools وremote references؛ إثبات أن العملية ماتت وأن الجلسة حُذفت بعد delete/disconnect؛ Flutter Analyze وPhase 13Q وRobolectric ومحاكي Android وبناء ARM64. لا يبدأ 14E قبل إغلاق هذه البوابة.
+**القبول:** اجتازت هذه البوابة CI #204 على `main`، وأعيد مرور الاختبارات ضمن CI #208. لذلك أُغلقت 14D وأصبح الانتقال إلى 14E مسموحاً. حدود الاختبار باقية: child process يعمل على مضيف Linux بعقد `/workspace` محاكى، وليس اختبار PRoot على هاتف فعلي أو إثبات عزل Kernel.
 
 ### PHASE 14E — Universal Tool Registry, Toolsets & Deferred Tool Exposure
 
-**الحالة — 27 نوفمبر 2026: قيد التنفيذ على `main`، بداية الشريحة 14E.1.** أضيف عقد Registry/Toolset مستقل فوق تعريفات الأدوات الحالية، مع namespaces ورفض collisions ونسخة schema ثابتة وواجهات direct/deferred/hidden وعقود نتائج وإلغاء وحدود أولية. رُبط أول adapter بنقطة تجميع التعريفات بعد provider-specific schema translation وschema overrides؛ يبقى التنفيذ والصلاحيات على `ToolCallHandler` وpermission gateway الموجودين في هذه الشريحة. ينتظر القبول CI #205 على التغيير نفسه. لا يغير ذلك MCP route snapshot الموجود، ولا يستبدل أي tool handler.
+**الحالة — 27 نوفمبر 2026 بعد CI #208: Phase 14E قيد التنفيذ على `main`.**
+
+- **14E.1 — Registry foundation:** اختبارات Registry وToolsets وnamespace collision وdirect/deferred/hidden وbudgets وfreeze/cancellation/output limits اجتازت CI #206 على commit `05fadf6db2371a68bfa02869dc2efc6f84543d03`.
+- **14E.2 — Turn-scoped conversation integration:** ربط جلسة Registry بهوية MCP route snapshot وGateway داخل دورة توليد المحادثة، مع إبقاء تنفيذ الأدوات والموافقات في `ToolCallHandler` الأصلي. اجتازت مجموعة الاختبارات CI #208 على commit `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`.
+- فشل CI #207 كان في fixture الاختبار: غاب الوسيط الإلزامي `toolRegistrySession` في `workspace_prompt_test.dart`. أضاف #208 الجلسة للـfixture وأعاد تشغيل البوابات بنجاح.
+- **قرار القبول:** 14E.1 و14E.2 اجتازتا الاختبارات المخصصة، لكن Phase 14E ككل ليست مقبولة حتى الآن.
+
+العمل المتبقي داخل 14E:
+1. تصنيف أدوات `BuiltInToolCatalog` وMCP وWorkspace ضمن Toolsets ذات namespaces فعلية بدلاً من إسناد كل التعريفات إلى مجموعة عامة واحدة.
+2. إثبات parity لتعريفات جميع الأدوات الأصلية عبر providers بعد schema translation وoverrides.
+3. وصل اختيار Toolsets إلى assistant/task/workspace/Skill دون تغيير السلوك الحالي افتراضياً.
+4. تفعيل direct/deferred/hidden في تدفق النموذج فعلياً، مع تحميل مؤجل عند الطلب وحدود schema/token budgets.
+5. الحفاظ على الموافقات والإلغاء وoutput caps وثبات MCP route snapshot وعدم إنشاء dispatcher أو permission gateway موازٍ.
+
+**بوابة القبول النهائية لـ14E:** parity tests لجميع الأدوات الأصلية؛ collisions عبر namespaces؛ deferred loading وtoken/schema budgets؛ route snapshot consistency؛ approval policies؛ cancellation/output caps؛ وعدم وجود duplicate tool handlers. لا يبدأ 14F قبل نجاحها.
+
+
 
 النطاق:
 1. إضافة واجهة Registry/Adapter موحدة فوق catalog/handlers الحاليين تدريجياً.

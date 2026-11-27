@@ -1,6 +1,6 @@
 # PHASE 13Q — موائم MCP المملوك للمهارات
 
-**الحالة:** اجتازت 13Q.1–13Q.5 بوابات backend/lifecycle في CI #199 على `main`. اختبارات الملكية والموافقة و`tools/list` و`tools/call` وإبطال المصدر والتعطيل والحذف وإغلاق العملية ومحو الأسرار ناجحة. يجري توسيع دليل الخادم الفعلي والعدائي في Phase 14D؛ لا يعني هذا قبول عزل kernel أو تجربة Force Stop على هاتف فعلي.
+**الحالة المحدثة — 27 نوفمبر 2026:** اجتازت 13Q.1–13Q.5 بوابات backend/lifecycle في CI #199 على `main`. ثم اجتازت Phase 14D اختبار خادم STDIO فعلياً واختبارات hostile schemas/duplicate tools في CI #204، وأعيدت مجموعة Phase 13Q/14D ضمن CI #208 بنجاح. هذا قبول Backend/Lifecycle، ولا يثبت اكتمال UX الموافقة المرئية على جهاز فعلي أو Force Stop recovery أو عزل Kernel.
 
 ## سبب المرحلة
 يكتشف مستورد Skills ملفات MCP ويحفظ metadata، لكن Capability Registry يصنف agent_skill.mcp_server بأنه manual_adapter_required. البنية العامة لـMCP (McpProvider وMcpToolService) لا تربط وحدها خادم Skill بملكية Skill أو بصمة المصدر أو موافقات تشغيله. نجاح 13P لا يختبر MCP؛ بل يغطي دورة Skill script.

@@ -1,41 +1,75 @@
 # KELIVO — فهرس المراحل والحالة
 
-هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
+هذه الصفحة هي المدخل الحالي لخطة المشروع. تقارير التشغيل الأقدم أدناه محفوظة كسجلات تاريخية؛ لا تتقدم على حالة `main` الموثقة هنا أو في سجل Phase 14E.
 
-## أحدث بناء ناجح — CI #204
+## أحدث بناء ناجح — CI #208
 
-[GitHub Actions #204](https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988) اكتمل بنجاح على `main` commit `e1e543d77f38c6de15ad16aea972afa6bd06e8aa`.
+[GitHub Actions #208](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283) اكتمل بنجاح على `main` commit `77736b783d55752a35a3aeb3b66b6b6dce7e87f1` بتاريخ 27 نوفمبر 2026.
 
-- اجتازت وظيفتا البناء ونشر التقرير جميع الخطوات المطلوبة.
-- Flutter Analyze وEnvironment lifecycle وPhase 14A و14B وGemini/OAuth وPhase 14C.4 وPhase 13Q/14D real STDIO: نجاح.
-- اختبارات Phase 14D: 48 اختباراً ناجحاً، بما فيها الخادم السليم والحالات العدائية وإغلاق العملية والتنظيف.
-- اختبارات الحزم المحلية: نجاح.
-- Android JVM/Robolectric: `BUILD SUCCESSFUL in 5m 29s`.
-- Phase 13P Android Emulator: جميع اختبارات التكامل الأربعة نجحت.
-- Android ARM64 Release build وفحص ABI وSHA-256 ورفع APK والتقرير: نجاح.
+- وظيفة البناء ووظيفة نشر التقرير: نجاح كامل.
+- Android-only وRelease-hardening audit وFlutter 3.47.6 وFlutter Analyze: نجاح.
+- Environment install lifecycle: نجاح.
+- Phase 14A progressive Skill discovery: 34 اختباراً ناجحاً.
+- Phase 14B Plugin manifest/component registry: 9 اختبارات ناجحة.
+- Phase 14E.2 turn-scoped Tool Registry gateway: نجاح.
+- Gemini schema وProvider OAuth وPhase 14C.4 Remote Skills: نجاح.
+- Phase 13Q/14D Skill-owned MCP وSTDIO الحقيقي: نجاح.
+- اختبارات الحزم المحلية الخمس: نجاح.
+- Android JVM/Robolectric: نجاح.
+- Phase 13P Android Emulator E2E: نجاح.
+- بناء APK ARM64 وفحص ABI وSHA-256 ورفع APK: نجاح.
+- نشر تقرير Markdown والسجلات: نجاح.
 
-**APK — CI #204**
-- الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
-- الحجم الفعلي: 41,930,839 bytes.
-- ABI المتحقق: `arm64-v8a` فقط.
-- SHA-256: `4f38e0c520386f43427eee822811dd02c42393de4f4037a7ae32a6bc995ae8dd`.
-- APK Artifact ID: `15156492027`.
-- Build report Artifact ID: `15155673161`.
-- Raw diagnostics Artifact ID: `15156601647`.
-- [APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988/artifacts/15156492027).
-- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988/artifacts/15155673161).
-- [Raw diagnostics](https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988/artifacts/15156601647).
+**APK — CI #208**
+- الحجم: 41,943,583 bytes.
+- ABI: `arm64-v8a` فقط.
+- SHA-256: `29fa1b9db0223dd0b9c6d8f170af3b86f6d44f2f5dd88a992843bd09f907f6fa`.
+- APK Artifact ID: `15167472926`.
+- Build report Artifact ID: `15167378117`.
+- Raw diagnostics Artifact ID: `15167717401`.
+- [APK ARM64](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283/artifacts/15167472926).
+- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283/artifacts/15167378117).
+- [Raw diagnostics](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283/artifacts/15167717401).
 
-**حدود التحقق:** لا يشغّل workflow كامل Flutter root unit/widget test suite أو جميع اختبارات Phase 13E–13O التاريخية. نجاح Android Emulator لا يثبت Force Stop على جهاز المستخدم أو عزل kernel. عند غياب `android/key.properties` يكون APK اختبارياً بمفتاح debug، وليس توقيع نشر متجر.
+**حدود التحقق:** لا يشغّل هذا الـworkflow كامل Flutter root unit/widget suite ولا جميع runners التاريخية لـ13E–13O. محاكي Android لا يثبت Force Stop على هاتف فعلي أو عزل PRoot على مستوى Kernel. عند غياب `android/key.properties` يستخدم CI debug signing fallback؛ هذا APK للاختبار وليس مفتاح نشر متجر.
 
 ## الحالة الحالية للمراحل
 
-- **Phase 14A–14C:** مقبولة وفق بواباتها السابقة.
-- **Phase 14D مقبولة:** CI #204 أثبت دورة Skill-owned MCP عبر STDIO والرفض الآمن للحالات العدائية والتنظيف الفعلي.
-  تقرير القبول: [PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md](PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md).
-- **Phase 14E قيد التنفيذ على main:** بدأت الشريحة 14E.1 بتأسيس Tool Registry/Toolsets وعرض direct/deferred/hidden فوق تعريفات الأدوات الحالية. ينتظر هذا التغيير CI الخاص به.
-- لا يتم إنشاء أو تفعيل خوادم MCP أو مهاراتها تلقائياً عند الاستيراد أو الفحص؛ تبقى الموافقات وقيود الملكية والبصمة فعالة.
+- **Phase 14A–14D:** مقبولة عبر البوابات المستقلة: 14A #162، 14B #164، 14C #199، 14D #204.
+- **Phase 14E.1:** اختبارات Registry/Toolsets الأساسية اجتازت CI #206.
+- **Phase 14E.2:** تكامل جلسة Registry مع دورة المحادثة وGateway اجتاز اختبارات CI #208. **Phase 14E بالكامل ما زالت قيد التنفيذ**؛ يتبقى تكامل Toolsets الحقيقية وتكافؤ الأدوات الأصلية والتعريض المؤجل والميزانيات.
+- **Phase 14F–14H:** لم تبدأ.
+- **Phase 13P:** Android Emulator E2E ناجح في CI #208؛ لا يعني اختبار Force Stop على هاتف المستخدم.
+- **Phase 13Q:** Backend/lifecycle مقبولة في CI #199، ودليل STDIO الحقيقي والعدائي اجتاز CI #204 وأعيد التحقق في #208؛ لا يُستنتج اكتمال UX الموافقة المرئية من اختبارات Backend.
+- **Phase 13R:** Environment lifecycle وRobolectric ومحاكي Android وبناء ARM64 اجتازت #208؛ اختبار دورة الحياة على هاتف Android فعلي لا يزال مطلوباً.
+- **Phase 13A–13D و13E–13O:** تُحترم حالة كل تقرير قبول؛ نجاح Analyze أو بناء CI الحالي لا يمنح قبولاً رجعياً لاختبارات تاريخية لم يشغّلها الـworkflow.
+- **Phases 03–12:** التنفيذ المصدري موجود بدرجات متفاوتة؛ بوابات القبول العملية المحددة في الخطة الرئيسية ما زالت مفتوحة، خصوصاً Render ومزودي الفيديو والجودة والأمان على Android ARM64.
 
+## الحالة النشطة — Phase 14E
+
+التقرير التفصيلي: [PHASE-14E-IMPLEMENTATION-STATUS-AR.md](PHASE-14E-IMPLEMENTATION-STATUS-AR.md).
+
+- 14E.1: [CI #206](https://github.com/m5ham3ds/KELIVO/actions/runs/45915687173).
+- 14E.2: [CI #208](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283).
+- لا تُعلن Phase 14E مقبولة بالكامل ولا تبدأ 14F قبل إغلاق بوابتها.
+
+## حالة الفروع
+
+- `main` هو الفرع النشط ورأسه `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`.
+- الفرع التاريخي `phase-14c5-mrtr-subscriptions` متأخر 13 commit عن `main` ولا يملك commits فريدة غير مدمجة؛ لا يُستخدم للعمل الحالي.
+- لا توجد Pull Requests مفتوحة. لم يُنشأ فرع جديد لهذه المزامنة.
+
+## وثائق المرجع الحالية
+
+- [الخطة الهندسية الرئيسية](MASTER-DEVELOPMENT-PLAN-AR.md)
+- [الخطة المعمارية Phase 14](PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md)
+- [تقرير حالة Phase 14E](PHASE-14E-IMPLEMENTATION-STATUS-AR.md)
+- [الخطة المعمارية Phase 13](PHASE-13-SKILLS-WORKSPACE-ARCHITECTURE-AND-IMPLEMENTATION-PLAN.md)
+- [Phase 13Q — Skill-owned MCP](PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md)
+- [Phase 13R — Environment lifecycle](PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md)
+- [دليل Android Build](ANDROID_BUILD_AR.md)
+- [تقرير CI Automation](BUILD_AUTOMATION_REPORT_AR.md)
+- [وصف المنتج](../PRODUCT.md)
 
 ## سجل بناء سابق — CI #175
 
@@ -89,32 +123,37 @@
 
 **قيد التوقيع:** لا يعني نجاح بناء Release أن APK موقّع بمفتاح نشر متجر؛ سجل CI يستخدم debug key عند غياب `android/key.properties`.
 
-## حالة Phase 13 بعد CI #162
+## حالة Phase 13 — مزامنة 27 نوفمبر 2026
 
-- **13A–13D:** توجد checkpoints مصدرية واختبارات تاريخية؛ لا تحول نجاح البناء الحالي وحده إلى قبول رجعي لكل هذه المراحل.
-- **13B:** ما زالت غير مكتملة حتى إغلاق تكامل MCP المملوك للمهارة وبوابات 13Q ذات الصلة.
-- **13P:** Android Emulator E2E اجتازت في CI #162. هذا ليس اختبار Force Stop على هاتف المستخدم ولا إثبات عزل kernel.
-- **13Q.1–13Q.3:** اجتازت CI #150؛ شملت الملكية والتحقق من digest والموافقة على اتصال stdio ونسخ Skill إلى مجلد جلسة خاص واكتشاف الأدوات.
-- **13Q.4:** اجتازت CI #154؛ شملت tools/list وtools/call، namespace، موافقة منفصلة، فحص schema وحدود البيانات وتنقيح الأسرار وسجل التدقيق. لا يدعي اختبار الخدمة اكتمال نافذة الموافقة المرئية في واجهة المحادثة.
-- **13Q.5:** أضيف مستمع دورة الحياة لقطع الاتصال وحذف نسخة الجلسة عند التعطيل أو الحذف أو تغير المصدر، لكن CI #162 لم يتضمن خطوة قبول مستقلة لهذه الحالات؛ تظل بوابة 13Q.5 معلقة حتى تشغيل الاختبارات المخصصة. نافذة الموافقة المرئية في واجهة المحادثة غير مثبتة كذلك.
-- **13R:** اختبارات Environment lifecycle وRobolectric وPhase13P Emulator اجتازت في CI #162؛ اختبار الهاتف الفعلي عند مغادرة الصفحة وإزالة التطبيق من Recents وStop بعد commit point ما زال مطلوباً.
-- **PRoot:** Linux userland فقط، RootFS نشط مشترك وقابل للكتابة، والشبكة غير مقيدة بالكامل. لا تصفه كـkernel sandbox.
-- **HTTP/SSE:** ما زال مرفوضاً لخوادم Skills حتى اكتمال DNS pinning وحماية SSRF وموافقة المضيف.
+- **13A–13D:** تقاريرها الأصلية تسجل checkpoints وبوابات قبول غير مغلقة بالكامل. لا تمنحها CI #208 قبولاً رجعياً.
+- **13B/MCP:** فجوة Skill-owned MCP التي كانت موثقة في التقرير القديم عولجت لاحقاً عبر 13Q ثم اختُبرت في 14D؛ لا تزال بقية معايير 13B وتقارير A–D بحاجة إلى مراجعة حسب تقاريرها.
+- **13E–13O:** لا تُعلن مقبولة لمجرد نجاح Flutter Analyze أو Android build؛ الـworkflow الحالي لا يشغّل جميع اختبارات هذه المراحل التاريخية.
+- **13P:** Android Emulator E2E اجتازت CI #208. هذا ليس اختبار Force Stop على هاتف المستخدم.
+- **13Q:** 13Q.1–13Q.5 Backend/lifecycle اجتازت CI #199، وشغّلت اختبارات STDIO الحقيقية والعدائية في CI #204 ثم أعيد التحقق منها في #208. لا يدعي ذلك اكتمال تجربة الموافقة المرئية على الهاتف.
+- **13R:** اختبارات Environment install lifecycle اجتازت CI #208، وكذلك Android JVM/Robolectric ومحاكي 13P وبناء ARM64. اختبار هاتف حقيقي عند مغادرة التطبيق/Recents ومرحلة Stop بعد commit point يبقى مطلوباً.
+- **حد الأمان:** PRoot Linux userland فقط؛ RootFS مشترك وقابل للكتابة، والشبكة غير مقيدة بالكامل. لا Kernel Sandbox claim.
 
-## التدقيق والخطة الجديدة — Phase 14
+## التدقيق والخطة — Phase 14
 
-تم تثبيت خط الأساس على commit 9abb9dcc40881b005902265fdbd86d93248cb906. Git tree snapshot غير مبتور ويحتوي 4,237 ملفاً و634 مجلداً (4,871 عنصراً) و60,883,091 بايت من blobs.
+تم تدقيق المستودع عند baseline commit `9abb9dcc40881b005902265fdbd86d93248cb906` في 24 نوفمبر. ملف Git tree manifest المؤرخ بذلك اليوم لقطة تاريخية وليس جرداً حياً لرأس المشروع الحالي.
 
-- [Phase 14 — تقرير تدقيق المستودع ومصفوفة الاستفادة من OSS](PHASE-14-REPOSITORY-AUDIT-AND-OSS-REUSE-MATRIX-AR.md)
-- [Phase 14 — الخطة المعمارية والتنفيذية والقيود](PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md)
-- [Phase 14B — تقرير تنفيذ Plugin Manifest & Component Registry](PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md)\n- [Phase 14C — MCP Base Protocol Compatibility & Skills over MCP](PHASE-14C-MCP-BASE-PROTOCOL-AND-SKILLS-OVER-MCP-AR.md)
-- [Phase 14 — فهرس كل مسارات Git عند baseline](PHASE-14-REPOSITORY-TREE-MANIFEST-2026-11-24.json)
+- [Phase 14 — تقرير تدقيق المستودع ومصفوفة OSS](PHASE-14-REPOSITORY-AUDIT-AND-OSS-REUSE-MATRIX-AR.md)
+- [Phase 14 — الخطة المعمارية](PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md)
+- [Phase 14B — تقرير Plugin Registry](PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md)
+- [Phase 14C — تقرير MCP Protocol](PHASE-14C-MCP-BASE-PROTOCOL-AND-SKILLS-OVER-MCP-AR.md)
+- [Phase 14D — تقرير قبول Skill-owned MCP](PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md)
+- [Phase 14E — تقرير حالة التنفيذ والبوابات](PHASE-14E-IMPLEMENTATION-STATUS-AR.md)
+- [لقطة Git tree المؤرخة 24 نوفمبر](PHASE-14-REPOSITORY-TREE-MANIFEST-2026-11-24.json).
 
-**حالة التنفيذ — 26 نوفمبر 2026 (بعد CI #199):**
-- **14A مقبولة:** اجتازت اختبارات Progressive Skill discovery في CI #162، إلى جانب Flutter Analyze واختبارات البناء Android ARM64 الكاملة.
-- **14B مقبولة:** نجحت اختبارات Plugin manifest/component registry في CI #164، مع Analyze وRobolectric وAndroid Emulator وبناء APK ARM64. التفاصيل في PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md.\n- **14C مقبولة بالكامل في CI #199:** 14C.1–14C.5، بما في ذلك MRTR و`subscriptions/listen` وHTTP request-scoped cancellation.
-- Phase 14D هي المرحلة النشطة حالياً: استكمال تكامل Skill-owned MCP الفعلي عبر STDIO؛ لا يعاد بناء خدمات الملكية والموافقة القائمة.
-- اختبارات الهاتف الفعلي ليست مستنتجة من نجاح محاكي Android.
+**الحالة الحالية — 27 نوفمبر 2026:**
+- **14A مقبولة:** CI #162.
+- **14B مقبولة:** CI #164.
+- **14C مقبولة بالكامل:** CI #199، بما في ذلك MRTR و`subscriptions/listen`.
+- **14D مقبولة بالكامل:** CI #204، real STDIO وhostile-server tests.
+- **14E.1 اختبارات ناجحة:** CI #206 على commit `05fadf6db2371a68bfa02869dc2efc6f84543d03`.
+- **14E.2 اختبارات ناجحة:** CI #208 على commit `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`; أضاف التصحيح `toolRegistrySession` المفقود في fixture الخاص بـ`workspace_prompt_test.dart`. لم يكن هذا فشلاً في منطق Registry.
+- **14E ككل قيد التنفيذ:** تحتاج تكامل Toolsets الإنتاجية وتكافؤ الأدوات الأصلية والتعريض المؤجل والميزانيات وبوابات القبول الكاملة.
+- **14F–14H:** لم تبدأ.
 
 ## تشخيص فشل CI السابق
 
@@ -151,23 +190,26 @@
 
 ## المراحل الأساسية
 
-| المرحلة | ملفاتها المرجعية | الحالة |
+| المرحلة | ملفاتها المرجعية | الحالة الحالية |
 |---|---|---|
-| 00–02 | مواصفات وتقارير Phases 00–02 | خط أساس/تنفيذ موثق |
-| 03 | PHASE-03-IMPLEMENTATION-REPORT.md | مراجعة قبول مطلوبة |
-| 04 | PHASE-04-MULTI-SKILL-COMPOSITION-ENGINE.md | التخطيط موجود؛ تنفيذ المهارات له Phase 13B |
-| 05 | PHASE-05-UNIVERSAL-DEPENDENCY-PACKAGE-MANAGER.md | manager موجود؛ القبول الشامل وفق تقرير المرحلة |
+| 00–02 | مواصفات وتقارير Phases 00–02 | خط الأساس والتنفيذ موثقان؛ راجع سجلات القبول التاريخية |
+| 03 | PHASE-03-IMPLEMENTATION-REPORT.md | القبول الرسمي يحتاج مراجعة |
+| 04 | PHASE-04-MULTI-SKILL-COMPOSITION-ENGINE.md | التخطيط موجود؛ تنفيذ Skills/Artifact handoff ما زال فجوة |
+| 05 | PHASE-05-UNIVERSAL-DEPENDENCY-PACKAGE-MANAGER.md | مدير الحزم موجود؛ القبول الشامل وفق بوابات المرحلة |
 | 06 | PHASE-06-RUNTIME-PROFILES-AND-EXECUTION-ISOLATION.md | Runtime Profiles موجودة؛ PRoot ليس sandbox |
-| 07–12 | مواصفات وتقارير Phases 07–12 | تخضع لأدلة اختبارات المحرك/المزود والجودة والهاتف |
-| 13A–13D | تقارير PHASE-13A/B/C/D-IMPLEMENTATION-REPORT.md | checkpoints موجودة؛ بوابات القبول بحسب تقاريرها، و13B مفتوحة حتى MCP |
-| 13E–13O | مواصفات وتقارير Phases 13E–13O | لا تعمم قبول CI على runners التاريخية غير المشغلة |
-| 13P | PHASE-13P-END-TO-END-SKILL-TESTING-AR.md | Emulator E2E اجتازت CI #162؛ الهاتف الحقيقي غير مفحوص هنا |
-| 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | 13Q.1–13Q.4 backend مقبولة؛ 13Q.5 واختبار موافقة الواجهة المرئية ما زالا مفتوحين |
-| 13R | PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md | اختبارات lifecycle/Robolectric في CI #162 نجحت؛ اختبار الهاتف مطلوب |
-| 14A | PHASE-14-UNIVERSAL-SKILLS-PLUGINS-TOOLS-AND-AGENT-ORCHESTRATION-AR.md | مقبولة في CI #162 |
-| 14B | PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md | مقبولة في CI #164؛ اختبارات الوظائف والبناء نجحت |
-| 14C | PHASE-14C-MCP-BASE-PROTOCOL-AND-SKILLS-OVER-MCP-AR.md | 14C.1–14C.3 مقبولة سابقاً؛ 14C.4 واجهة Remote Skills اجتازت 19 اختباراً في CI #193؛ 14C.5 MRTR/subscriptions قيد التحقق على فرع مستقل، والمرحلة مفتوحة حتى CI |
-| Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | Orchestrator والإنتاج المتزامن العام غير منفذين |
+| 07–12 | مواصفات وتقارير Phases 07–12 | بوابات Render ومزودي الفيديو والجودة والأمان/الهاتف لم تُغلق كلها |
+| 13A–13D | تقارير PHASE-13A/B/C/D | checkpoints؛ القبول الكامل لكل تقرير غير مثبت |
+| 13E–13O | مواصفات وتقارير Phases 13E–13O | لا يُعمم نجاح CI الحالي على runners تاريخية غير مشغلة |
+| 13P | PHASE-13P-END-TO-END-SKILL-TESTING-AR.md | Android Emulator E2E اجتازت CI #208؛ لا Force Stop/هاتف فعلي |
+| 13Q | PHASE-13Q-SKILL-MCP-ADAPTER-INTEGRATION-AR.md | Backend/lifecycle مقبول CI #199؛ real STDIO مدعوم بدليل CI #204 |
+| 13R | PHASE-13R-ENVIRONMENT-INSTALL-LIFECYCLE-AR.md | CI #208 lifecycle/Robolectric/Emulator/ARM64 ناجحة؛ اختبار الهاتف مطلوب |
+| 14A | الخطة المعمارية Phase 14 | مقبولة CI #162 |
+| 14B | PHASE-14B-PLUGIN-MANIFEST-COMPONENT-REGISTRY-AR.md | مقبولة CI #164 |
+| 14C | PHASE-14C-MCP-BASE-PROTOCOL-AND-SKILLS-OVER-MCP-AR.md | مقبولة CI #199 |
+| 14D | PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md | مقبولة CI #204 |
+| 14E | PHASE-14E-IMPLEMENTATION-STATUS-AR.md | 14E.1/#206 و14E.2/#208 اجتازتا الاختبارات؛ المرحلة ككل قيد التنفيذ |
+| 14F–14H | الخطة المعمارية Phase 14 | لم تبدأ |
+| Reel Studio | REEL-STUDIO-GAP-ANALYSIS-AR.md | Orchestrator والإنتاج المتزامن العام لا يزالان غير مكتملين |
 
 ## أرشيف CI
 
