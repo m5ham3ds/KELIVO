@@ -790,6 +790,7 @@ Stream<StreamChunk> sendOpenAIStream(
           spec: spec,
           messages: messages,
           requestBody: body,
+          tools: tools,
           firstObj: lastObj,
           initialCalls: firstCalls,
           onToolCall: effectiveOnToolCall,

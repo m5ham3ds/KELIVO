@@ -1041,6 +1041,7 @@ Stream<StreamChunk> runOpenAIChatCompletionsNonStreamToolFollowUps({
   required ModelSpec spec,
   required List<Map<String, dynamic>> messages,
   required Map<String, dynamic> requestBody,
+  required List<Map<String, dynamic>>? tools,
   required Map<String, dynamic> firstObj,
   required List<EmitToolCall> initialCalls,
   required ToolCallHandler onToolCall,
@@ -1134,6 +1135,40 @@ Stream<StreamChunk> runOpenAIChatCompletionsNonStreamToolFollowUps({
         replayField: spec.reasoning.replayField,
         skipImageParsing: skipImageParsing,
       );
+      // Re-read the turn-scoped provider list after each tool call. A
+      // deferred-loader call may have replaced the synthetic loader schema
+      // with the newly loaded function definition since the previous round.
+      final liveTools = tools == null
+          ? <Map<String, dynamic>>[]
+          : copyChatCompletionTools(tools);
+      final liveToolNames = <String>{
+        for (final tool in liveTools)
+          if (tool['function'] is Map &&
+              (tool['function'] as Map)['name'] is String)
+            (tool['function'] as Map)['name'] as String,
+      };
+      final existingTools = reqBody['tools'];
+      final preservedTools = existingTools is List
+          ? existingTools
+                .whereType<Map>()
+                .where((tool) {
+                  final function = tool['function'];
+                  if (function is! Map) return true;
+                  final name = function['name'];
+                  return name is! String || !liveToolNames.contains(name);
+                })
+                .map((tool) => Map<String, dynamic>.from(tool))
+                .toList()
+          : <Map<String, dynamic>>[];
+      final refreshedTools = <Map<String, dynamic>>[
+        ...liveTools,
+        ...preservedTools,
+      ];
+      if (refreshedTools.isEmpty) {
+        reqBody.remove('tools');
+      } else {
+        reqBody['tools'] = refreshedTools;
+      }
       reqBody.remove('stream');
       req.body = await RequestImageContext.encodeBody(reqBody);
       final resp2 = await client.send(req);

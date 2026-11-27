@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:Kelivo/core/services/tools/tool_registry.dart';
 
@@ -22,8 +24,12 @@ void main() {
       final session = builder.build().createSession(
         selectedToolsets: const <String>{'core', 'documents'},
       );
-      expect(session.directDefinitions, hasLength(1));
-      expect(session.directDefinitions.single['function']['name'], 'search');
+      expect(session.directDefinitions, hasLength(2));
+      expect(
+        session.directDefinitions.map((definition) =>
+            (definition['function'] as Map)['name']),
+        <String>{'search', ToolRegistrySession.loadDeferredToolName},
+      );
       expect(session.canExecute('search'), isTrue);
       expect(session.canExecute('read_document'), isFalse);
       expect(session.deferredToolIndex, hasLength(1));
@@ -34,6 +40,11 @@ void main() {
       final loaded = session.loadDeferredTool('read_document');
       expect(loaded['function']['name'], 'read_document');
       expect(session.canExecute('read_document'), isTrue);
+      expect(
+        session.directDefinitions.map((definition) =>
+            (definition['function'] as Map)['name']),
+        <String>{'search', 'read_document'},
+      );
       expect(() => session.loadDeferredTool('debug_state'), throwsA(isA<ToolRegistryException>()));
     });
 
@@ -230,24 +241,35 @@ void main() {
     });
 
     test('loading a deferred schema enforces the direct schema byte budget', () {
+      final definition = _definition(
+        'video_engine',
+        schema: <String, dynamic>{
+          'type': 'object',
+          'properties': {
+            for (var i = 0; i < 50; i++)
+              'field_$i': {
+                'type': 'string',
+                'description': 'Field $i payload',
+              },
+          },
+        },
+      );
       final builder = ToolRegistryBuilder()
         ..registerToolset(const ToolsetDescriptor(id: 'video', title: 'Video', enabledByDefault: true))
         ..register(ToolRegistryEntry(
           namespace: 'kelivo.video',
           name: 'video_engine',
-          definition: _definition(
-            'video_engine',
-            schema: <String, dynamic>{
-              'type': 'object',
-              'properties': {
-                'payload': {'type': 'string', 'maxLength': 12000},
-              },
-            },
-          ),
+          definition: definition,
           exposure: ToolExposure.deferred,
           toolsetIds: const <String>{'video'},
         ));
-      final session = builder.build().createSession(maxDirectSchemaBytes: 500);
+      final snapshot = builder.build();
+      final initial = snapshot.createSession();
+      final definitionBytes = utf8.encode(jsonEncode(definition)).length;
+      expect(definitionBytes, greaterThan(initial.directDefinitionBytes));
+      final session = snapshot.createSession(
+        maxDirectSchemaBytes: initial.directDefinitionBytes,
+      );
       expect(
         () => session.loadDeferredTool('video_engine'),
         throwsA(isA<ToolRegistryException>()),
