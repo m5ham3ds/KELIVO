@@ -17,6 +17,7 @@ import '../../response_speed.dart';
 import '../../builtin_tools.dart';
 import '../../native_input_attachments.dart';
 import '../../tool_result_content.dart';
+import '../../../tools/tool_registry.dart';
 import '../../generation/tool_loop_runner.dart';
 import '../../reasoning/reasoning_dialects.dart';
 import '../../stream/sse_decode_loop.dart';
@@ -1155,6 +1156,13 @@ Stream<StreamChunk> runOpenAIChatCompletionsNonStreamToolFollowUps({
                   final function = tool['function'];
                   if (function is! Map) return true;
                   final name = function['name'];
+                  // A stale deferred-loader schema must not survive after
+                  // the last deferred tool has been loaded. If deferred
+                  // entries remain, the live registry list already includes
+                  // the updated loader definition and its remaining names.
+                  if (name == ToolRegistrySession.loadDeferredToolName) {
+                    return liveToolNames.contains(name);
+                  }
                   return name is! String || !liveToolNames.contains(name);
                 })
                 .map((tool) => Map<String, dynamic>.from(tool))
