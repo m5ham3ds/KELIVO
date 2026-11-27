@@ -2,36 +2,39 @@
 
 هذه صفحة تنقل مختصرة. لا تعتبر المرحلة مكتملة لمجرد وجود ملفاتها؛ ارجع إلى معايير القبول والأدلة.
 
-## أحدث بناء ناجح — CI #199
+## أحدث بناء ناجح — CI #204
 
-[GitHub Actions #199](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571) اكتمل بنجاح على `main` commit `1b5bbbee69d51e96d1fda1526bac141f6ea5a33c`.
+[GitHub Actions #204](https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988) اكتمل بنجاح على `main` commit `e1e543d77f38c6de15ad16aea972afa6bd06e8aa`.
 
-- اجتازت وظيفة البناء جميع الخطوات المطلوبة، واجتازت وظيفة التقرير عملية إنشاء ورفع تقرير Markdown.
-- Flutter Analyze وEnvironment lifecycle وPhase 14A و14B وGemini/OAuth وPhase 14C.4 وPhase 13Q: نجاح.
-- اختبارات الحزم المحلية، بما فيها `mcp_client`: نجاح؛ شملت HTTP/SSE subscription acknowledgement/notification/completion وإلغاء POST منفرد مع استمرار استخدام عميل MCP.
-- Android JVM/Robolectric: نجاح.
-- Phase 13P Android Emulator Skill lifecycle E2E: نجاح.
-- Android ARM64 Release build وABI verification وSHA-256 ورفع APK وملفات التشخيص والتقرير: نجاح.
+- اجتازت وظيفتا البناء ونشر التقرير جميع الخطوات المطلوبة.
+- Flutter Analyze وEnvironment lifecycle وPhase 14A و14B وGemini/OAuth وPhase 14C.4 وPhase 13Q/14D real STDIO: نجاح.
+- اختبارات Phase 14D: 48 اختباراً ناجحاً، بما فيها الخادم السليم والحالات العدائية وإغلاق العملية والتنظيف.
+- اختبارات الحزم المحلية: نجاح.
+- Android JVM/Robolectric: `BUILD SUCCESSFUL in 5m 29s`.
+- Phase 13P Android Emulator: جميع اختبارات التكامل الأربعة نجحت.
+- Android ARM64 Release build وفحص ABI وSHA-256 ورفع APK والتقرير: نجاح.
 
-**APK — CI #199**
+**APK — CI #204**
 - الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
-- الحجم الفعلي: 40,735,865 bytes.
+- الحجم الفعلي: 41,930,839 bytes.
 - ABI المتحقق: `arm64-v8a` فقط.
-- SHA-256: `1df6812133b68a55a262331b9dc37615c78ba8cb635352923cf4aae86823d7ca`.
-- APK Artifact ID: `15136693255`.
-- Build report Artifact ID: `15136908110`.
-- Raw diagnostics Artifact ID: `15136908031`.
-- [APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571/artifacts/15136693255).
-- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571/artifacts/15136908110).
-- [Raw diagnostics](https://github.com/m5ham3ds/KELIVO/actions/runs/45856311571/artifacts/15136908031).
+- SHA-256: `4f38e0c520386f43427eee822811dd02c42393de4f4037a7ae32a6bc995ae8dd`.
+- APK Artifact ID: `15156492027`.
+- Build report Artifact ID: `15155673161`.
+- Raw diagnostics Artifact ID: `15156601647`.
+- [APK artifact](https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988/artifacts/15156492027).
+- [Build report](https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988/artifacts/15155673161).
+- [Raw diagnostics](https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988/artifacts/15156601647).
 
-**حدود التحقق:** لا يشغّل workflow كامل Flutter root unit/widget suite أو كل اختبارات Phase 13E–13O التاريخية. نجاح Android Emulator لا يثبت اختبار Force Stop على جهاز المستخدم ولا يعادل عزل kernel. عند غياب `android/key.properties` يكون إصدار CI اختبارياً بمفتاح debug، وليس توقيع نشر متجر.
+**حدود التحقق:** لا يشغّل workflow كامل Flutter root unit/widget test suite أو جميع اختبارات Phase 13E–13O التاريخية. نجاح Android Emulator لا يثبت Force Stop على جهاز المستخدم أو عزل kernel. عند غياب `android/key.properties` يكون APK اختبارياً بمفتاح debug، وليس توقيع نشر متجر.
 
 ## الحالة الحالية للمراحل
 
-- **Phase 14C مقبولة:** اجتازت 14C.1–14C.5 بواباتها، وآخر تحقق كامل هو CI #199 على `main`.
-- **Phase 14D قيد التنفيذ على main:** استكمال دليل التكامل الفعلي لخوادم Skill-owned MCP عبر STDIO، مع اختبارات عملية حقيقية وحالات خادم عدائي وإغلاق العملية وتنظيف الجلسة.
-- لا يتم إنشاء أو تفعيل خوادم MCP أو مهاراتها تلقائياً عند الاستيراد أو الفحص؛ تبقى الموافقات المنفصلة وقيود المالك والبصمة فعالة.
+- **Phase 14A–14C:** مقبولة وفق بواباتها السابقة.
+- **Phase 14D مقبولة:** CI #204 أثبت دورة Skill-owned MCP عبر STDIO والرفض الآمن للحالات العدائية والتنظيف الفعلي.
+  تقرير القبول: [PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md](PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md).
+- **Phase 14E قيد التنفيذ على main:** بدأت الشريحة 14E.1 بتأسيس Tool Registry/Toolsets وعرض direct/deferred/hidden فوق تعريفات الأدوات الحالية. ينتظر هذا التغيير CI الخاص به.
+- لا يتم إنشاء أو تفعيل خوادم MCP أو مهاراتها تلقائياً عند الاستيراد أو الفحص؛ تبقى الموافقات وقيود الملكية والبصمة فعالة.
 
 
 ## سجل بناء سابق — CI #175

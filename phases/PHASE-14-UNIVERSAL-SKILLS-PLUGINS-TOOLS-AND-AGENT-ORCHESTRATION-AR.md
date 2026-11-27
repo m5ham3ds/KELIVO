@@ -1,6 +1,6 @@
 # PHASE 14 — Universal Skills, Plugins, Tools & Agent Orchestration
 
-**الحالة — 26 نوفمبر 2026:** Phase 14A مقبولة بعد CI #162 وPhase 14B مقبولة بعد CI #164 وPhase 14C مقبولة بالكامل بعد CI #199 على `main` commit `1b5bbbee`. Phase 14D — Skill-owned MCP Lifecycle قيد التنفيذ مباشرة على `main`؛ توسع التحقق من خدمات الملكية والموافقات القائمة إلى خادم STDIO حقيقي وحالات عدائية وإثبات إنهاء العملية وتنظيف الجلسة. لا يبدأ 14E قبل قبول 14D.
+**الحالة المرجعية — 27 نوفمبر 2026:** Phase 14A مقبولة بعد CI #162، Phase 14B بعد CI #164، Phase 14C بعد CI #199، وPhase 14D مقبولة بالكامل بعد CI #204 على `main` commit `e1e543d77f38c6de15ad16aea972afa6bd06e8aa`. بدأت Phase 14E.1 — Universal Tool Registry foundation على `main`؛ لا تعتبر 14E مكتملة قبل اجتياز كل بوابات القبول.
 **خط الأساس:** 9abb9dcc40881b005902265fdbd86d93248cb906 — KELIVO 1.3.4+84، Flutter 3.47.6، Android ARM64.
 **المبدأ:** تطوير الأنظمة القائمة وإضافة adapters مستقلة؛ لا استبدال النواة ولا إدخال Runtime إلزامي غير مناسب لـAndroid.
 
@@ -100,7 +100,7 @@
 
 ### PHASE 14D — Skill-owned MCP Lifecycle (تكامل STDIO الحقيقي وإغلاق 13Q.2–13Q.5)
 
-**الحالة — قيد التنفيذ على `main`:** Phase 13Q.2–13Q.5 backend/lifecycle tests اجتازت CI #199. هذه المرحلة لا تعيد كتابة `McpProvider` أو `SkillMcpConnectionService` أو `SkillMcpOwnerRegistry`؛ بل تضيف دليلاً تكاملياً مستقلاً عبر عملية STDIO حقيقية واختبارات خادم عدائي.
+**الحالة: مقبولة بالكامل بعد CI #204 على `main`.** Phase 13Q.2–13Q.5 backend/lifecycle tests اجتازت CI #199، ثم اجتازت Phase 14D الاختبارات التكاملية الحقيقية والعدائية في CI #204. هذه المرحلة لا تعيد كتابة `McpProvider` أو `SkillMcpConnectionService` أو `SkillMcpOwnerRegistry`؛ بل أضافت دليلاً تكاملياً مستقلاً عبر عملية STDIO حقيقية واختبارات خادم عدائي. التفاصيل في [تقرير قبول 14D](PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md).
 
 النطاق:
 1. تثبيت owner identity = Skill ID + source digest + capability ID + server ID، وبقاء التسجيلات disabled افتراضياً.
@@ -118,6 +118,8 @@
 **بوابة القبول:** نجاح الخادم benign و`tools/list/call` والموافقة/الرفض وتنقيح الأسرار؛ رفض duplicate tools وremote references؛ إثبات أن العملية ماتت وأن الجلسة حُذفت بعد delete/disconnect؛ Flutter Analyze وPhase 13Q وRobolectric ومحاكي Android وبناء ARM64. لا يبدأ 14E قبل إغلاق هذه البوابة.
 
 ### PHASE 14E — Universal Tool Registry, Toolsets & Deferred Tool Exposure
+
+**الحالة — 27 نوفمبر 2026: قيد التنفيذ على `main`، بداية الشريحة 14E.1.** أضيف عقد Registry/Toolset مستقل فوق تعريفات الأدوات الحالية، مع namespaces ورفض collisions ونسخة schema ثابتة وواجهات direct/deferred/hidden وعقود نتائج وإلغاء وحدود أولية. رُبط أول adapter بنقطة تجميع التعريفات بعد provider-specific schema translation وschema overrides؛ يبقى التنفيذ والصلاحيات على `ToolCallHandler` وpermission gateway الموجودين في هذه الشريحة. ينتظر القبول CI #205 على التغيير نفسه. لا يغير ذلك MCP route snapshot الموجود، ولا يستبدل أي tool handler.
 
 النطاق:
 1. إضافة واجهة Registry/Adapter موحدة فوق catalog/handlers الحاليين تدريجياً.

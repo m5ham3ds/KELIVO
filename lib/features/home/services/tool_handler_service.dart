@@ -73,6 +73,7 @@ import '../../../core/services/skills/skill_composition_planner.dart';
 import '../../../core/services/skills/skill_composition_service.dart';
 import '../../../core/models/skills_binding.dart';
 import '../../../core/services/tools/tool_schema_overrides.dart';
+import '../../../core/services/tools/tool_registry.dart';
 import '../../../core/services/workspace/tool_run_registry.dart';
 import '../../../core/services/workspace/workspace_runtime.dart';
 import '../../../core/services/workspace/workspace_tools_service.dart';
@@ -478,8 +479,18 @@ class ToolHandlerService {
     }
 
     final overrides = settings.toolSchemaOverrides;
-    if (overrides.isEmpty) return toolDefs;
-    return ToolSchemaOverrides.apply(toolDefs, overrides);
+    final resolvedDefinitions = overrides.isEmpty
+        ? toolDefs
+        : ToolSchemaOverrides.apply(toolDefs, overrides);
+
+    // Freeze one validated registry snapshot after the existing provider-
+    // specific schema translation and schema overrides. Execution remains on
+    // the existing ToolCallHandler/permission gateway in this first adapter
+    // slice; MCP route snapshots are still captured and reused by the caller.
+    final registry = ToolRegistrySnapshot.fromProviderDefinitions(
+      resolvedDefinitions,
+    );
+    return registry.createSession().directDefinitions;
   }
 
   /// Build MCP tool definitions from connected servers.

@@ -95,3 +95,22 @@ APK 41,825,267 bytes · 18 .so ضمن arm64-v8a فقط · SHA-256 a6271844472413
 - Artifact ID: 14840756161.
 
 CI #120 لا يحتوي بعد على Regression tests التي أضيفت في Phase 13R. كما أن workflow لا يشغّل كامل Flutter root unit/widget suite أو مجموعات 13E–13O التاريخية.
+
+
+## أحدث تحقق شامل — CI #204 (27 نوفمبر 2026)
+
+- التشغيل: https://github.com/m5ham3ds/KELIVO/actions/runs/45899864988
+- commit: `e1e543d77f38c6de15ad16aea972afa6bd06e8aa`؛ مطابق لرأس `main`.
+- Flutter Analyze وEnvironment lifecycle وPhase 14A و14B وGemini/OAuth و14C.4 وPhase 13Q/14D STDIO وlocal packages: نجاح.
+- Phase 14D real STDIO: 48 اختباراً ناجحاً.
+- Android JVM/Robolectric: `BUILD SUCCESSFUL in 5m 29s`.
+- Phase 13P Android Emulator: جميع الاختبارات الأربعة نجحت.
+- Android ARM64 Release build وفحص ABI الفعلي وSHA-256 ورفع Artifact: نجاح.
+- APK: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`، 41,930,839 bytes.
+- ABI: `arm64-v8a` فقط.
+- SHA-256: `4f38e0c520386f43427eee822811dd02c42393de4f4037a7ae32a6bc995ae8dd`.
+- APK artifact: `15156492027`.
+- Build report artifact: `15155673161`.
+- Raw diagnostics artifact: `15156601647`.
+
+**حدود:** لا يشغّل workflow كامل Flutter root unit/widget test suite أو جميع مجموعات Phase 13E–13O التاريخية. Android Emulator لا يثبت Force Stop على هاتف المستخدم ولا عزل PRoot على مستوى kernel. غياب `android/key.properties` يعني استخدام debug key في CI Release APK.

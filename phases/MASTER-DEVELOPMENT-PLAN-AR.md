@@ -1,7 +1,7 @@
 # KELIVO — الخطة الهندسية الرئيسية v2
 ## منصة وكيل إنتاج فيديو مفتوحة وقابلة للتركيب من خلال المحادثة فقط
 
-**الحالة المرجعية — 26 نوفمبر 2026:** Phase 14A مقبولة عبر CI #162، Phase 14B مقبولة عبر CI #164، وPhase 14C مقبولة بالكامل على `main` عبر CI #199 (`1b5bbbee69d51e96d1fda1526bac141f6ea5a33c`). Phase 14D — Skill-owned MCP Lifecycle قيد التنفيذ مباشرة على `main`، مع إضافة اختبارات خادم STDIO حقيقي وحالات عدائية وإغلاق العمليات وتنظيف جلسات Skills. لا يبدأ Phase 14E قبل اجتياز بوابة 14D. آخر APK موثق: CI #199، ARM64 فقط، 40,735,865 bytes، SHA-256 `1df6812133b68a55a262331b9dc37615c78ba8cb635352923cf4aae86823d7ca`.
+**الحالة المرجعية — 27 نوفمبر 2026:** Phase 14A مقبولة عبر CI #162، Phase 14B عبر CI #164، Phase 14C عبر CI #199، وPhase 14D مقبولة بالكامل عبر CI #204 على `main` commit `e1e543d77f38c6de15ad16aea972afa6bd06e8aa`. بدأت Phase 14E.1 — Universal Tool Registry foundation على `main`؛ قبول 14E الكامل ينتظر parity/collision/deferred budgets/route snapshot/approval/cancellation gates. أحدث APK: CI #204، ARM64 فقط، 41,930,839 bytes، SHA-256 `4f38e0c520386f43427eee822811dd02c42393de4f4037a7ae32a6bc995ae8dd`، Artifact ID `15156492027`.
 
 **سجل تاريخي — 23 نوفمبر 2026 (قبل CI #162):**
 - آخر بناء كامل ناجح قبل إصلاح دورة تثبيت البيئة: [CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038)، commit 85e4653674916ecc65e3d30daa417e29547245a6. اجتاز Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وAndroid JVM/Robolectric وPhase 13P Android Emulator E2E وبناء ARM64 ورفع Artifact.
@@ -1362,6 +1362,9 @@ KELIVO يجب أن يكون **نواة محادثة ووكلاء وإدارة إ
 
 
 ## Phase 14 — Universal Skills, Plugins, Tools & Agent Orchestration
+
+**تحديث التنفيذ — 27 نوفمبر 2026:** أُغلقت Phase 14D ببوابة CI #204 على main؛ تقرير القبول في `phases/PHASE-14D-SKILL-OWNED-MCP-LIFECYCLE-ACCEPTANCE-AR.md`. المرحلة النشطة الآن 14E.1: Registry/Toolset foundation فوق `BuiltInToolCatalog` و`ToolHandlerService` الحاليين، دون استبدال dispatcher أو approval gateway. CI #205 هو بوابة التحقق الأولى لهذه الشريحة؛ لا تعتبر 14E مقبولة بعد.
+
 
 تم تدقيق المستودع على commit 9abb9dcc40881b005902265fdbd86d93248cb906، وفهرسة 4,237 ملفاً و634 مجلداً في manifest كامل، ومراجعة بنية Skills/Extensions/MCP/Runtime/Workspace/Browser/CI ومقارنة مشاريع OpenCode وCodex وClaude Plugins وAgent Skills وMCP وVercel وPydanticAI وsmolagents.
 
