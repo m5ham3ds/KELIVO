@@ -344,6 +344,7 @@ class ToolRegistrySession {
     required List<ToolRegistryEntry> deferredEntries,
     required this.maxDirectTools,
     required this.maxDirectSchemaBytes,
+    required this.maxDirectTokens,
     required int directSchemaBytes,
   }) : _snapshot = snapshot,
        selectedToolsets = Set<String>.unmodifiable(selectedToolsets),
