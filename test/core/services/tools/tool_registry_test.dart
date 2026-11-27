@@ -108,7 +108,9 @@ void main() {
         selectedToolsets: const <String>{'search'},
       );
       expect(
-        searchOnly.directDefinitions.map((item) => item['function']['name']),
+        searchOnly.directDefinitions
+            .map((item) => item['function']['name'])
+            .toList(),
         <String>['search'],
       );
     });
