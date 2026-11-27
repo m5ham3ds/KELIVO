@@ -26,8 +26,9 @@ void main() {
       );
       expect(session.directDefinitions, hasLength(2));
       expect(
-        session.directDefinitions.map((definition) =>
-            (definition['function'] as Map)['name']),
+        session.directDefinitions
+            .map((definition) => (definition['function'] as Map)['name'])
+            .toSet(),
         <String>{'search', ToolRegistrySession.loadDeferredToolName},
       );
       expect(session.canExecute('search'), isTrue);
@@ -41,8 +42,9 @@ void main() {
       expect(loaded['function']['name'], 'read_document');
       expect(session.canExecute('read_document'), isTrue);
       expect(
-        session.directDefinitions.map((definition) =>
-            (definition['function'] as Map)['name']),
+        session.directDefinitions
+            .map((definition) => (definition['function'] as Map)['name'])
+            .toSet(),
         <String>{'search', 'read_document'},
       );
       expect(() => session.loadDeferredTool('debug_state'), throwsA(isA<ToolRegistryException>()));
