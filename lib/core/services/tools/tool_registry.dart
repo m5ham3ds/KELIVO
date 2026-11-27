@@ -338,8 +338,7 @@ class ToolRegistrySession {
        _deferredEntries = Map<String, ToolRegistryEntry>.unmodifiable({
          for (final entry in deferredEntries) entry.exposedName: entry,
        }),
-       _directSchemaBytes = directSchemaBytes,
-       providerDefinitions = ToolRegistryDefinitionsView._(null);
+       _directSchemaBytes = directSchemaBytes;
 
   final ToolRegistrySnapshot _snapshot;
   Object? get adapterSnapshot => _snapshot.adapterSnapshot;
@@ -351,14 +350,17 @@ class ToolRegistrySession {
   final int maxDirectTools;
   final int maxDirectSchemaBytes;
   int _loadedDeferredBytes = 0;
+  List<Map<String, dynamic>>? _directDefinitionsCache;
 
   /// A live, read-only List view. Provider adapters re-read it for each HTTP
   /// round, so a deferred schema loaded between rounds appears on the next
   /// request without rebuilding the turn or mutating provider-owned payloads.
-  late final List<Map<String, dynamic>> providerDefinitions =
+  List<Map<String, dynamic>> get providerDefinitions =>
       ToolRegistryDefinitionsView._(this);
 
   List<Map<String, dynamic>> get directDefinitions {
+    final cached = _directDefinitionsCache;
+    if (cached != null) return cached;
     final definitions = <Map<String, dynamic>>[
       for (final entry in _directEntries) entry.definition,
       for (final name in _loadedDeferredNames)
@@ -368,7 +370,8 @@ class ToolRegistrySession {
     if (pending.isNotEmpty) {
       definitions.add(_deferredLoaderDefinition(pending));
     }
-    return List<Map<String, dynamic>>.unmodifiable(definitions);
+    return _directDefinitionsCache =
+        List<Map<String, dynamic>>.unmodifiable(definitions);
   }
 
   int get directDefinitionBytes {
@@ -446,6 +449,7 @@ class ToolRegistrySession {
 
     _loadedDeferredBytes = nextLoadedBytes;
     _loadedDeferredNames.add(exposedName);
+    _directDefinitionsCache = null;
     return entry.definition;
   }
 

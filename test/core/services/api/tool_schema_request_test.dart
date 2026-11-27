@@ -10,6 +10,7 @@ import 'package:Kelivo/core/services/api/providers/openai/openai_provider.dart';
 import 'package:Kelivo/core/services/workspace/workspace_tools_service.dart';
 import 'package:Kelivo/features/home/services/local_tools_service.dart';
 import 'package:Kelivo/features/home/services/tool_handler_service.dart';
+import 'package:Kelivo/core/services/tools/tool_registry.dart';
 
 import '../../../support/tool_schema_reference_cases.dart';
 
@@ -170,6 +171,152 @@ void main() {
     for (final (index, example) in toolSchemaReferenceCases().indexed)
       'reference_$index': example.schema,
   };
+
+  test('OpenAI tool rounds receive a deferred schema immediately after loading', () async {
+    final routeSnapshot = Object();
+    final builder = ToolRegistryBuilder()
+      ..registerToolset(
+        const ToolsetDescriptor(
+          id: 'video',
+          title: 'Video',
+          enabledByDefault: true,
+        ),
+      )
+      ..register(
+        ToolRegistryEntry(
+          namespace: 'kelivo.video',
+          name: 'video_engine',
+          definition: {
+            'type': 'function',
+            'function': {
+              'name': 'video_engine',
+              'description': 'Inspect the selected video engine.',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'action': {'type': 'string'},
+                },
+                'required': ['action'],
+              },
+            },
+          },
+          exposure: ToolExposure.deferred,
+          toolsetIds: const <String>{'video'},
+        ),
+      );
+    final session = builder.build(adapterSnapshot: routeSnapshot).createSession();
+    final gateway = ToolRegistryCallGateway(
+      session: session,
+      expectedAdapterSnapshot: routeSnapshot,
+      delegate: (name, arguments, {toolCallId}) async {
+        expect(name, 'video_engine');
+        expect(arguments, {'action': 'inspect'});
+        return 'engine ready';
+      },
+    );
+    final requests = <Map<String, dynamic>>[];
+    final client = MockClient((request) async {
+      requests.add(jsonDecode(request.body) as Map<String, dynamic>);
+      Map<String, dynamic> response;
+      if (requests.length == 1) {
+        response = {
+          'choices': [
+            {
+              'index': 0,
+              'message': {
+                'role': 'assistant',
+                'content': '',
+                'tool_calls': [
+                  {
+                    'id': 'call-load',
+                    'type': 'function',
+                    'function': {
+                      'name': ToolRegistrySession.loadDeferredToolName,
+                      'arguments': jsonEncode({'tool_name': 'video_engine'}),
+                    },
+                  },
+                ],
+              },
+              'finish_reason': 'tool_calls',
+            },
+          ],
+        };
+      } else if (requests.length == 2) {
+        response = {
+          'choices': [
+            {
+              'index': 0,
+              'message': {
+                'role': 'assistant',
+                'content': '',
+                'tool_calls': [
+                  {
+                    'id': 'call-video',
+                    'type': 'function',
+                    'function': {
+                      'name': 'video_engine',
+                      'arguments': jsonEncode({'action': 'inspect'}),
+                    },
+                  },
+                ],
+              },
+              'finish_reason': 'tool_calls',
+            },
+          ],
+        };
+      } else {
+        response = {
+          'choices': [
+            {
+              'index': 0,
+              'message': {'role': 'assistant', 'content': 'done'},
+              'finish_reason': 'stop',
+            },
+          ],
+        };
+      }
+      return http.Response(
+        jsonEncode(response),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    addTearDown(client.close);
+
+    await sendOpenAIStream(
+      client,
+      ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.test/v1',
+        providerType: ProviderKind.openai,
+      ),
+      'gpt-4.1',
+      [
+        {'role': 'user', 'content': 'Inspect the video engine'},
+      ],
+      tools: session.providerDefinitions,
+      onToolCall: (name, arguments, {toolCallId}) => gateway.call(
+        name,
+        arguments,
+        toolCallId: toolCallId,
+      ),
+      stream: false,
+    ).toList();
+
+    expect(requests, hasLength(3));
+    List<String> toolNames(Map<String, dynamic> request) =>
+        (request['tools'] as List)
+            .map((tool) => (tool['function'] as Map)['name'] as String)
+            .toList();
+    expect(toolNames(requests[0]), [
+      ToolRegistrySession.loadDeferredToolName,
+    ]);
+    expect(toolNames(requests[1]), ['video_engine']);
+    expect(toolNames(requests[2]), ['video_engine']);
+  });
 
   for (final transport in ['chat', 'responses', 'claude']) {
     test(
