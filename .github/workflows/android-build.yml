@@ -194,20 +194,22 @@ jobs:
             flutter test --no-pub --concurrency=2 \
               test/core/services/extensions/plugin_manifest_service_test.dart
 
-      - name: Run Phase 14E.2 turn-scoped Tool Registry gateway tests
+      - name: Run Phase 14E Tool Registry, Toolsets and Deferred Loading tests
         id: phase14e_tool_registry_tests
         if: success()
         timeout-minutes: 25
         shell: bash
         run: |
-          bash .github/scripts/capture_step.sh phase14e_tool_registry_tests "Phase 14E.2 turn-scoped registry session, exposure gateway, legacy approval dispatch and MCP route snapshot identity" -- \
+          bash .github/scripts/capture_step.sh phase14e_tool_registry_tests "Phase 14E source namespaces, turn-scoped gateway, deferred schema loading, live provider rounds and workspace toolset exposure" -- \
             flutter test --no-pub --concurrency=2 \
               test/core/services/tools/tool_registry_test.dart \
               test/core/services/tools/built_in_tool_catalog_test.dart \
               test/core/services/mcp/mcp_tool_service_test.dart \
               test/features/home/services/tool_handler_service_test.dart \
               test/features/home/services/message_generation_protocol_test.dart \
-              test/core/services/api/generation/tool_loop_runner_test.dart
+              test/core/services/api/generation/tool_loop_runner_test.dart \
+              test/core/services/api/tool_schema_request_test.dart \
+              test/features/home/services/tool_handler_workspace_gating_test.dart
 
       - name: Run Gemini schema and provider OAuth regression tests
         id: provider_oauth_and_gemini_schema_tests
