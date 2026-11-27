@@ -62,6 +62,57 @@ void main() {
       expect(() => snapshot.createSession(maxDirectSchemaBytes: 1), throwsA(isA<ToolRegistryException>()));
     });
 
+    test('assigns provider definitions to source namespaces and selectable toolsets', () {
+      final snapshot = ToolRegistrySnapshot.fromProviderDefinitions(
+        <Map<String, dynamic>>[
+          _definition('search'),
+          _definition('remember'),
+          _definition('read_document'),
+          _definition('mcp_weather'),
+        ],
+        additionalToolsets: const <ToolsetDescriptor>[
+          ToolsetDescriptor(id: 'search', title: 'Search', enabledByDefault: true),
+          ToolsetDescriptor(id: 'memory', title: 'Memory', enabledByDefault: true),
+          ToolsetDescriptor(id: 'workspace', title: 'Workspace', enabledByDefault: true),
+          ToolsetDescriptor(id: 'mcp', title: 'MCP', enabledByDefault: true),
+        ],
+        namespaceByToolName: const <String, String>{
+          'search': 'kelivo.search',
+          'remember': 'kelivo.memory',
+          'read_document': 'workspace',
+          'mcp_weather': 'mcp',
+        },
+        toolsetByToolName: const <String, String>{
+          'search': 'search',
+          'remember': 'memory',
+          'read_document': 'workspace',
+          'mcp_weather': 'mcp',
+        },
+      );
+
+      expect(
+        snapshot.entries.map((entry) => entry.qualifiedId).toSet(),
+        <String>{
+          'kelivo.search:search',
+          'kelivo.memory:remember',
+          'workspace:read_document',
+          'mcp:mcp_weather',
+        },
+      );
+      expect(
+        snapshot.createSession().directDefinitions,
+        hasLength(4),
+        reason: 'Every source toolset remains enabled by default during migration.',
+      );
+      final searchOnly = snapshot.createSession(
+        selectedToolsets: const <String>{'search'},
+      );
+      expect(
+        searchOnly.directDefinitions.map((item) => item['function']['name']),
+        <String>['search'],
+      );
+    });
+
     test('rejects duplicate names and invalid schemas before exposure', () {
       expect(() => ToolRegistrySnapshot.fromProviderDefinitions(<Map<String, dynamic>>[_definition('duplicate'), _definition('duplicate')]), throwsA(isA<ToolRegistryException>()));
       expect(() => ToolRegistrySnapshot.fromProviderDefinitions(<Map<String, dynamic>>[<String, dynamic>{'type': 'function', 'function': <String, dynamic>{'name': 'broken', 'parameters': 'not-a-schema'}}]), throwsA(isA<ToolRegistryException>()));

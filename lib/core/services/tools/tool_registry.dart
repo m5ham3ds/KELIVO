@@ -189,15 +189,37 @@ class ToolRegistrySnapshot {
   factory ToolRegistrySnapshot.fromProviderDefinitions(
     List<Map<String, dynamic>> definitions, {
     Object? adapterSnapshot,
+    Iterable<ToolsetDescriptor> additionalToolsets = const <ToolsetDescriptor>[],
+    Map<String, String> namespaceByToolName = const <String, String>{},
+    Map<String, String> toolsetByToolName = const <String, String>{},
   }) {
-    final builder = ToolRegistryBuilder()..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core tools', description: 'Existing KELIVO tools exposed through the legacy handler.', enabledByDefault: true));
+    final builder = ToolRegistryBuilder()
+      ..registerToolset(
+        const ToolsetDescriptor(
+          id: 'core',
+          title: 'Core tools',
+          description: 'Existing KELIVO tools exposed through the legacy handler.',
+          enabledByDefault: true,
+        ),
+      );
+    for (final toolset in additionalToolsets) {
+      builder.registerToolset(toolset);
+    }
     for (final definition in definitions) {
       final function = definition['function'];
       if (function is! Map || function['name'] is! String) {
         throw const ToolRegistryException('invalid_tool_definition_name', 'A provider tool definition has no function name.');
       }
       final name = function['name'] as String;
-      builder.register(ToolRegistryEntry(namespace: 'kelivo', name: name, exposedName: name, definition: definition, toolsetIds: const <String>{'core'}));
+      builder.register(
+        ToolRegistryEntry(
+          namespace: namespaceByToolName[name] ?? 'kelivo',
+          name: name,
+          exposedName: name,
+          definition: definition,
+          toolsetIds: <String>{toolsetByToolName[name] ?? 'core'},
+        ),
+      );
     }
     return builder.build(adapterSnapshot: adapterSnapshot);
   }

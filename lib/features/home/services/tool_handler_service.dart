@@ -73,6 +73,7 @@ import '../../../core/services/skills/skill_composition_planner.dart';
 import '../../../core/services/skills/skill_composition_service.dart';
 import '../../../core/models/skills_binding.dart';
 import '../../../core/services/tools/tool_schema_overrides.dart';
+import '../../../core/services/tools/built_in_tool_catalog.dart';
 import '../../../core/services/tools/tool_registry.dart';
 import '../../../core/services/workspace/tool_run_registry.dart';
 import '../../../core/services/workspace/workspace_runtime.dart';
@@ -462,12 +463,13 @@ class ToolHandlerService {
       toolDefs.addAll(VideoQualityToolCatalog.definitions());
     }
 
+    final workspaceToolDefinitions = <Map<String, dynamic>>[];
     if (supportsTools && workspaceContext != null) {
       final canImageInput = ModelSpecResolver.instance
           .spec(settings.getProviderConfig(providerKey), modelId)
           .input
           .contains(Modality.image);
-      toolDefs.addAll(
+      workspaceToolDefinitions.addAll(
         _workspaceTools()
             .buildToolDefinitions(workspaceContext)
             .where(
@@ -476,6 +478,7 @@ class ToolHandlerService {
                   (definition['function'] as Map)['name'] != 'view_image',
             ),
       );
+      toolDefs.addAll(workspaceToolDefinitions);
     }
 
     final overrides = settings.toolSchemaOverrides;
@@ -483,13 +486,96 @@ class ToolHandlerService {
         ? toolDefs
         : ToolSchemaOverrides.apply(toolDefs, overrides);
 
+    String? toolNameOf(Map<String, dynamic> definition) {
+      final function = definition['function'];
+      if (function is! Map) return null;
+      final name = function['name'];
+      return name is String ? name : null;
+    }
+
+    // Use the existing catalog as the source of truth for native tool
+    // families. Dynamic MCP and workspace definitions are classified from
+    // the exact lists captured for this turn, not by guessing from names.
+    final builtInGroups = <String, BuiltInToolGroup>{
+      for (final entry in BuiltInToolCatalog.entries(
+        lang: settings.resolvedMemoryPromptLang,
+        legacyMemoryMode: settings.legacyMemoryMode,
+      ))
+        entry.name: entry.group,
+    };
+    final mcpToolNames = mcpTools.map(toolNameOf).whereType<String>().toSet();
+    final workspaceToolNames = workspaceToolDefinitions
+        .map(toolNameOf)
+        .whereType<String>()
+        .toSet();
+    final namespaceByToolName = <String, String>{};
+    final toolsetByToolName = <String, String>{};
+    for (final definition in resolvedDefinitions) {
+      final name = toolNameOf(definition);
+      if (name == null) continue;
+      final group = builtInGroups[name];
+      if (mcpToolNames.contains(name)) {
+        namespaceByToolName[name] = 'mcp';
+        toolsetByToolName[name] = 'mcp';
+      } else if (workspaceToolNames.contains(name) ||
+          group == BuiltInToolGroup.workspace) {
+        namespaceByToolName[name] = 'workspace';
+        toolsetByToolName[name] = 'workspace';
+      } else if (group != null) {
+        namespaceByToolName[name] = 'kelivo.${group.name}';
+        toolsetByToolName[name] = group.name;
+      } else {
+        namespaceByToolName[name] = 'kelivo.core';
+        toolsetByToolName[name] = 'core';
+      }
+    }
+
+    // All source-specific sets remain enabled by default in this migration
+    // slice, preserving the exact legacy tool availability. Later selection
+    // wiring can narrow them without changing tool ownership or dispatch.
+    const sourceToolsets = <ToolsetDescriptor>[
+      ToolsetDescriptor(
+        id: 'search',
+        title: 'Search',
+        description: 'Search and web retrieval tools.',
+        enabledByDefault: true,
+      ),
+      ToolsetDescriptor(
+        id: 'memory',
+        title: 'Memory',
+        description: 'Conversation memory tools.',
+        enabledByDefault: true,
+      ),
+      ToolsetDescriptor(
+        id: 'local',
+        title: 'Local and extension tools',
+        description: 'Local device, extension, package, and media tools.',
+        enabledByDefault: true,
+      ),
+      ToolsetDescriptor(
+        id: 'workspace',
+        title: 'Workspace',
+        description: 'Tools scoped to the active workspace.',
+        enabledByDefault: true,
+      ),
+      ToolsetDescriptor(
+        id: 'mcp',
+        title: 'MCP servers',
+        description: 'Tools routed through the captured MCP server snapshot.',
+        enabledByDefault: true,
+      ),
+    ];
+
     // Freeze one validated registry snapshot after the existing provider-
     // specific schema translation and schema overrides. Execution remains on
-    // the existing ToolCallHandler/permission gateway in this first adapter
-    // slice; MCP route snapshots are still captured and reused by the caller.
+    // the existing ToolCallHandler/permission gateway; MCP route snapshots
+    // continue to be captured and reused by the caller.
     final registry = ToolRegistrySnapshot.fromProviderDefinitions(
       resolvedDefinitions,
       adapterSnapshot: mcpRouteSnapshot,
+      additionalToolsets: sourceToolsets,
+      namespaceByToolName: namespaceByToolName,
+      toolsetByToolName: toolsetByToolName,
     );
     return registry.createSession();
   }
