@@ -320,7 +320,7 @@ class ToolHandlerService {
     }
   }
 
-  List<Map<String, dynamic>> buildToolDefinitions(
+  ToolRegistrySession buildToolRegistrySession(
     SettingsProvider settings,
     Assistant? assistant,
     String providerKey,
@@ -489,9 +489,36 @@ class ToolHandlerService {
     // slice; MCP route snapshots are still captured and reused by the caller.
     final registry = ToolRegistrySnapshot.fromProviderDefinitions(
       resolvedDefinitions,
+      adapterSnapshot: mcpRouteSnapshot,
     );
-    return registry.createSession().directDefinitions;
+    return registry.createSession();
   }
+
+  /// Compatibility view for callers that only need provider definitions.
+  /// The message generation pipeline uses [buildToolRegistrySession] to retain
+  /// turn-scoped exposure and the MCP route snapshot through tool dispatch.
+  List<Map<String, dynamic>> buildToolDefinitions(
+    SettingsProvider settings,
+    Assistant? assistant,
+    String providerKey,
+    String modelId,
+    bool hasBuiltInSearch, {
+    required bool Function(String providerKey, String modelId) isToolModel,
+    McpToolRouteSnapshot? mcpRouteSnapshot,
+    WorkspaceToolContext? workspaceContext,
+    String? conversationId,
+  }) =>
+      buildToolRegistrySession(
+        settings,
+        assistant,
+        providerKey,
+        modelId,
+        hasBuiltInSearch,
+        isToolModel: isToolModel,
+        mcpRouteSnapshot: mcpRouteSnapshot,
+        workspaceContext: workspaceContext,
+        conversationId: conversationId,
+      ).directDefinitions;
 
   /// Build MCP tool definitions from connected servers.
   List<Map<String, dynamic>> _buildMcpToolDefinitions({

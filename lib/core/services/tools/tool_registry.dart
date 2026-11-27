@@ -145,7 +145,11 @@ class ToolRegistryBuilder {
     _exposedNames[entry.exposedName] = entry.qualifiedId;
   }
 
-  ToolRegistrySnapshot build() => ToolRegistrySnapshot._(entries: _entries.values.toList(growable: false), toolsets: _toolsets.values.toList(growable: false));
+  ToolRegistrySnapshot build({Object? adapterSnapshot}) => ToolRegistrySnapshot._(
+    entries: _entries.values.toList(growable: false),
+    toolsets: _toolsets.values.toList(growable: false),
+    adapterSnapshot: adapterSnapshot,
+  );
 
   void _validateDefinition(ToolRegistryEntry entry) {
     final definition = entry.definition;
@@ -167,18 +171,25 @@ class ToolRegistryBuilder {
 }
 
 class ToolRegistrySnapshot {
-  ToolRegistrySnapshot._({required List<ToolRegistryEntry> entries, required List<ToolsetDescriptor> toolsets})
-    : entries = List<ToolRegistryEntry>.unmodifiable(entries),
+  ToolRegistrySnapshot._({
+    required List<ToolRegistryEntry> entries,
+    required List<ToolsetDescriptor> toolsets,
+    this.adapterSnapshot,
+  }) : entries = List<ToolRegistryEntry>.unmodifiable(entries),
       toolsets = List<ToolsetDescriptor>.unmodifiable(toolsets),
       _byExposedName = Map<String, ToolRegistryEntry>.unmodifiable({for (final entry in entries) entry.exposedName: entry}),
       _toolsetsById = Map<String, ToolsetDescriptor>.unmodifiable({for (final toolset in toolsets) toolset.id: toolset});
 
   final List<ToolRegistryEntry> entries;
+  final Object? adapterSnapshot;
   final List<ToolsetDescriptor> toolsets;
   final Map<String, ToolRegistryEntry> _byExposedName;
   final Map<String, ToolsetDescriptor> _toolsetsById;
 
-  factory ToolRegistrySnapshot.fromProviderDefinitions(List<Map<String, dynamic>> definitions) {
+  factory ToolRegistrySnapshot.fromProviderDefinitions(
+    List<Map<String, dynamic>> definitions, {
+    Object? adapterSnapshot,
+  }) {
     final builder = ToolRegistryBuilder()..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core tools', description: 'Existing KELIVO tools exposed through the legacy handler.', enabledByDefault: true));
     for (final definition in definitions) {
       final function = definition['function'];
@@ -188,7 +199,7 @@ class ToolRegistrySnapshot {
       final name = function['name'] as String;
       builder.register(ToolRegistryEntry(namespace: 'kelivo', name: name, exposedName: name, definition: definition, toolsetIds: const <String>{'core'}));
     }
-    return builder.build();
+    return builder.build(adapterSnapshot: adapterSnapshot);
   }
 
   ToolRegistryEntry? entryFor(String exposedName) => _byExposedName[exposedName];
@@ -271,6 +282,7 @@ class ToolRegistrySession {
       directDefinitions = List<Map<String, dynamic>>.unmodifiable(directEntries.map((entry) => entry.definition));
 
   final ToolRegistrySnapshot _snapshot;
+  Object? get adapterSnapshot => _snapshot.adapterSnapshot;
   final Set<String> selectedToolsets;
   final Set<String> _directNames;
   final Map<String, ToolRegistryEntry> _deferredEntries;
@@ -295,6 +307,77 @@ class ToolRegistrySession {
 
   bool isToolsetEnabled(String id) => selectedToolsets.contains(id);
   ToolRegistryEntry? entryFor(String exposedName) => _snapshot.entryFor(exposedName);
+}
+
+
+typedef ToolRegistryCallDelegate = Future<Object?> Function(
+  String name,
+  Map<String, dynamic> arguments, {
+  String? toolCallId,
+});
+
+typedef ToolRegistryPolicyGate = Future<void> Function(
+  ToolRegistryEntry entry, {
+  String? toolCallId,
+});
+
+/// Turn-scoped exposure gateway. It validates registry membership and the
+/// exact adapter snapshot before handing execution to KELIVO's existing
+/// permission-aware ToolCallHandler.
+class ToolRegistryCallGateway {
+  ToolRegistryCallGateway({
+    required this.session,
+    required this.delegate,
+    required Object? expectedAdapterSnapshot,
+    this.policyGate,
+  }) {
+    if (!identical(session.adapterSnapshot, expectedAdapterSnapshot)) {
+      throw StateError('tool_registry_adapter_snapshot_mismatch');
+    }
+  }
+
+  final ToolRegistrySession session;
+  final ToolRegistryCallDelegate delegate;
+  final ToolRegistryPolicyGate? policyGate;
+
+  Future<Object?> call(
+    String name,
+    Map<String, dynamic> arguments, {
+    String? toolCallId,
+  }) async {
+    final entry = session.entryFor(name);
+    if (entry == null || !session.canExecute(name)) {
+      throw const ToolRegistryException(
+        'tool_not_exposed',
+        'The tool is not directly exposed or loaded in this turn.',
+      );
+    }
+
+    switch (entry.permissionPolicy) {
+      case ToolPermissionPolicy.inheritConversation:
+        // The existing ToolCallHandler remains the permission authority.
+        break;
+      case ToolPermissionPolicy.denied:
+        throw const ToolRegistryException(
+          'tool_permission_denied',
+          'This registered tool is denied by registry policy.',
+        );
+      case ToolPermissionPolicy.requireApproval:
+      case ToolPermissionPolicy.alwaysRequireApproval:
+        final gate = policyGate;
+        if (gate == null) {
+          throw const ToolRegistryException(
+            'tool_permission_policy_unavailable',
+            'The registry requires an approval gate but none was supplied.',
+          );
+        }
+        await gate(entry, toolCallId: toolCallId);
+    }
+
+    return delegate(name, arguments, toolCallId: toolCallId);
+  }
+
+  ToolRegistryCallDelegate bind() => call;
 }
 
 bool _isValidNamespace(String value) => RegExp(r'^[A-Za-z][A-Za-z0-9._-]{0,63}$').hasMatch(value);

@@ -19,6 +19,7 @@ import '../services/tool_handler_service.dart';
 import '../services/tool_approval_service.dart';
 import 'chat_controller.dart';
 import 'stream_controller.dart' as stream_ctrl;
+import '../../../core/services/tools/tool_registry.dart';
 
 /// Controller for coordinating message generation (send and regenerate).
 ///
@@ -105,9 +106,9 @@ class GenerationController {
     );
   }
 
-  /// Prepare tool definitions for API call.
-  /// Delegates to ToolHandlerService.buildToolDefinitions.
-  List<Map<String, dynamic>> buildToolDefinitions(
+  /// Build a turn-scoped registry session for API tool exposure and dispatch.
+  /// The exact MCP route snapshot is carried by the registry snapshot.
+  ToolRegistrySession buildToolRegistrySession(
     SettingsProvider settings,
     Assistant? assistant,
     String providerKey,
@@ -117,7 +118,7 @@ class GenerationController {
     WorkspaceToolContext? workspaceContext,
     String? conversationId,
   }) {
-    return toolHandlerService.buildToolDefinitions(
+    return toolHandlerService.buildToolRegistrySession(
       settings,
       assistant,
       providerKey,
@@ -129,6 +130,28 @@ class GenerationController {
       conversationId: conversationId,
     );
   }
+
+  /// Compatibility view for consumers that only need provider definitions.
+  List<Map<String, dynamic>> buildToolDefinitions(
+    SettingsProvider settings,
+    Assistant? assistant,
+    String providerKey,
+    String modelId,
+    bool hasBuiltInSearch, {
+    McpToolRouteSnapshot? mcpRouteSnapshot,
+    WorkspaceToolContext? workspaceContext,
+    String? conversationId,
+  }) =>
+      buildToolRegistrySession(
+        settings,
+        assistant,
+        providerKey,
+        modelId,
+        hasBuiltInSearch,
+        mcpRouteSnapshot: mcpRouteSnapshot,
+        workspaceContext: workspaceContext,
+        conversationId: conversationId,
+      ).directDefinitions;
 
   /// Build tool call handler function.
   /// Delegates to ToolHandlerService.buildToolCallHandler.

@@ -68,7 +68,7 @@ jobs:
             echo "Event: ${GITHUB_EVENT_NAME:-unknown}"
             echo "Actor: ${GITHUB_ACTOR:-unknown}"
             echo "Build mode: ${BUILD_MODE:-release}"
-            echo "CI gates: Flutter source analysis, Environment lifecycle regressions, Phase 14A Skill discovery, Phase 14B Plugin manifest and rollback tests, Phase 14E.1 Tool Registry, Gemini/OAuth, Phase 14C.4 Remote Skills, Phase 13Q/14D real STDIO, local packages, Android JVM/Robolectric, Android Skill E2E and ARM64 APK build"
+            echo "CI gates: Flutter source analysis, Environment lifecycle regressions, Phase 14A Skill discovery, Phase 14B Plugin manifest and rollback tests, Phase 14E.2 turn-scoped Tool Registry gateway, Gemini/OAuth, Phase 14C.4 Remote Skills, Phase 13Q/14D real STDIO, local packages, Android JVM/Robolectric, Android Skill E2E and ARM64 APK build"
           } > "$REPORT_DIR/run-metadata.txt"
           bash .github/scripts/record_ci_action.sh checkout "Checkout source" "$CHECKOUT_OUTCOME"
           bash .github/scripts/record_ci_action.sh initialize_report "Initialize build report" "success" "Report metadata and per-step log directory created."
@@ -194,17 +194,20 @@ jobs:
             flutter test --no-pub --concurrency=2 \
               test/core/services/extensions/plugin_manifest_service_test.dart
 
-      - name: Run Phase 14E.1 Universal Tool Registry tests
+      - name: Run Phase 14E.2 turn-scoped Tool Registry gateway tests
         id: phase14e_tool_registry_tests
         if: success()
-        timeout-minutes: 15
+        timeout-minutes: 25
         shell: bash
         run: |
-          bash .github/scripts/capture_step.sh phase14e_tool_registry_tests "Phase 14E.1 namespaced Tool Registry, Toolsets, deferred metadata, budgets and execution contracts" -- \
+          bash .github/scripts/capture_step.sh phase14e_tool_registry_tests "Phase 14E.2 turn-scoped registry session, exposure gateway, legacy approval dispatch and MCP route snapshot identity" -- \
             flutter test --no-pub --concurrency=2 \
               test/core/services/tools/tool_registry_test.dart \
               test/core/services/tools/built_in_tool_catalog_test.dart \
-              test/core/services/mcp/mcp_tool_service_test.dart
+              test/core/services/mcp/mcp_tool_service_test.dart \
+              test/features/home/services/tool_handler_service_test.dart \
+              test/features/home/services/message_generation_protocol_test.dart \
+              test/core/services/api/generation/tool_loop_runner_test.dart
 
       - name: Run Gemini schema and provider OAuth regression tests
         id: provider_oauth_and_gemini_schema_tests

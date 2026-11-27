@@ -97,5 +97,147 @@ void main() {
       expect(executed, isFalse);
       expect(result.status, ToolExecutionStatus.cancelled);
     });
+
+    test('turn-scoped gateway delegates only registered exposed direct tools', () async {
+      final routeSnapshot = Object();
+      final snapshot = ToolRegistrySnapshot.fromProviderDefinitions(
+        <Map<String, dynamic>>[_definition('search')],
+        adapterSnapshot: routeSnapshot,
+      );
+      final session = snapshot.createSession();
+      var calls = 0;
+      String? forwardedCallId;
+      final gateway = ToolRegistryCallGateway(
+        session: session,
+        expectedAdapterSnapshot: routeSnapshot,
+        delegate: (name, arguments, {toolCallId}) async {
+          calls++;
+          forwardedCallId = toolCallId;
+          expect(name, 'search');
+          expect(arguments, const <String, dynamic>{'query': 'kelivo'});
+          return 'delegated';
+        },
+      );
+      final result = await gateway.call(
+        'search',
+        const <String, dynamic>{'query': 'kelivo'},
+        toolCallId: 'call-search-1',
+      );
+      expect(result, 'delegated');
+      expect(calls, 1);
+      expect(forwardedCallId, 'call-search-1');
+      await expectLater(
+        gateway.call('not_registered', const <String, dynamic>{}),
+        throwsA(isA<ToolRegistryException>()),
+      );
+      expect(calls, 1);
+    });
+
+    test('deferred tools are rejected until loaded in this turn', () async {
+      final builder = ToolRegistryBuilder()
+        ..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core', enabledByDefault: true))
+        ..registerToolset(const ToolsetDescriptor(id: 'documents', title: 'Documents'))
+        ..register(ToolRegistryEntry(
+          namespace: 'workspace',
+          name: 'read_document',
+          definition: _definition('read_document'),
+          exposure: ToolExposure.deferred,
+          toolsetIds: const <String>{'documents'},
+        ));
+      final routeSnapshot = Object();
+      final session = builder.build(adapterSnapshot: routeSnapshot).createSession(
+        selectedToolsets: const <String>{'core', 'documents'},
+      );
+      var calls = 0;
+      final gateway = ToolRegistryCallGateway(
+        session: session,
+        expectedAdapterSnapshot: routeSnapshot,
+        delegate: (name, arguments, {toolCallId}) async {
+          calls++;
+          return 'loaded';
+        },
+      );
+      await expectLater(
+        gateway.call('read_document', const <String, dynamic>{}),
+        throwsA(isA<ToolRegistryException>()),
+      );
+      expect(calls, 0);
+      session.loadDeferredTool('read_document');
+      expect(
+        await gateway.call('read_document', const <String, dynamic>{}),
+        'loaded',
+      );
+      expect(calls, 1);
+    });
+
+    test('denied registry policy fails before reaching the legacy handler', () async {
+      final builder = ToolRegistryBuilder()
+        ..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core', enabledByDefault: true))
+        ..register(ToolRegistryEntry(
+          namespace: 'internal',
+          name: 'restricted',
+          definition: _definition('restricted'),
+          toolsetIds: const <String>{'core'},
+          permissionPolicy: ToolPermissionPolicy.denied,
+        ));
+      final session = builder.build().createSession();
+      var delegated = false;
+      final gateway = ToolRegistryCallGateway(
+        session: session,
+        expectedAdapterSnapshot: null,
+        delegate: (_, __, {toolCallId}) async {
+          delegated = true;
+          return null;
+        },
+      );
+      await expectLater(
+        gateway.call('restricted', const <String, dynamic>{}),
+        throwsA(isA<ToolRegistryException>()),
+      );
+      expect(delegated, isFalse);
+    });
+
+    test('approval policies fail closed without a turn approval gate', () async {
+      for (final policy in <ToolPermissionPolicy>[
+        ToolPermissionPolicy.requireApproval,
+        ToolPermissionPolicy.alwaysRequireApproval,
+      ]) {
+        final builder = ToolRegistryBuilder()
+          ..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core', enabledByDefault: true))
+          ..register(ToolRegistryEntry(
+            namespace: 'workspace',
+            name: 'write_file',
+            definition: _definition('write_file'),
+            toolsetIds: const <String>{'core'},
+            permissionPolicy: policy,
+          ));
+        final gateway = ToolRegistryCallGateway(
+          session: builder.build().createSession(),
+          expectedAdapterSnapshot: null,
+          delegate: (_, __, {toolCallId}) async => 'unexpected',
+        );
+        await expectLater(
+          gateway.call('write_file', const <String, dynamic>{}),
+          throwsA(isA<ToolRegistryException>()),
+        );
+      }
+    });
+
+    test('gateway refuses a different MCP route snapshot identity', () {
+      final routeSnapshot = Object();
+      final snapshot = ToolRegistrySnapshot.fromProviderDefinitions(
+        <Map<String, dynamic>>[_definition('search')],
+        adapterSnapshot: routeSnapshot,
+      );
+      expect(
+        () => ToolRegistryCallGateway(
+          session: snapshot.createSession(),
+          expectedAdapterSnapshot: Object(),
+          delegate: (_, __, {toolCallId}) async => null,
+        ),
+        throwsA(isA<StateError>()),
+      );
+    });
+
   });
 }

@@ -47,6 +47,7 @@ import 'context_usage_service.dart';
 import 'message_builder_service.dart';
 import 'tool_approval_service.dart';
 import '../utils/model_display_helper.dart';
+import '../../../core/services/tools/tool_registry.dart';
 
 /// Callback types for UI updates from MessageGenerationService
 typedef OnMessagesChanged = void Function();
@@ -84,6 +85,7 @@ class UnprocessedRequestContext {
     required this.hasBuiltInSearch,
     required this.workspaceContext,
     required this.mcpRouteSnapshot,
+    required this.toolRegistrySession,
     required this.workspaceAttachments,
     required this.cfg,
   });
@@ -93,6 +95,7 @@ class UnprocessedRequestContext {
   final bool hasBuiltInSearch;
   final WorkspaceToolContext? workspaceContext;
   final McpToolRouteSnapshot? mcpRouteSnapshot;
+  final ToolRegistrySession toolRegistrySession;
   final List<AttachmentInfo> workspaceAttachments;
   final ProviderConfig cfg;
 }
@@ -352,7 +355,8 @@ class MessageGenerationService {
       assistant,
       conversationId: currentConversation?.id,
     );
-    final toolDefs = generationController.buildToolDefinitions(
+    final toolRegistrySession =
+        generationController.buildToolRegistrySession(
       settings,
       assistant,
       providerKey,
@@ -362,12 +366,14 @@ class MessageGenerationService {
       workspaceContext: workspaceContext,
       conversationId: currentConversation?.id,
     );
+    final toolDefs = toolRegistrySession.directDefinitions;
     return UnprocessedRequestContext(
       apiMessages: apiMessages,
       toolDefs: toolDefs,
       hasBuiltInSearch: hasBuiltInSearch,
       workspaceContext: workspaceContext,
       mcpRouteSnapshot: mcpRouteSnapshot,
+      toolRegistrySession: toolRegistrySession,
       workspaceAttachments: workspaceAttachments,
       cfg: cfg,
     );
@@ -730,7 +736,7 @@ class MessageGenerationService {
     }
     messageBuilderService.stripInternalRevisionIds(apiMessages);
 
-    final onToolCall = toolDefs.isNotEmpty
+    final legacyOnToolCall = toolDefs.isNotEmpty
         ? generationController.buildToolCallHandler(
             settings,
             assistant,
@@ -741,6 +747,13 @@ class MessageGenerationService {
             workspaceContext: workspaceContext,
           )
         : null;
+    final onToolCall = legacyOnToolCall == null
+        ? null
+        : ToolRegistryCallGateway(
+            session: packed.toolRegistrySession,
+            delegate: legacyOnToolCall,
+            expectedAdapterSnapshot: mcpRouteSnapshot,
+          ).bind();
 
     return PreparedGeneration(
       apiMessages: apiMessages,
