@@ -304,15 +304,24 @@ jobs:
               raise SystemExit("The CI Gradle mirror/retry helpers are missing.")
           init_text = mirror_init.read_text()
           retry_text = retry_runner.read_text()
-          if "gradle.beforeSettings" not in init_text or required[2] not in init_text:
-              raise SystemExit("The mirror init script does not configure included-build plugin repositories.")
+          if (
+              "gradle.beforeSettings" not in init_text
+              or "settings.pluginManagement.repositories" not in init_text
+              or "settings.dependencyResolutionManagement.repositories" not in init_text
+              or required[2] not in init_text
+          ):
+              raise SystemExit(
+                  "The mirror init script must configure plugin and dependency repositories "
+                  "before evaluating included-build settings."
+              )
           if "Received status code 429" not in retry_text or "Too Many Requests" not in retry_text:
               raise SystemExit("The Gradle retry helper does not recognize Maven Central rate limits.")
 
           print(
               "Kotlin plugin module mapping is configured; the Gradle init script "
-              "injects the hosted Maven Central mirror before every build's settings, "
-              "including Flutter's included build. Transient dependency fetch retries are enabled."
+              "injects the hosted Maven Central mirror into plugin and dependency resolution "
+              "before every build's settings, including Flutter's included build. "
+              "Transient dependency fetch retries are enabled."
           )
           PY
           bash -n .github/scripts/run_gradle_with_network_retry.sh

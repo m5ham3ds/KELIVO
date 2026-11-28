@@ -5,7 +5,14 @@ import java.net.URI
 
 gradle.beforeSettings { settings ->
     settings.pluginManagement.repositories.maven {
-        name = "KelivoGoogleHostedMavenCentralMirror"
+        name = "KelivoGoogleHostedMavenCentralPluginMirror"
+        url = URI.create("https://maven-central.storage-download.googleapis.com/maven2/")
+    }
+    // Flutter's included build uses dependencyResolutionManagement for the
+    // Kotlin DSL plugin classpath; project-level repository declarations do
+    // not reach this build (and its settings enforce FAIL_ON_PROJECT_REPOS).
+    settings.dependencyResolutionManagement.repositories.maven {
+        name = "KelivoGoogleHostedMavenCentralDependencyMirror"
         url = URI.create("https://maven-central.storage-download.googleapis.com/maven2/")
     }
 }
