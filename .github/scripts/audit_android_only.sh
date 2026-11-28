@@ -169,8 +169,8 @@ if grep -Eq 'id: full_flutter_tests|flutter test --no-pub --reporter expanded' "
 fi
 grep -Fq 'id: android_full_unit_tests' "$workflow" \
   || fail 'Android workflow must include the complete Android JVM/Robolectric test gate'
-grep -Fq 'gradle --no-daemon -p android :app:testDebugUnitTest' "$workflow" \
-  || fail 'Complete Android JVM/Robolectric test task is missing'
+grep -Fq 'run_gradle_with_network_retry.sh gradle --no-daemon --init-script .github/scripts/gradle-plugin-mirror.init.gradle -p android :app:testDebugUnitTest' "$workflow" \
+  || fail 'Complete Android JVM/Robolectric test task must use the mirrored Gradle runner with transient-network retries'
 grep -Fq "github.ref == 'refs/heads/main'" "$workflow" \
   || fail 'Android emulator Skill E2E must run on main pushes'
 grep -Fq 'id: phase13p_android_e2e' "$workflow" \
