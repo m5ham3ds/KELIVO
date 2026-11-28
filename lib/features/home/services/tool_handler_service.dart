@@ -72,6 +72,7 @@ import '../../../core/services/skills/skills_service.dart';
 import '../../../core/services/skills/skill_composition_planner.dart';
 import '../../../core/services/skills/skill_composition_service.dart';
 import '../../../core/models/skills_binding.dart';
+import '../../../core/models/toolset_binding.dart';
 import '../../../core/services/tools/tool_schema_overrides.dart';
 import '../../../core/services/tools/built_in_tool_catalog.dart';
 import '../../../core/services/tools/tool_registry.dart';
@@ -590,13 +591,27 @@ class ToolHandlerService {
       toolsetByToolName: toolsetByToolName,
       exposureByToolName: exposureByToolName,
     );
-    // Preserve legacy behavior for assistants without an explicit list.
-    // Configured assistants may further restrict source Toolsets; core remains
-    // selected and stale IDs from removed Toolsets are ignored.
+    List<String>? conversationToolsetIds;
+    if (conversationId != null) {
+      try {
+        final conversation = contextProvider
+            .read<ChatService>()
+            .getConversation(conversationId);
+        conversationToolsetIds = ToolsetBinding.fromExtras(
+          conversation?.extras ?? const <String, dynamic>{},
+        ).toolsetIds;
+      } catch (_) {
+        // Lightweight hosts without ChatService inherit the assistant scope.
+      }
+    }
+
+    // Every scope intersects with the source Toolsets actually captured for
+    // this turn. The conversation can narrow the assistant, never widen it.
     return registry.createSession(
       selectedToolsets: ToolsetSelectionPolicy.resolve(
         availableToolsetIds: toolsetByToolName.values,
         configuredToolsetIds: assistant?.toolsetIds,
+        conversationToolsetIds: conversationToolsetIds,
       ),
     );
   }

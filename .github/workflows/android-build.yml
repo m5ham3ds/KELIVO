@@ -204,6 +204,7 @@ jobs:
             flutter test --no-pub --concurrency=2 \
               test/core/services/tools/tool_registry_test.dart \
               test/core/models/assistant_workspace_fields_test.dart \
+              test/core/models/toolset_binding_test.dart \
               test/core/providers/assistant_provider_copy_test.dart \
               test/features/assistant/pages/assistant_settings_edit_page_mcp_test.dart \
               test/core/services/tools/built_in_tool_catalog_test.dart \

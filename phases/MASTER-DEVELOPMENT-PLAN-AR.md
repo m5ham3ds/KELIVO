@@ -1,7 +1,7 @@
 # KELIVO — الخطة الهندسية الرئيسية v2
 ## منصة وكيل إنتاج فيديو مفتوحة وقابلة للتركيب من خلال المحادثة فقط
 
-**الحالة المرجعية — 27 نوفمبر 2026 بعد CI #208:** Phase 14A (#162) و14B (#164) و14C (#199) و14D (#204) مقبولة. اختبارات Phase 14E.1 اجتازت CI #206، واختبارات تكامل المحادثة Phase 14E.2 اجتازت CI #208 على `main` commit `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`. Phase 14E ككل ما زالت قيد التنفيذ؛ لم تبدأ 14F–14H. أحدث APK: CI #208، ARM64 فقط، 41,943,583 bytes، SHA-256 `29fa1b9db0223dd0b9c6d8f170af3b86f6d44f2f5dd88a992843bd09f907f6fa`، Artifact ID `15167472926`.
+**الحالة المرجعية — 28 نوفمبر 2026 بعد CI #227:** Phase 14A (#162) و14B (#164) و14C (#199) و14D (#204) مقبولة. Phase 14E.1 و14E.2 اجتازتا بواباتهما السابقة، واختيار Toolsets على مستوى المساعد اجتاز [CI #227](https://github.com/m5ham3ds/KELIVO/actions/runs/46109278842) على commit `fc5f432b9f9251cd86b8d78fe4ae5860946b3434` بنتيجة 42/42. أضيف بعد ذلك conversation-scoped Toolset binding داخل Phase 14E، وهو ينتظر CI. Phase 14E ككل ما زالت قيد التنفيذ؛ لم تبدأ 14F–14H. أحدث APK موثق: CI #227، ARM64 فقط، 41,953,323 bytes، SHA-256 `c09153eeeffe4e59c8ff37dd8999cdab2fea70b0cd4e5e301ce90a46ed662c46`، Artifact ID `15249920264`.
 
 **سجل تاريخي — 23 نوفمبر 2026 (قبل CI #162):**
 - آخر بناء كامل ناجح قبل إصلاح دورة تثبيت البيئة: [CI #120](https://github.com/m5ham3ds/KELIVO/actions/runs/45217166038)، commit 85e4653674916ecc65e3d30daa417e29547245a6. اجتاز Android-only audit وFlutter Analyze وPhase 13Q.1 والحزم المحلية وAndroid JVM/Robolectric وPhase 13P Android Emulator E2E وبناء ARM64 ورفع Artifact.
@@ -38,7 +38,7 @@
 
 ## حالة التنفيذ الحالية
 
-**تحديث مرجعي — 27 نوفمبر 2026 / CI #208:** أحدث رأس `main` هو `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`. اكتمل Flutter Analyze وEnvironment lifecycle و14A و14B و14E.2 وGemini/OAuth و14C.4 و13Q/14D real STDIO والحزم المحلية وAndroid JVM/Robolectric وPhase 13P Emulator وبناء ARM64 ورفع APK. وظيفة نشر التقرير نجحت أيضاً. انظر [CI #208](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283) و[سجل Phase 14E](PHASE-14E-IMPLEMENTATION-STATUS-AR.md).
+**تحديث مرجعي — 28 نوفمبر 2026 / CI #227:** أحدث بناء مكتمل وموثق هو [CI #227](https://github.com/m5ham3ds/KELIVO/actions/runs/46109278842)، وقد اجتاز 42/42 خطوة بما فيها Flutter Analyze وEnvironment وPhase 14A–14E وGemini/OAuth وMCP/STDIO والحزم المحلية وAndroid JVM وPhase 13P Emulator وبناء ARM64 ورفع APK. أُضيف بعد ذلك conversation-scoped Toolset binding داخل Phase 14E وينتظر CI الخاص به. لا تُعلن Phase 14E مقبولة ولا تبدأ 14F–14H حتى إغلاق بقية parity والتعريض المؤجل والميزانيات.
 
 **حالة القبول لا تتبع نجاح البناء وحده:** مراحل 03–12 و13A–13O لا تُغلق رجعياً ما لم يثبت كل runner أو اختبار جهاز خاص بها. الـworkflow الحالي لا يشغّل كامل Flutter root unit/widget suite ولا كل اختبارات 13E–13O التاريخية. PRoot ليس Kernel Sandbox، واختبار Emulator لا يثبت Force Stop على هاتف فعلي.
 

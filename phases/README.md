@@ -9,9 +9,9 @@
 - **التقرير الملزم:** [ANDROID-APK-IN-PLACE-UPDATE-FAILURE-REPORT-AR.md](ANDROID-APK-IN-PLACE-UPDATE-FAILURE-REPORT-AR.md)
 - **الحالة:** السبب مؤكد؛ الإصلاح لم يُنفّذ بعد؛ جميع معايير القبول في التقرير مطلوبة قبل إغلاق المشكلة.
 
-## أحدث بناء ناجح — CI #208
+## أحدث بناء ناجح — CI #227
 
-[GitHub Actions #208](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283) اكتمل بنجاح على `main` commit `77736b783d55752a35a3aeb3b66b6b6dce7e87f1` بتاريخ 27 نوفمبر 2026.
+[GitHub Actions #227](https://github.com/m5ham3ds/KELIVO/actions/runs/46109278842) اكتمل بنجاح على `main` commit `fc5f432b9f9251cd86b8d78fe4ae5860946b3434` بتاريخ 28 نوفمبر 2026.
 
 - وظيفة البناء ووظيفة نشر التقرير: نجاح كامل.
 - Android-only وRelease-hardening audit وFlutter 3.47.6 وFlutter Analyze: نجاح.
@@ -44,7 +44,10 @@
 
 - **Phase 14A–14D:** مقبولة عبر البوابات المستقلة: 14A #162، 14B #164، 14C #199، 14D #204.
 - **Phase 14E.1:** اختبارات Registry/Toolsets الأساسية اجتازت CI #206.
-- **Phase 14E.2:** تكامل جلسة Registry مع دورة المحادثة وGateway اجتاز اختبارات CI #208. **Phase 14E بالكامل ما زالت قيد التنفيذ**؛ يتبقى تكامل Toolsets الحقيقية وتكافؤ الأدوات الأصلية والتعريض المؤجل والميزانيات.
+- **Phase 14E.2:** تكامل جلسة Registry مع دورة المحادثة وGateway اجتاز CI #208.
+- **Phase 14E — assistant Toolsets:** اختيار Toolsets على مستوى المساعد، واجهة Local Tools، والحفظ والنسخ اجتازت CI #227؛ كما نجحت جميع بوابات Android JVM والمحاكي وبناء ARM64.
+- **Phase 14E — conversation Toolset binding:** أضيف ربط محادثة يضيّق قائمة المساعد ولا يوسّعها؛ هذا التغيير ينتظر CI بعد دمجه.
+- **Phase 14E بالكامل ما زالت قيد التنفيذ**؛ يتبقى تكافؤ الأدوات الأصلية/المزوّدين، والتعريض المؤجل/المخفي على المسار الفعلي، وحدود الميزانيات.
 - **Phase 14F–14H:** لم تبدأ.
 - **Phase 13P:** Android Emulator E2E ناجح في CI #208؛ لا يعني اختبار Force Stop على هاتف المستخدم.
 - **Phase 13Q:** Backend/lifecycle مقبولة في CI #199، ودليل STDIO الحقيقي والعدائي اجتاز CI #204 وأعيد التحقق في #208؛ لا يُستنتج اكتمال UX الموافقة المرئية من اختبارات Backend.
@@ -58,11 +61,13 @@
 
 - 14E.1: [CI #206](https://github.com/m5ham3ds/KELIVO/actions/runs/45915687173).
 - 14E.2: [CI #208](https://github.com/m5ham3ds/KELIVO/actions/runs/45926843283).
-- لا تُعلن Phase 14E مقبولة بالكامل ولا تبدأ 14F قبل إغلاق بوابتها.
+- assistant Toolsets: [CI #227](https://github.com/m5ham3ds/KELIVO/actions/runs/46109278842)، نجاح 42/42 خطوة.
+- conversation Toolset binding: التغيير الحالي مضاف إلى `main` وينتظر نتيجة بوابة CI.
+- لا تُعلن Phase 14E مقبولة بالكامل ولا تبدأ 14F قبل إغلاق parity والتعريض المؤجل والميزانيات.
 
 ## حالة الفروع
 
-- `main` هو الفرع النشط ورأسه `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`.
+- `main` هو الفرع النشط؛ آخر CI مكتمل موثق هو #227 على commit `fc5f432b9f9251cd86b8d78fe4ae5860946b3434`. أي تغييرات أحدث داخل Phase 14E تبقى غير مقبولة حتى ينجح CI الخاص بها.
 - الفرع التاريخي `phase-14c5-mrtr-subscriptions` متأخر 13 commit عن `main` ولا يملك commits فريدة غير مدمجة؛ لا يُستخدم للعمل الحالي.
 - لا توجد Pull Requests مفتوحة. لم يُنشأ فرع جديد لهذه المزامنة.
 
@@ -77,6 +82,26 @@
 - [دليل Android Build](ANDROID_BUILD_AR.md)
 - [تقرير CI Automation](BUILD_AUTOMATION_REPORT_AR.md)
 - [وصف المنتج](../PRODUCT.md)
+
+## دليل البناء الأحدث — CI #227
+
+[GitHub Actions #227](https://github.com/m5ham3ds/KELIVO/actions/runs/46109278842) اكتمل بنجاح على commit `fc5f432b9f9251cd86b8d78fe4ae5860946b3434`.
+
+- وظيفة البناء اجتازت **42/42 خطوة ناجحة** دون إخفاق.
+- Flutter Analyze والتوطين وEnvironment وPhase 14A–14E وGemini/OAuth وMCP/STDIO والحزم المحلية: نجاح.
+- Android JVM/Robolectric ومحاكي Phase 13P: نجاح.
+- بناء APK ARM64 والتحقق من SHA-256 ورفع Artifact: نجاح.
+
+**APK — CI #227**
+- الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
+- الحجم: 41,953,323 bytes.
+- ABI: `arm64-v8a` فقط.
+- SHA-256: `c09153eeeffe4e59c8ff37dd8999cdab2fea70b0cd4e5e301ce90a46ed662c46`.
+- APK Artifact ID: `15249920264`.
+- [APK ARM64](https://github.com/m5ham3ds/KELIVO/actions/runs/46109278842/artifacts/15249920264).
+- [Build report / diagnostics](https://github.com/m5ham3ds/KELIVO/actions/runs/46109278842).
+
+**قيد مستقل:** نجاح البناء لا يثبت أن APK يحدّث نسخة مثبتة؛ مانع التوقيع الثابت واختبار `adb install -r` ما زالا مفتوحين في التقرير المخصص.
 
 ## سجل بناء سابق — CI #175
 

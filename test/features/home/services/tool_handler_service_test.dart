@@ -1,5 +1,6 @@
 import 'package:Kelivo/core/models/conversation_mcp_settings.dart';
 import 'package:Kelivo/core/models/conversation.dart';
+import 'package:Kelivo/core/models/toolset_binding.dart';
 import 'package:Kelivo/core/models/tool_permission_mode.dart';
 import 'package:Kelivo/core/models/image_context.dart';
 import 'package:Kelivo/core/services/api/request_image_context.dart';
@@ -16,6 +17,7 @@ import 'package:Kelivo/core/providers/mcp_provider.dart';
 import 'package:Kelivo/core/providers/settings_provider.dart';
 import 'package:Kelivo/core/services/mcp/mcp_tool_service.dart';
 import 'package:Kelivo/core/services/search/search_tool_service.dart';
+import 'package:Kelivo/core/services/memory/memory_tools.dart';
 import 'package:Kelivo/utils/mcp_structured_image.dart';
 import 'package:Kelivo/features/home/services/tool_approval_service.dart';
 import 'package:Kelivo/features/home/services/tool_handler_service.dart';
@@ -412,6 +414,87 @@ void main() {
         output['properties']['config'],
         isNot(contains('additionalProperties')),
       );
+    });
+  });
+
+  group('ToolHandlerService conversation Toolset binding', () {
+    testWidgets('conversation Toolsets only narrow assistant selection', (
+      tester,
+    ) async {
+      final assistants = AssistantProvider(
+        preferences: createBusinessTestPreferences(),
+      );
+      final mcpProvider = McpProvider(
+        preferences: createBusinessTestPreferences(),
+      );
+      final toolSvc = McpToolService();
+      final settings = SettingsProvider(createBusinessTestPreferences());
+      addTearDown(assistants.dispose);
+      addTearDown(mcpProvider.dispose);
+      addTearDown(toolSvc.dispose);
+      addTearDown(settings.dispose);
+
+      await assistants.loaded;
+      await settings.loaded;
+      final assistantId = await assistants.addAssistant(name: 'Toolset test');
+      await assistants.updateAssistant(
+        assistants.getById(assistantId)!.copyWith(
+          searchEnabled: true,
+          enableMemory: true,
+          toolsetIds: const <String>['search', 'memory', 'local'],
+        ),
+      );
+
+      final chat = _PermissionChat(
+        Conversation(
+          id: 'conv-toolsets',
+          title: 'Toolset-scoped conversation',
+          assistantId: assistantId,
+          extras: const ToolsetBinding(
+            toolsetIds: <String>['memory'],
+          ).applyTo(const <String, dynamic>{}),
+        ),
+      );
+      addTearDown(chat.dispose);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ChatService>.value(value: chat),
+            ChangeNotifierProvider<AssistantProvider>.value(value: assistants),
+            ChangeNotifierProvider<McpProvider>.value(value: mcpProvider),
+            ChangeNotifierProvider<McpToolService>.value(value: toolSvc),
+          ],
+          child: const SizedBox.shrink(),
+        ),
+      );
+
+      final service = ToolHandlerService(
+        contextProvider: tester.element(find.byType(SizedBox)),
+      );
+      final session = service.buildToolRegistrySession(
+        settings,
+        assistants.getById(assistantId),
+        'openai',
+        'gpt',
+        false,
+        isToolModel: (providerKey, modelId) => true,
+        conversationId: 'conv-toolsets',
+      );
+
+      expect(session.selectedToolsets, <String>{'core', 'memory'});
+      final exposedNames = session.directDefinitions
+          .map((definition) => (definition['function'] as Map)['name'] as String)
+          .toSet();
+      expect(
+        exposedNames,
+        contains(
+          settings.legacyMemoryMode
+              ? MemoryTools.legacyToolNames.first
+              : MemoryTools.memoryRead,
+        ),
+      );
+      expect(exposedNames, isNot(contains(SearchToolService.toolName)));
     });
   });
 

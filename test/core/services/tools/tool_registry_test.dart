@@ -80,7 +80,34 @@ void main() {
       );
     });
 
-    test('toolset selection excludes unrelated deferred metadata', () {
+    test('conversation Toolset selection only narrows assistant selection', () {
+      final available = <String>{'core', 'search', 'memory', 'local'};
+      expect(
+        ToolsetSelectionPolicy.resolve(
+          availableToolsetIds: available,
+          configuredToolsetIds: <String>['search', 'memory'],
+          conversationToolsetIds: <String>['memory', 'local'],
+        ),
+        <String>{'core', 'memory'},
+      );
+      expect(
+        ToolsetSelectionPolicy.resolve(
+          availableToolsetIds: available,
+          configuredToolsetIds: <String>['memory'],
+          conversationToolsetIds: <String>['search'],
+        ),
+        <String>{'core'},
+      );
+      expect(
+        ToolsetSelectionPolicy.resolve(
+          availableToolsetIds: available,
+          conversationToolsetIds: const <String>[],
+        ),
+        <String>{'core'},
+      );
+    });
+
+    test('toolset selection excludes unrelated deferred metadata', {
       final builder = ToolRegistryBuilder()
         ..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core', enabledByDefault: true))
         ..registerToolset(const ToolsetDescriptor(id: 'browser', title: 'Browser'))

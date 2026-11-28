@@ -1,10 +1,10 @@
 # Phase 14E — Implementation Status & CI Evidence
 
-**تاريخ المزامنة:** 27 نوفمبر 2026  
+**تاريخ المزامنة:** 28 نوفمبر 2026  
 **المستودع:** `m5ham3ds/KELIVO`  
 **الفرع:** `main`  
-**آخر commit موثق:** `77736b783d55752a35a3aeb3b66b6b6dce7e87f1`  
-**الحالة:** 14E.1 و14E.2 اجتازتا الاختبارات المخصصة؛ Phase 14E ككل لا تزال قيد التنفيذ وغير مقبولة نهائياً.
+**آخر CI مكتمل موثق:** #227 على commit `fc5f432b9f9251cd86b8d78fe4ae5860946b3434`  
+**الحالة:** 14E.1 و14E.2 وassistant-level Toolset selection اجتازت الاختبارات المخصصة؛ Phase 14E ككل لا تزال قيد التنفيذ وغير مقبولة نهائياً.
 
 ## 1. خط الأساس والبوابات السابقة
 
@@ -82,11 +82,40 @@
 - APK CI يستخدم debug signing fallback عند غياب `android/key.properties`، ولا يمثل توقيع متجر.
 - لا يثبت نجاح #208 أن جميع Toolsets الفعلية قد صُنفت أو أن كل أدوات التطبيق اختبرت parity مع كل مزود.
 
-## 7. ما تبقى لإغلاق Phase 14E
+## 7. CI #227 — assistant-level Toolsets (مقبولة لهذه الشريحة)
+
+[GitHub Actions #227](https://github.com/m5ham3ds/KELIVO/actions/runs/46109278842) اكتمل بنجاح على commit `fc5f432b9f9251cd86b8d78fe4ae5860946b3434`، مع 42/42 خطوة ناجحة ودون فشل.
+
+- أضيف `Assistant.toolsetIds`؛ القيمة null تحفظ التوافق القديم وتُبقي كل المجموعات المتاحة.
+- أضيفت سياسة اختيار تُبقي `core` دائماً وتتجاهل المعرفات القديمة.
+- أضيفت مفاتيح اختيار عربية/إنجليزية في Local Tools مع الحفظ وإعادة الضبط.
+- نسخ المساعد يحفظ إعداد Toolsets ضمن خيارات نسخ الأدوات.
+- اختبارات النموذج والنسخ والواجهة وRegistry اجتازت Phase 14E gate.
+- Android JVM/Robolectric ومحاكي Phase 13P وبناء ARM64 ورفع APK: نجاح.
+
+**APK #227**
+- الاسم: `Kelivo-Android-arm64-v8a-1.3.4+84-release.apk`.
+- الحجم: 41,953,323 bytes.
+- SHA-256: `c09153eeeffe4e59c8ff37dd8999cdab2fea70b0cd4e5e301ce90a46ed662c46`.
+- Artifact ID: `15249920264`.
+
+## 8. Conversation-scoped Toolset binding — التغيير الحالي ينتظر CI
+
+أضيف عقد `ToolsetBinding` إلى `Conversation.extras`، ويُطبّق داخل `ToolHandlerService.buildToolRegistrySession` على نفس جلسة Registry:
+
+- غياب المفتاح أو null يرث اختيار المساعد.
+- القائمة الفارغة تعني عدم اختيار أي source Toolset، مع بقاء `core`.
+- القائمة المحددة تُقاطع مع اختيار المساعد ومع Toolsets المتاحة فعلياً في turn الحالي.
+- لا يمكن لربط المحادثة تجاوز إعدادات الأداة أو حدود Workspace/Skill/MCP أو بوابة الموافقات.
+- أضيفت اختبارات extras binding وسياسة التقاطع واختبار تكاملي لمسار ToolHandlerService.
+
+هذا العمل أحدث من CI #227، لذا لا يُعد مقبولاً قبل اجتياز CI جديد.
+
+## 9. ما تبقى لإغلاق Phase 14E
 
 1. ربط built-in tool catalogs وMCP وWorkspace بمجموعات Toolsets ذات namespaces فعلية بدلاً من الاعتماد العام على `core`.
 2. إجراء parity للتحقق من أن تعريفات الأدوات الحالية لم تتغير بعد provider schema translation وschema overrides.
-3. جعل اختيار Toolsets يتبع سياق assistant/task/workspace/Skill مع المحافظة على السلوك الافتراضي.
+3. استكمال اختبار conversation-scoped binding الحالي ثم ربط الاختيار بسياق task/Workspace/Skill مع المحافظة على حدود السماح الأعلى للمساعد.
 4. تفعيل direct/deferred/hidden exposure في طلبات النموذج الفعلية، مع deferred loading عند الحاجة.
 5. فرض حدود عدد الأدوات وحجم schema وtoken budgets على المسار الفعلي.
 6. الحفاظ على هوية MCP route snapshot والموافقات والإلغاء وoutput caps، وعدم إنشاء handler أو permission gateway موازٍ.

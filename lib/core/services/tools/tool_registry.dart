@@ -183,12 +183,17 @@ abstract final class ToolsetSelectionPolicy {
   static Set<String> resolve({
     required Iterable<String> availableToolsetIds,
     List<String>? configuredToolsetIds,
+    List<String>? conversationToolsetIds,
   }) {
     final available = availableToolsetIds.toSet()..remove('core');
-    final configured = configuredToolsetIds == null
+    final assistantAllowed = configuredToolsetIds == null
         ? available
         : available.intersection(configuredToolsetIds.toSet());
-    return Set<String>.unmodifiable(<String>{'core', ...configured});
+    // Conversation/task scope may narrow an assistant, never widen it.
+    final conversationAllowed = conversationToolsetIds == null
+        ? assistantAllowed
+        : assistantAllowed.intersection(conversationToolsetIds.toSet());
+    return Set<String>.unmodifiable(<String>{'core', ...conversationAllowed});
   }
 }
 
