@@ -203,6 +203,9 @@ jobs:
           bash .github/scripts/capture_step.sh phase14e_tool_registry_tests "Phase 14E source namespaces, turn-scoped gateway, deferred schema loading, live provider rounds and workspace toolset exposure" -- \
             flutter test --no-pub --concurrency=2 \
               test/core/services/tools/tool_registry_test.dart \
+              test/core/models/assistant_workspace_fields_test.dart \
+              test/core/providers/assistant_provider_copy_test.dart \
+              test/features/assistant/pages/assistant_settings_edit_page_mcp_test.dart \
               test/core/services/tools/built_in_tool_catalog_test.dart \
               test/core/services/mcp/mcp_tool_service_test.dart \
               test/features/home/services/tool_handler_service_test.dart \

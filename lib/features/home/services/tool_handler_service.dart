@@ -535,9 +535,10 @@ class ToolHandlerService {
       }
     }
 
-    // All source-specific sets remain enabled by default in this migration
-    // slice, preserving the exact legacy tool availability. Later selection
-    // wiring can narrow them without changing tool ownership or dispatch.
+    // Toolset membership is classified from the exact definitions captured
+    // after provider translation and schema overrides. Assistant selection is
+    // an additional allow-list; it does not replace the existing capability,
+    // workspace, Skill, MCP, or approval gates.
     const sourceToolsets = <ToolsetDescriptor>[
       ToolsetDescriptor(
         id: 'search',
@@ -589,11 +590,14 @@ class ToolHandlerService {
       toolsetByToolName: toolsetByToolName,
       exposureByToolName: exposureByToolName,
     );
-    // The existing assistant/workspace/Skill/MCP gates have already filtered
-    // definitions above. Select exactly the source Toolsets represented in
-    // this turn so the snapshot cannot accidentally enable unrelated groups.
+    // Preserve legacy behavior for assistants without an explicit list.
+    // Configured assistants may further restrict source Toolsets; core remains
+    // selected and stale IDs from removed Toolsets are ignored.
     return registry.createSession(
-      selectedToolsets: toolsetByToolName.values.toSet(),
+      selectedToolsets: ToolsetSelectionPolicy.resolve(
+        availableToolsetIds: toolsetByToolName.values,
+        configuredToolsetIds: assistant?.toolsetIds,
+      ),
     );
   }
 

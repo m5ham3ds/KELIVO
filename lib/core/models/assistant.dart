@@ -16,6 +16,17 @@ enum MemoryWriteScope {
 }
 
 class Assistant {
+  /// Source Toolsets that an assistant can explicitly enable or disable.
+  /// A null [toolsetIds] keeps legacy behavior and enables all available sets.
+  static const List<String> sourceToolsetIds = <String>[
+    'search',
+    'memory',
+    'local',
+    'workspace',
+    'mcp',
+    'video',
+  ];
+
   static const int defaultRecentChatsSummaryMessageCount = 5;
   static const int defaultMemoryOrganizeEveryNTurns = 1;
   static const int minMemoryOrganizeEveryNTurns = 1;
@@ -56,6 +67,10 @@ class Assistant {
   final List<String> mcpServerIds; // bound MCP server IDs
   final bool allowConversationMcp;
   final List<String> localToolIds; // enabled local tool IDs
+
+  /// Assistant-level allow-list of source Toolsets. Null means all available.
+  final List<String>? toolsetIds;
+
   /// Default workspace for new conversations started with this assistant.
   final String? defaultWorkspaceId;
 
@@ -122,6 +137,7 @@ class Assistant {
     this.mcpServerIds = const <String>[],
     this.allowConversationMcp = false,
     this.localToolIds = const <String>[],
+    this.toolsetIds,
     this.defaultWorkspaceId,
     this.defaultWorkspaceSetup = DefaultWorkspaceSetup.automatic,
     this.defaultWorkspaceChangeToken,
@@ -172,6 +188,7 @@ class Assistant {
     List<String>? mcpServerIds,
     bool? allowConversationMcp,
     List<String>? localToolIds,
+    List<String>? toolsetIds,
     String? defaultWorkspaceId,
     DefaultWorkspaceSetup? defaultWorkspaceSetup,
     List<String>? skillIds,
@@ -199,6 +216,7 @@ class Assistant {
     bool clearChatModel = false,
     bool clearDefaultWorkspaceId = false,
     bool clearSkillIds = false,
+    bool clearToolsetIds = false,
     bool clearAvatar = false,
     bool clearTemperature = false,
     bool clearTopP = false,
@@ -234,6 +252,9 @@ class Assistant {
       mcpServerIds: mcpServerIds ?? this.mcpServerIds,
       allowConversationMcp: allowConversationMcp ?? this.allowConversationMcp,
       localToolIds: localToolIds ?? this.localToolIds,
+      toolsetIds: clearToolsetIds
+          ? null
+          : (toolsetIds ?? this.toolsetIds),
       defaultWorkspaceId: clearDefaultWorkspaceId
           ? null
           : (defaultWorkspaceId ?? this.defaultWorkspaceId),
@@ -306,6 +327,7 @@ class Assistant {
     'mcpServerIds': mcpServerIds,
     'allowConversationMcp': allowConversationMcp,
     'localToolIds': localToolIds,
+    'toolsetIds': toolsetIds,
     'defaultWorkspaceId': defaultWorkspaceId,
     'defaultWorkspaceSetup': defaultWorkspaceSetup.name,
     'skillIds': skillIds,
@@ -369,6 +391,9 @@ class Assistant {
     allowConversationMcp: json['allowConversationMcp'] as bool? ?? false,
     localToolIds:
         (json['localToolIds'] as List?)?.cast<String>() ?? const <String>[],
+    toolsetIds: json['toolsetIds'] == null
+        ? null
+        : (json['toolsetIds'] as List).map((e) => e.toString()).toList(),
     defaultWorkspaceId: json['defaultWorkspaceId'] as String?,
     defaultWorkspaceSetup:
         DefaultWorkspaceSetup.values

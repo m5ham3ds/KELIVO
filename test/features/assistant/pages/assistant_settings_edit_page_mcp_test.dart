@@ -268,6 +268,61 @@ void main() {
     );
   });
 
+  testWidgets('assistant can restrict a source Toolset and restore defaults', (
+    tester,
+  ) async {
+    final bundle = await _createAssistantProvider(tester);
+    final assistants = bundle.assistantProvider;
+
+    await tester.pumpWidget(
+      _buildHarness(
+        assistantProvider: assistants,
+        chatService: bundle.chatService,
+        memoryV2: bundle.memoryV2,
+        pipeline: bundle.pipeline,
+        child: const AssistantSettingsEditPage(assistantId: _assistantId),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Local Tools'));
+    await tester.pumpAndSettle();
+
+    expect(assistants.getById(_assistantId)!.toolsetIds, isNull);
+    final mcpSwitch = find.byKey(const ValueKey('assistant-toolset-switch-mcp'));
+    expect(tester.widget<IosSwitch>(mcpSwitch).value, isTrue);
+    await tester.tap(mcpSwitch);
+    await tester.pumpAndSettle();
+
+    await tester.runAsync(() async {
+      for (var i = 0; i < 50; i++) {
+        final saved = Assistant.decodeList(
+          assistants.preferences.getString('assistants_v1') ?? '[]',
+        );
+        if (saved.single.toolsetIds?.contains('mcp') == false) return;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    await tester.pumpAndSettle();
+    expect(
+      assistants.getById(_assistantId)!.toolsetIds,
+      containsAll(<String>['search', 'memory', 'local', 'workspace', 'video']),
+    );
+    expect(
+      assistants.getById(_assistantId)!.toolsetIds,
+      isNot(contains('mcp')),
+    );
+
+    await tester.tap(find.text('Use defaults'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      for (var i = 0; i < 50; i++) {
+        if (assistants.getById(_assistantId)!.toolsetIds == null) return;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    expect(assistants.getById(_assistantId)!.toolsetIds, isNull);
+  });
+
   testWidgets('blocked location permission offers settings and can recover', (
     tester,
   ) async {

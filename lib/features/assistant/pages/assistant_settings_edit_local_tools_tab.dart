@@ -61,9 +61,134 @@ class _LocalToolsTab extends StatelessWidget {
       );
     }
 
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final selectedToolsets =
+        assistant.toolsetIds?.toSet() ??
+        Assistant.sourceToolsetIds.toSet();
+
+    Future<void> updateToolset(String id, bool enabled) async {
+      final next = Set<String>.of(selectedToolsets);
+      if (enabled) {
+        next.add(id);
+      } else {
+        next.remove(id);
+      }
+      final allSelected = Assistant.sourceToolsetIds.every(next.contains);
+      await ap.updateAssistant(
+        assistant.copyWith(
+          toolsetIds: allSelected ? null : (next.toList()..sort()),
+          clearToolsetIds: allSelected,
+        ),
+      );
+    }
+
+    final toolsetRows = <({
+      String id,
+      String title,
+      String subtitle,
+      IconData icon,
+    })>[
+      (
+        id: 'search',
+        title: isArabic ? 'البحث' : 'Search',
+        subtitle: isArabic ? 'البحث على الويب وجلب المحتوى' : 'Web search and retrieval',
+        icon: Lucide.Search,
+      ),
+      (
+        id: 'memory',
+        title: isArabic ? 'الذاكرة' : 'Memory',
+        subtitle: isArabic ? 'استرجاع الذاكرة وإدارتها' : 'Conversation memory tools',
+        icon: Lucide.Brain,
+      ),
+      (
+        id: 'local',
+        title: isArabic ? 'الأدوات المحلية والإضافات' : 'Local and extensions',
+        subtitle: isArabic ? 'أدوات الجهاز والمهارات والإضافات' : 'Device, Skill and extension tools',
+        icon: Lucide.Wrench,
+      ),
+      (
+        id: 'workspace',
+        title: isArabic ? 'مساحة العمل' : 'Workspace',
+        subtitle: isArabic ? 'الملفات والطرفية وعمليات مساحة العمل' : 'Files, terminal and workspace operations',
+        icon: Lucide.FileText,
+      ),
+      (
+        id: 'mcp',
+        title: isArabic ? 'خوادم MCP' : 'MCP servers',
+        subtitle: isArabic ? 'الأدوات المتصلة عبر خوادم MCP' : 'Tools provided by connected MCP servers',
+        icon: Lucide.Terminal,
+      ),
+      (
+        id: 'video',
+        title: isArabic ? 'إنتاج الفيديو' : 'Video production',
+        subtitle: isArabic ? 'محركات الفيديو والمزودون وسير العمل' : 'Video engines, providers and workflows',
+        icon: Lucide.Play,
+      ),
+    ];
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       children: [
+        SectionCard(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isArabic ? 'مجموعات الأدوات' : 'Toolsets',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: AppFontWeights.semibold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isArabic
+                        ? 'مرشح إضافي للمساعد؛ تظل إعدادات وصلاحيات كل أداة سارية.'
+                        : 'An additional assistant-level filter. Each tool setting and permission still applies.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.35,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.62),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            for (var i = 0; i < toolsetRows.length; i++) ...[
+              if (i > 0) _iosDivider(context),
+              _AssistantToolsetRow(
+                id: toolsetRows[i].id,
+                title: toolsetRows[i].title,
+                subtitle: toolsetRows[i].subtitle,
+                icon: toolsetRows[i].icon,
+                enabled: selectedToolsets.contains(toolsetRows[i].id),
+                onChanged: (enabled) => updateToolset(toolsetRows[i].id, enabled),
+              ),
+            ],
+            if (assistant.toolsetIds != null) ...[
+              _iosDivider(context),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton(
+                    onPressed: () => ap.updateAssistant(
+                      assistant.copyWith(clearToolsetIds: true),
+                    ),
+                    child: Text(
+                      isArabic ? 'استخدام الافتراضي' : 'Use defaults',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
         SectionCard(
           children: [
             if (LocalToolsService.isAvailableOnThisPlatform(
@@ -264,6 +389,85 @@ class _LocalToolsTab extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _AssistantToolsetRow extends StatelessWidget {
+  const _AssistantToolsetRow({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String id;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return _TactileRow(
+      onTap: () => onChanged(!enabled),
+      builder: (pressed) {
+        final color = cs.onSurface.withValues(alpha: pressed ? 0.68 : 0.9);
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 36,
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: enabled ? cs.primary : color,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        color: color,
+                        fontWeight: AppFontWeights.semibold,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.25,
+                        color: cs.onSurface.withValues(alpha: 0.62),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              IosSwitch(
+                key: ValueKey('assistant-toolset-switch-$id'),
+                value: enabled,
+                onChanged: onChanged,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

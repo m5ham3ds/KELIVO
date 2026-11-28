@@ -391,6 +391,11 @@ class AssistantProvider extends ChangeNotifier {
           localToolIds: options.tools
               ? List<String>.of(source.localToolIds)
               : const [],
+          toolsetIds: options.tools
+              ? source.toolsetIds == null
+                    ? null
+                    : List<String>.of(source.toolsetIds!)
+              : const <String>[],
           searchEnabled: options.tools && source.searchEnabled,
           defaultWorkspaceId: options.workspace
               ? source.defaultWorkspaceId

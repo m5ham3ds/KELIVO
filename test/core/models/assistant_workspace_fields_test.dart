@@ -68,19 +68,36 @@ void main() {
       expect(decoded.skillIds, <String>['skill-1', 'skill-2']);
     });
 
+    test('toolsetIds keeps legacy defaults and round-trips explicit selection', () {
+      final legacy = Assistant.fromJson({'id': 'legacy', 'name': 'Legacy'});
+      expect(legacy.toolsetIds, isNull);
+
+      const configured = Assistant(
+        id: 'configured',
+        name: 'Configured',
+        toolsetIds: <String>['search', 'mcp'],
+      );
+      final restored = Assistant.fromJson(configured.toJson());
+      expect(restored.toolsetIds, <String>['search', 'mcp']);
+      expect(restored.copyWith(name: 'Renamed').toolsetIds, <String>['search', 'mcp']);
+    });
+
     test('copyWith can clear the new fields', () {
       const assistant = Assistant(
         id: 'a',
         name: 'A',
         defaultWorkspaceId: 'ws-1',
         skillIds: <String>['skill-1'],
+        toolsetIds: <String>['search'],
       );
       final cleared = assistant.copyWith(
         clearDefaultWorkspaceId: true,
         clearSkillIds: true,
+        clearToolsetIds: true,
       );
       expect(cleared.defaultWorkspaceId, isNull);
       expect(cleared.skillIds, isNull);
+      expect(cleared.toolsetIds, isNull);
     });
   });
 }

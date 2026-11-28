@@ -176,6 +176,22 @@ class ToolRegistryBuilder {
   }
 }
 
+/// Resolves an assistant's allow-list against the source Toolsets available
+/// in this turn. Unknown/stale IDs are ignored and the internal core set is
+/// always retained so control-plane tools remain reachable.
+abstract final class ToolsetSelectionPolicy {
+  static Set<String> resolve({
+    required Iterable<String> availableToolsetIds,
+    List<String>? configuredToolsetIds,
+  }) {
+    final available = availableToolsetIds.toSet()..remove('core');
+    final configured = configuredToolsetIds == null
+        ? available
+        : available.intersection(configuredToolsetIds.toSet());
+    return Set<String>.unmodifiable(<String>{'core', ...configured});
+  }
+}
+
 class ToolRegistrySnapshot {
   ToolRegistrySnapshot._({
     required List<ToolRegistryEntry> entries,

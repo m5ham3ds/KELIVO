@@ -37,6 +37,7 @@ final _source = Assistant(
   mcpServerIds: ['mcp'],
   allowConversationMcp: true,
   localToolIds: ['fetch'],
+  toolsetIds: ['search', 'mcp'],
   defaultWorkspaceId: 'workspace',
   defaultWorkspaceSetup: DefaultWorkspaceSetup.completed,
   skillIds: ['skill'],
@@ -355,6 +356,7 @@ void main() {
       expect(copy.mcpServerIds, isEmpty);
       expect(copy.allowConversationMcp, isFalse);
       expect(copy.localToolIds, isEmpty);
+      expect(copy.toolsetIds, isEmpty);
       expect(copy.searchEnabled, isFalse);
       expect(copy.healthDataTypeIds, isEmpty);
       expect(copy.defaultWorkspaceId, isNull);

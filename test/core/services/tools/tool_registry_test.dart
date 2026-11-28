@@ -50,6 +50,36 @@ void main() {
       expect(() => session.loadDeferredTool('debug_state'), throwsA(isA<ToolRegistryException>()));
     });
 
+    test('assistant Toolset selection keeps core and defaults to available sets', () {
+      final available = <String>{
+        'core',
+        'search',
+        'memory',
+        'local',
+        'workspace',
+        'mcp',
+        'video',
+      };
+      expect(
+        ToolsetSelectionPolicy.resolve(availableToolsetIds: available),
+        available,
+      );
+      expect(
+        ToolsetSelectionPolicy.resolve(
+          availableToolsetIds: available,
+          configuredToolsetIds: <String>['mcp', 'removed-toolset'],
+        ),
+        <String>{'core', 'mcp'},
+      );
+      expect(
+        ToolsetSelectionPolicy.resolve(
+          availableToolsetIds: available,
+          configuredToolsetIds: const <String>[],
+        ),
+        <String>{'core'},
+      );
+    });
+
     test('toolset selection excludes unrelated deferred metadata', () {
       final builder = ToolRegistryBuilder()
         ..registerToolset(const ToolsetDescriptor(id: 'core', title: 'Core', enabledByDefault: true))
