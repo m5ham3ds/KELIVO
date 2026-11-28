@@ -379,7 +379,7 @@ jobs:
         shell: bash
         run: |
           bash .github/scripts/capture_step.sh android_full_unit_tests "Run all Android JVM and Robolectric unit tests" -- \
-            bash .github/scripts/run_gradle_with_network_retry.sh gradle --no-daemon --init-script .github/scripts/gradle-plugin-mirror.init.gradle -p android :app:testDebugUnitTest
+            bash .github/scripts/run_gradle_with_network_retry.sh gradle --no-daemon --init-script "$GITHUB_WORKSPACE/.github/scripts/gradle-plugin-mirror.init.gradle" -p android :app:testDebugUnitTest
 
       - name: Prepare KVM access for Android emulator
         id: prepare_android_kvm
