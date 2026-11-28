@@ -1,0 +1,11 @@
+// Apply the hosted Maven Central mirror before evaluating every Gradle settings file.
+// This also covers Flutter's included Gradle build, whose plugin repositories are
+// independent from android/settings.gradle.kts.
+import java.net.URI
+
+gradle.beforeSettings { settings ->
+    settings.pluginManagement.repositories.maven {
+        name = "KelivoGoogleHostedMavenCentralMirror"
+        url = URI.create("https://maven-central.storage-download.googleapis.com/maven2/")
+    }
+}
