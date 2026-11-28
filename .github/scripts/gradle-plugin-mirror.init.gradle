@@ -8,6 +8,9 @@ gradle.beforeSettings { settings ->
         name = "KelivoGoogleHostedMavenCentralPluginMirror"
         url = URI.create("https://maven-central.storage-download.googleapis.com/maven2/")
     }
+    // Some Gradle plugin markers (notably org.gradle.kotlin.kotlin-dsl)
+    // are published only to the Plugin Portal, not Maven Central.
+    settings.pluginManagement.repositories.gradlePluginPortal()
     // Flutter's included build uses dependencyResolutionManagement for the
     // Kotlin DSL plugin classpath; project-level repository declarations do
     // not reach this build (and its settings enforce FAIL_ON_PROJECT_REPOS).
