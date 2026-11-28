@@ -243,11 +243,8 @@ void main() {
     await tester.tap(find.text('Local Tools'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.scrollUntilVisible(
-      find.text('Time Info'),
-      240,
-      scrollable: find.byType(Scrollable).last,
-    );
+    final timeInfo = find.text('Time Info');
+    await tester.ensureVisible(timeInfo);
     await tester.pumpAndSettle();
 
     expect(find.text('Time Info'), findsOneWidget);
@@ -319,11 +316,8 @@ void main() {
     );
 
     final resetDefaults = find.text('Use defaults');
-    await tester.scrollUntilVisible(
-      resetDefaults,
-      240,
-      scrollable: find.byType(Scrollable).last,
-    );
+    await tester.ensureVisible(resetDefaults);
+    await tester.pumpAndSettle();
     await tester.tap(resetDefaults);
     await tester.pumpAndSettle();
     await tester.runAsync(() async {
@@ -381,11 +375,7 @@ void main() {
     await tester.tap(find.text('Local Tools'));
     await tester.pumpAndSettle();
     final locationTitle = find.text('Current Location');
-    await tester.scrollUntilVisible(
-      locationTitle,
-      320,
-      scrollable: find.byType(Scrollable).last,
-    );
+    await tester.ensureVisible(locationTitle);
     await tester.pumpAndSettle();
     final locationSwitch = find.descendant(
       of: find.ancestor(of: locationTitle, matching: find.byType(Row)).first,

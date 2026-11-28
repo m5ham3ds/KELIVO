@@ -67,7 +67,10 @@ class _LocalToolsTab extends StatelessWidget {
         Assistant.sourceToolsetIds.toSet();
 
     Future<void> updateToolset(String id, bool enabled) async {
-      final next = Set<String>.of(selectedToolsets);
+      final current =
+          ap.getById(assistantId)?.toolsetIds?.toSet() ??
+          Assistant.sourceToolsetIds.toSet();
+      final next = Set<String>.of(current);
       if (enabled) {
         next.add(id);
       } else {
@@ -126,9 +129,11 @@ class _LocalToolsTab extends StatelessWidget {
       ),
     ];
 
-    return ListView(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-      children: [
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
         SectionCard(
           children: [
             Padding(
@@ -388,7 +393,8 @@ class _LocalToolsTab extends StatelessWidget {
               ),
           ],
         ),
-      ],
+        ],
+      ),
     );
   }
 }
